@@ -39,8 +39,7 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
 
-    /* Only on CI systems run the tests headless */
-    headless: !!process.env.CI,
+    headless: true,
   },
 
   /* Configure projects for major browsers */
@@ -103,8 +102,10 @@ export default defineConfig({
      * Use the preview server on CI for more realistic testing.
      * Playwright will re-use the local server if there is already a dev-server running.
      */
-    command: process.env.CI ? 'npm run preview' : 'npm run dev',
+    command: process.env.CI
+      ? 'node ./node_modules/vite/bin/vite.js preview --host 127.0.0.1 --port 4173'
+      : 'node ./node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173',
     port: process.env.CI ? 4173 : 5173,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
   },
 })
