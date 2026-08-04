@@ -13,6 +13,10 @@ import HelloWorld from './components/HelloWorld.vue'
       <nav>
         <RouterLink to="/">Home</RouterLink>
         <RouterLink to="/about">About</RouterLink>
+        <!-- Temporary links for STORE-06 verification. Replace with the shared ERP admin layout. -->
+        <RouterLink to="/management/store-settings/profile">기본 정보</RouterLink>
+        <RouterLink to="/management/store-settings/schedule">영업·휴무·서비스 시간</RouterLink>
+        <RouterLink to="/management/store-settings/features">기능·알림 설정</RouterLink>
       </nav>
     </div>
   </header>
