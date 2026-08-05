@@ -123,6 +123,16 @@ async function refreshSelectedContext() {
   qrMessage.value = ''
   qrResult.value = null
   closeBlockers.value = []
+  // Clear the previous table/session's order and history state before loading the
+  // newly selected table's data so stale data from another table never lingers on
+  // screen (e.g. when the operator lacks read permission or the new load fails).
+  currentOrders.value = { session: null, items: [], nextCursor: null }
+  pastOrders.value = { session: null, items: [], nextCursor: null }
+  pastSessions.value = []
+  pastNextCursor.value = null
+  selectedPastSessionId.value = ''
+  currentError.value = ''
+  pastError.value = ''
   if (activeTableId.value && canReadOrders.value) {
     await Promise.all([loadCurrentOrders(false), loadPastSessions(false)])
   }
@@ -336,14 +346,21 @@ async function loadCurrentOrders(append: boolean) {
   if (!activeTableId.value || !canReadOrders.value) {
     return
   }
+  // Capture the table this request was issued for. If the operator switches to a
+  // different table before the response arrives, a late response must not overwrite
+  // the now-selected table's state with another table's orders.
+  const requestedTableId = activeTableId.value
   currentLoading.value = true
   currentError.value = ''
   try {
-    const response = await getCurrentOrders(operator.auth, activeTableId.value, {
+    const response = await getCurrentOrders(operator.auth, requestedTableId, {
       status: currentStatus.value || undefined,
       cursor: append ? (currentOrders.value.nextCursor ?? undefined) : undefined,
       size: currentSize.value,
     })
+    if (requestedTableId !== activeTableId.value) {
+      return
+    }
     currentOrders.value = append
       ? {
           session: response.session,
@@ -352,9 +369,13 @@ async function loadCurrentOrders(append: boolean) {
         }
       : response
   } catch (error) {
-    currentError.value = problemMessage(error)
+    if (requestedTableId === activeTableId.value) {
+      currentError.value = problemMessage(error)
+    }
   } finally {
-    currentLoading.value = false
+    if (requestedTableId === activeTableId.value) {
+      currentLoading.value = false
+    }
   }
 }
 
@@ -362,15 +383,19 @@ async function loadPastSessions(append: boolean) {
   if (!activeTableId.value || !canReadOrders.value) {
     return
   }
+  const requestedTableId = activeTableId.value
   pastLoading.value = true
   pastError.value = ''
   try {
-    const response = await getPastSessions(operator.auth, activeTableId.value, {
+    const response = await getPastSessions(operator.auth, requestedTableId, {
       from: toInstant(pastFrom.value),
       to: toInstant(pastTo.value),
       cursor: append ? (pastNextCursor.value ?? undefined) : undefined,
       size: pastSize.value,
     })
+    if (requestedTableId !== activeTableId.value) {
+      return
+    }
     pastSessions.value = append ? [...pastSessions.value, ...response.items] : response.items
     pastNextCursor.value = response.nextCursor
     if (!append) {
@@ -378,9 +403,13 @@ async function loadPastSessions(append: boolean) {
       pastOrders.value = { session: null, items: [], nextCursor: null }
     }
   } catch (error) {
-    pastError.value = problemMessage(error)
+    if (requestedTableId === activeTableId.value) {
+      pastError.value = problemMessage(error)
+    }
   } finally {
-    pastLoading.value = false
+    if (requestedTableId === activeTableId.value) {
+      pastLoading.value = false
+    }
   }
 }
 
@@ -388,19 +417,24 @@ async function loadPastOrders(append: boolean) {
   if (!activeTableId.value || !selectedPastSessionId.value || !canReadOrders.value) {
     return
   }
+  const requestedTableId = activeTableId.value
+  const requestedSessionId = selectedPastSessionId.value
   pastLoading.value = true
   pastError.value = ''
   try {
     const response = await getPastSessionOrders(
       operator.auth,
-      activeTableId.value,
-      selectedPastSessionId.value,
+      requestedTableId,
+      requestedSessionId,
       {
         status: pastOrderStatus.value || undefined,
         cursor: append ? (pastOrders.value.nextCursor ?? undefined) : undefined,
         size: pastSize.value,
       },
     )
+    if (requestedTableId !== activeTableId.value || requestedSessionId !== selectedPastSessionId.value) {
+      return
+    }
     pastOrders.value = append
       ? {
           session: response.session,
@@ -409,9 +443,13 @@ async function loadPastOrders(append: boolean) {
         }
       : response
   } catch (error) {
-    pastError.value = problemMessage(error)
+    if (requestedTableId === activeTableId.value && requestedSessionId === selectedPastSessionId.value) {
+      pastError.value = problemMessage(error)
+    }
   } finally {
-    pastLoading.value = false
+    if (requestedTableId === activeTableId.value && requestedSessionId === selectedPastSessionId.value) {
+      pastLoading.value = false
+    }
   }
 }
 

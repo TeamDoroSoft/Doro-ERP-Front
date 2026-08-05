@@ -275,6 +275,88 @@ describe('TableOperationsView', () => {
     await flushPromises()
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/sessions/past-1/orders'))).toBe(true)
   })
+
+  it('TABLE-10: does not let a slow response for a previously selected table overwrite the newly selected table', async () => {
+    const tableB = { ...tableA, tableId: 'table-b', tableNumber: 'B2', displayName: '홀' }
+    let resolveTableBCurrentOrders: ((value: unknown) => void) | undefined
+    const tableBCurrentOrders = new Promise((resolve) => {
+      resolveTableBCurrentOrders = resolve
+    })
+    let tableAOrderCalls = 0
+
+    function currentOrdersResponse(orderNumber: string, sessionId: string, tableId: string) {
+      return jsonResponse({
+        session: { sessionId, tableId, openedAt: '2026-08-04T12:00:00Z', closedAt: null, status: 'OPEN' },
+        items: [
+          {
+            orderId: `order-${orderNumber}`,
+            orderNumber,
+            createdAt: '2026-08-04T12:05:00Z',
+            status: 'IN_PROGRESS',
+            totalAmount: '1000.00',
+            currency: 'KRW',
+            paymentStatus: 'UNPAID',
+            items: [{ productId: 'p-1', productName: '상품', quantity: 1, lineAmount: '1000.00' }],
+          },
+        ],
+        nextCursor: null,
+      })
+    }
+
+    const fetchMock = vi.fn<FetchMock>((input, init) => {
+      const path = String(input)
+      const method = init?.method ?? 'GET'
+      if (path === '/tables' && method === 'GET') {
+        return Promise.resolve(jsonResponse([tableA, tableB]))
+      }
+      if (path.includes('/tables/table-a/sessions/current/orders')) {
+        tableAOrderCalls += 1
+        // First call happens on mount (auto-selected table A); resolve fast so the
+        // table list itself renders. Second call happens after switching back to A
+        // from B and must resolve with fresh content.
+        const orderNumber = tableAOrderCalls === 1 ? 'A-INITIAL' : 'A-SECOND'
+        return Promise.resolve(currentOrdersResponse(orderNumber, 'session-a', 'table-a'))
+      }
+      if (path.includes('/tables/table-b/sessions/current/orders')) {
+        // Table B's response stays pending until the test resolves it explicitly,
+        // simulating a slow request that arrives after the operator has already
+        // switched back to another table.
+        return tableBCurrentOrders.then(() => currentOrdersResponse('B-STALE', 'session-b', 'table-b'))
+      }
+      if (path.includes('/sessions/history')) {
+        return Promise.resolve(jsonResponse({ items: [], nextCursor: null }))
+      }
+      return Promise.reject(new Error(`unexpected ${method} ${path}`))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = mountView()
+    await flushPromises()
+    // Table A is auto-selected on mount and its orders resolved immediately.
+    expect(wrapper.text()).toContain('A-INITIAL')
+
+    const tableCards = wrapper.findAll('.table-card__main')
+    expect(tableCards).toHaveLength(2)
+    await tableCards[1]!.trigger('click')
+    await flushPromises()
+    // Switching to table B must clear table A's previous orders immediately, even
+    // though table B's own request has not resolved yet.
+    expect(wrapper.text()).not.toContain('A-INITIAL')
+    expect(wrapper.text()).not.toContain('B-STALE')
+
+    // Operator switches back to table A before B's slow request resolves.
+    await tableCards[0]!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('A-SECOND')
+
+    // Table B's slow response now arrives after the operator already switched away.
+    resolveTableBCurrentOrders?.(undefined)
+    await flushPromises()
+
+    // It must not clobber table A's already-rendered state.
+    expect(wrapper.text()).toContain('A-SECOND')
+    expect(wrapper.text()).not.toContain('B-STALE')
+  })
 })
 
 function mountView() {
