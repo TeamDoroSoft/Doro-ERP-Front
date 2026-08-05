@@ -17,6 +17,26 @@ const router = createRouter({
       // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue'),
     },
+    {
+      path: '/management/catalog/categories',
+      name: 'category-management',
+      component: () => import('../views/management/CategoryManagementView.vue'),
+    },
+    {
+      path: '/management/catalog/products',
+      name: 'product-management',
+      component: () => import('../views/management/ProductManagementView.vue'),
+    },
+    {
+      path: '/management/catalog/history',
+      name: 'catalog-history',
+      component: () => import('../views/management/CatalogHistoryView.vue'),
+    },
+    {
+      path: '/menu',
+      name: 'public-menu',
+      component: () => import('../views/PublicMenuView.vue'),
+    },
   ],
 })
 
