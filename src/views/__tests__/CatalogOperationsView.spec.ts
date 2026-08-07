@@ -23,10 +23,7 @@ const salesMenu = {
           name: '아메리카노',
           description: null,
           price: 4500,
-          soldOut: false,
-          sellable: true,
           displayOrder: 0,
-          version: 2,
         },
       ],
     },
@@ -72,24 +69,65 @@ describe('CatalogOperationsView', () => {
     expect(wrapper.find(`[data-testid="sold-out-${PRODUCT_ID}"]`).exists()).toBe(true)
   })
 
-  it('hides catalog editing from STAFF but keeps the sold out toggle', async () => {
+  it('hides catalog editing from STAFF but keeps the sold out operations table', async () => {
     stubFetch(defaultHandler())
     const wrapper = await mountView('STAFF')
 
     expect(wrapper.find('[data-testid="open-category-create"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="open-product-create"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sold-out-table"]').exists()).toBe(true)
     expect(wrapper.find(`[data-testid="sold-out-${PRODUCT_ID}"]`).exists()).toBe(true)
     expect(wrapper.get('[data-testid="role-notice"]').text()).toContain('품절 변경만 가능')
   })
 
-  it('hides every mutation from a KIOSK_DEVICE', async () => {
-    stubFetch(defaultHandler())
+  it('hides every mutation and the operations table from a KIOSK_DEVICE', async () => {
+    const fetchMock = stubFetch(defaultHandler())
     const wrapper = await mountView('KIOSK_DEVICE')
 
     expect(wrapper.find('[data-testid="open-category-create"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sold-out-table"]').exists()).toBe(false)
     expect(wrapper.find(`[data-testid="sold-out-${PRODUCT_ID}"]`).exists()).toBe(false)
-    expect(wrapper.find('[data-testid="sold-out-readonly"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="kiosk-note"]').exists()).toBe(true)
+    // Kiosk는 운영 목록을 요청조차 하지 않는다. 서버도 별도로 403으로 막는다.
+    const operationsCalls = fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith('/api/v1/catalog/products'),
+    )
+    expect(operationsCalls).toHaveLength(0)
+  })
+
+  it('renders the sales menu without any sellability flag because the server already filtered', async () => {
+    stubFetch(defaultHandler())
+    const wrapper = await mountView('KIOSK_DEVICE')
+
+    // 안내 문구(caption)가 아니라 실제 표 본문만 확인한다.
+    const rows = wrapper.get('[data-testid="sales-menu-table"] tbody').text()
+    expect(rows).toContain('아메리카노')
+    expect(rows).toContain('4,500원')
+    expect(rows).not.toContain('판매 불가')
+    expect(rows).not.toContain('품절')
+
+    const headers = wrapper
+      .findAll('[data-testid="sales-menu-table"] thead th')
+      .map((th) => th.text())
+    expect(headers).toEqual(['Category', '상품', '가격'])
+  })
+
+  it('requests the same sales menu contract for POS and KIOSK actors', async () => {
+    const posFetch = stubFetch(defaultHandler())
+    await mountView('STAFF')
+    const posMenuCall = posFetch.mock.calls.find(([input]) =>
+      String(input).endsWith('/api/v1/catalog/menu'),
+    )
+
+    vi.unstubAllGlobals()
+    const kioskFetch = stubFetch(defaultHandler())
+    await mountView('KIOSK_DEVICE')
+    const kioskMenuCall = kioskFetch.mock.calls.find(([input]) =>
+      String(input).endsWith('/api/v1/catalog/menu'),
+    )
+
+    expect(posMenuCall?.[0]).toBe(kioskMenuCall?.[0])
+    expect(posMenuCall?.[1]?.method ?? 'GET').toBe(kioskMenuCall?.[1]?.method ?? 'GET')
   })
 
   it('sends the sold out change with the current version', async () => {

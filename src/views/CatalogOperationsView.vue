@@ -64,7 +64,11 @@ const categoryNameById = computed(() =>
   Object.fromEntries(categories.value.map((category) => [category.categoryId, category.name])),
 )
 
-/** 품절 Toggle이 필요한 STAFF도 최신 version이 있어야 하므로 판매 메뉴 항목을 평탄화해 사용한다. */
+/**
+ * POS·Kiosk가 실제로 받는 판매 메뉴.
+ *
+ * 서버가 비활성·품절을 이미 제외하므로 화면에서 다시 거르지 않는다.
+ */
 const menuItems = computed(() =>
   menu.value.categories.flatMap((category) =>
     category.products.map((product) => ({
@@ -73,6 +77,19 @@ const menuItems = computed(() =>
       categoryName: category.name,
     })),
   ),
+)
+
+/**
+ * 품절 운영 목록.
+ *
+ * 품절 상품은 판매 메뉴에서 빠지므로 되돌리려면 품절·비활성까지 보이는 운영 목록이 필요하다.
+ * 최신 version도 여기에서 가져와 If-Match로 보낸다.
+ */
+const operationsProducts = computed(() =>
+  products.value.map((product) => ({
+    ...product,
+    categoryName: categoryNameById.value[product.categoryId] ?? product.categoryId,
+  })),
 )
 
 onMounted(() => {
@@ -90,7 +107,8 @@ async function reload() {
     menu.value = { currency: 'KRW', categories: [] }
   }
 
-  if (canManageCatalog.value) {
+  // 운영 목록은 품절을 바꿀 수 있는 Role(OWNER·MANAGER·STAFF)만 조회한다. Kiosk 기기는 서버가 막는다.
+  if (canChangeSoldOut.value) {
     try {
       const [loadedCategories, loadedProducts] = await Promise.all([
         getCategories(session.auth),
@@ -321,17 +339,16 @@ function formatPrice(price: number): string {
       </div>
       <p v-if="loading" data-testid="loading">불러오는 중…</p>
       <p v-else-if="menuItems.length === 0" data-testid="empty-menu">판매 중인 메뉴가 없습니다.</p>
-      <table v-else class="catalog__table">
+      <table v-else class="catalog__table" data-testid="sales-menu-table">
         <caption class="catalog__caption">
-          활성 Category의 활성 상품만 표시합니다. 비활성 항목은 삭제되지 않고 숨겨집니다.
+          POS와 Kiosk가 받는 것과 같은 목록입니다. 비활성 Category·비활성 상품·품절 상품은 서버가
+          제외하며 데이터는 삭제되지 않습니다.
         </caption>
         <thead>
           <tr>
             <th scope="col">Category</th>
             <th scope="col">상품</th>
             <th scope="col">가격</th>
-            <th scope="col">판매 상태</th>
-            <th scope="col">품절</th>
           </tr>
         </thead>
         <tbody>
@@ -339,10 +356,36 @@ function formatPrice(price: number): string {
             <td>{{ item.categoryName }}</td>
             <td>{{ item.name }}</td>
             <td>{{ formatPrice(item.price) }}</td>
-            <td>{{ item.sellable ? '판매 가능' : '판매 불가' }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section v-if="canChangeSoldOut" aria-labelledby="sold-out-heading">
+      <div class="catalog__section-head">
+        <h2 id="sold-out-heading">품절 운영</h2>
+      </div>
+      <table class="catalog__table" data-testid="sold-out-table">
+        <caption class="catalog__caption">
+          품절 상품은 판매 메뉴에서 빠집니다. 여기에서 다시 판매를 재개할 수 있습니다.
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">상품</th>
+            <th scope="col">Category</th>
+            <th scope="col">가격</th>
+            <th scope="col">판매 상태</th>
+            <th scope="col">품절</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in operationsProducts" :key="item.productId">
+            <td>{{ item.name }}</td>
+            <td>{{ item.categoryName }}</td>
+            <td>{{ formatPrice(item.price) }}</td>
+            <td>{{ item.active ? '활성' : '비활성' }}</td>
             <td>
               <button
-                v-if="canChangeSoldOut"
                 type="button"
                 :disabled="soldOutBusyId === item.productId"
                 :data-testid="`sold-out-${item.productId}`"
@@ -350,7 +393,6 @@ function formatPrice(price: number): string {
               >
                 {{ item.soldOut ? '판매 재개' : '품절 처리' }}
               </button>
-              <span v-else data-testid="sold-out-readonly">{{ item.soldOut ? '품절' : '판매 중' }}</span>
             </td>
           </tr>
         </tbody>

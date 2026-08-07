@@ -80,15 +80,18 @@ export interface ProductResponse {
   version: number
 }
 
+/**
+ * 판매 메뉴 항목 (FR-CATALOG-004).
+ *
+ * 비활성 Category·비활성 상품·품절 상품은 서버가 이미 제외하므로 판매 가능 Flag가 없다.
+ * 목록에 있으면 곧 주문 가능한 상품이다. 품절 Toggle이 필요한 직원 화면은 운영 목록을 사용한다.
+ */
 export interface SalesMenuItemResponse {
   productId: string
   name: string
   description: string | null
   price: number
-  soldOut: boolean
-  sellable: boolean
   displayOrder: number
-  version: number
 }
 
 export interface SalesMenuCategoryResponse {
