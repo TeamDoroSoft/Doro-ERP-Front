@@ -11,28 +11,31 @@ export interface TossPaymentRequest {
 }
 
 export async function requestTossPayment(request: TossPaymentRequest): Promise<void> {
-  if (!request.clientKey.trim()) {
+  const clientKey = request.clientKey.trim()
+  if (!/^test_gck_[A-Za-z0-9_-]+$/.test(clientKey)) {
     throw new TossPaymentConfigurationError()
   }
 
-  const tossPayments = await loadTossPayments(request.clientKey.trim())
-  const payment = tossPayments.payment({ customerKey: ANONYMOUS })
-  await payment.requestPayment({
-    method: 'CARD',
-    amount: {
-      currency: request.currency,
-      value: request.amount,
-    },
-    orderId: request.providerOrderId,
-    orderName: request.orderName,
-    successUrl: request.successUrl,
-    failUrl: request.failUrl,
+  const tossPayments = await loadTossPayments(clientKey)
+  const widgets = tossPayments.widgets({ customerKey: ANONYMOUS })
+  await widgets.setAmount({
+    currency: request.currency,
+    value: request.amount,
+  })
+  const paymentWindow = await widgets.renderPaymentWindow()
+  paymentWindow.on('paymentRequest', async () => {
+    await widgets.requestPayment({
+      orderId: request.providerOrderId,
+      orderName: request.orderName,
+      successUrl: request.successUrl,
+      failUrl: request.failUrl,
+    })
   })
 }
 
 export class TossPaymentConfigurationError extends Error {
   constructor() {
-    super('VITE_TOSS_CLIENT_KEY가 설정되지 않았습니다.')
+    super('VITE_TOSS_CLIENT_KEY에는 test_gck_ 형식의 테스트 결제위젯 키만 사용할 수 있습니다.')
     this.name = 'TossPaymentConfigurationError'
   }
 }

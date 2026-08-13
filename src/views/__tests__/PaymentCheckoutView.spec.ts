@@ -27,7 +27,7 @@ const payment = {
 describe('PaymentCheckoutView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubEnv('VITE_TOSS_CLIENT_KEY', 'test_ck_client')
+    vi.stubEnv('VITE_TOSS_CLIENT_KEY', 'test_gck_client')
     window.sessionStorage.clear()
   })
 
@@ -52,7 +52,7 @@ describe('PaymentCheckoutView', () => {
     )
     expect(requestTossPayment).toHaveBeenCalledWith(
       expect.objectContaining({
-        clientKey: 'test_ck_client',
+        clientKey: 'test_gck_client',
         amount: payment.amount,
         currency: 'KRW',
         providerOrderId: payment.providerOrderId,

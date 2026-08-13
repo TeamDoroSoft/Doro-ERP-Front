@@ -199,8 +199,24 @@ function tossSdkScript(outcome: 'success' | 'cancel' | 'tamperedAmount') {
   return `
     window.TossPayments = function () {
       return {
-        payment: function () {
+        widgets: function () {
+          let configuredAmount;
           return {
+            setAmount: async function (amount) {
+              configuredAmount = amount;
+            },
+            renderPaymentWindow: async function () {
+              return {
+                on: function (eventName, callback) {
+                  if (eventName === 'paymentRequest') {
+                    Promise.resolve().then(function () {
+                      return callback({ paymentMethod: { code: 'CARD' } });
+                    });
+                  }
+                },
+                destroy: async function () {}
+              };
+            },
             requestPayment: async function (request) {
               const outcome = ${JSON.stringify(outcome)};
               const target = new URL(outcome === 'cancel' ? request.failUrl : request.successUrl);
@@ -210,7 +226,7 @@ function tossSdkScript(outcome: 'success' | 'cancel' | 'tamperedAmount') {
               } else {
                 target.searchParams.set('paymentKey', 'e2e-payment-key');
                 target.searchParams.set('orderId', request.orderId);
-                target.searchParams.set('amount', String(request.amount.value + (outcome === 'tamperedAmount' ? 1 : 0)));
+                target.searchParams.set('amount', String(configuredAmount.value + (outcome === 'tamperedAmount' ? 1 : 0)));
               }
               window.location.assign(target.toString());
             }

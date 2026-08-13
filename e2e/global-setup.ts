@@ -11,7 +11,7 @@ export default async function globalSetup() {
       cwd: process.cwd(),
       env: {
         ...process.env,
-        VITE_TOSS_CLIENT_KEY: 'test_ck_e2e_only',
+        VITE_TOSS_CLIENT_KEY: 'test_gck_e2e_only',
       },
       stdio: 'ignore',
       windowsHide: true,
