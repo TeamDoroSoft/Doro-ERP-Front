@@ -54,7 +54,8 @@ describe('PaymentResultView', () => {
       '44444444-4444-4444-8444-444444444444',
     )
     expect(wrapper.text()).toContain('결제가 완료되었습니다')
-    expect(wrapper.text()).toContain('PAID')
+    expect(wrapper.text()).toContain('결제 완료')
+    expect(wrapper.text()).not.toContain('PAID')
     expect(router.currentRoute.value.query.paymentKey).toBeUndefined()
   })
 

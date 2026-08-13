@@ -58,7 +58,8 @@ describe('PaymentCheckoutView', () => {
         providerOrderId: payment.providerOrderId,
       }),
     )
-    expect(wrapper.text()).toContain('PENDING')
+    expect(wrapper.text()).toContain('결제 대기')
+    expect(wrapper.text()).not.toContain('PENDING')
     expect(Object.keys(window.sessionStorage)).toHaveLength(1)
   })
 
@@ -87,7 +88,7 @@ describe('PaymentCheckoutView', () => {
     await submitPaymentForm(wrapper)
 
     expect(createPayment).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('VITE_TOSS_CLIENT_KEY')
+    expect(wrapper.text()).toContain('테스트 결제 설정을 확인해 주세요')
   })
 
   it('shows a distinct backend payment creation failure', async () => {

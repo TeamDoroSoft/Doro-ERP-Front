@@ -48,7 +48,7 @@ test('completes the mocked Edge and Toss payment flow', async ({ page }) => {
 
   releaseCreate()
   await expect(page.getByRole('heading', { name: '결제가 완료되었습니다' })).toBeVisible()
-  await expect(page.getByText('PAID', { exact: true })).toBeVisible()
+  await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
   await page.screenshot({ path: `${screenshotDirectory}/payment-success.png`, fullPage: true })
 
   expect(createRequests).toBe(1)

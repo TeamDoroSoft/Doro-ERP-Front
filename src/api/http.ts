@@ -33,6 +33,11 @@ export class ApiError extends Error {
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
+let unauthorizedHandler: (() => void) | undefined
+
+export function registerUnauthorizedHandler(handler: () => void) {
+  unauthorizedHandler = handler
+}
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined
@@ -50,7 +55,11 @@ async function readProblem(response: Response): Promise<ProblemDetails> {
   }
 }
 
-export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(
+  path: string,
+  options: RequestInit = {},
+  behavior: { handleUnauthorized?: boolean } = {},
+): Promise<T> {
   const method = (options.method ?? 'GET').toUpperCase()
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json, application/problem+json')
@@ -80,7 +89,11 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     })
   }
 
-  if (!response.ok) throw new ApiError(response.status, await readProblem(response))
+  if (!response.ok) {
+    const error = new ApiError(response.status, await readProblem(response))
+    if (error.status === 401 && behavior.handleUnauthorized !== false) unauthorizedHandler?.()
+    throw error
+  }
   if (response.status === 204) return undefined as T
 
   return (await response.json()) as T

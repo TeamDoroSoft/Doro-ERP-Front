@@ -3,7 +3,17 @@ import { test, expect } from '@playwright/test'
 // See here how to get started:
 // https://playwright.dev/docs/intro
 test('shows the active table management screen', async ({ page }) => {
-  await page.addInitScript(() => sessionStorage.setItem('doro-erp.employee-role', 'MANAGER'))
+  await page.addInitScript(() =>
+    sessionStorage.setItem(
+      'doro-erp.operator-session',
+      JSON.stringify({
+        employeeId: '00000000-0000-4000-8000-000000000001',
+        role: 'MANAGER',
+        tenantCode: 'DORO-DEMO',
+        passwordChangeRequired: false,
+      }),
+    ),
+  )
   await page.route('**/api/v1/tables', async (route) => {
     await route.fulfill({
       status: 200,
@@ -21,7 +31,11 @@ test('shows the active table management screen', async ({ page }) => {
   })
 
   await page.goto('/')
-  await expect(page).toHaveURL(/\/tables$/)
+  await expect(page).toHaveURL(/\/admin\/dashboard$/)
+  await expect(page.getByRole('heading', { name: '대시보드' })).toBeVisible()
+
+  await page.goto('/tables')
+  await expect(page).toHaveURL(/\/admin\/tables$/)
   await expect(page.getByRole('heading', { name: '테이블 관리' })).toBeVisible()
   await expect(page.getByText('A-1')).toBeVisible()
   await expect(page.getByText('창가')).toBeVisible()

@@ -14,6 +14,7 @@ import {
   readPendingPayment,
   type PendingPayment,
 } from '@/payments/pendingPayment'
+import { displayLabel } from '@/ui/displayLabels'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,7 +24,7 @@ const successRedirect = computed(() => route.name === 'payment-toss-success')
 const busy = ref(false)
 const result = ref<PaymentResponse | null>(null)
 const title = ref('결제 결과 확인 중')
-const message = ref('Backend 승인 결과를 확인하고 있습니다.')
+const message = ref('결제 승인 결과를 확인하고 있습니다.')
 const errorCode = ref('')
 const canRetry = ref(false)
 
@@ -60,7 +61,7 @@ async function approvePayment() {
 
   busy.value = true
   title.value = '결제 승인 중'
-  message.value = 'Toss 인증 결과를 Backend에서 승인하고 있습니다.'
+  message.value = '토스 결제 인증을 승인하고 있습니다.'
   errorCode.value = ''
   canRetry.value = false
   try {
@@ -77,14 +78,14 @@ async function approvePayment() {
 
     if (confirmed.status === 'PAID') {
       title.value = '결제가 완료되었습니다'
-      message.value = 'Backend 승인 결과가 PAID로 확인되었습니다.'
+      message.value = '결제가 완료되었습니다.'
     } else if (confirmed.status === 'REVIEW_REQUIRED') {
       title.value = '결제 확인이 필요합니다'
       message.value =
         '결제 결과가 불명확합니다. 성공 또는 실패로 추측하지 말고 운영 확인을 진행하세요.'
     } else {
       title.value = '결제가 완료되지 않았습니다'
-      message.value = `Backend 결제 상태는 ${confirmed.status}입니다.`
+      message.value = `결제 상태는 ${displayLabel(confirmed.status)}입니다.`
     }
   } catch (error) {
     handleConfirmError(error)
@@ -102,13 +103,13 @@ function captureSuccessRedirect() {
 function showTossFailure() {
   const code = queryValue('code') || 'TOSS_PAYMENT_FAILED'
   errorCode.value = code
-  title.value = code === 'PAY_PROCESS_CANCELED' ? '결제가 취소되었습니다' : 'Toss 결제 인증 실패'
+  title.value = code === 'PAY_PROCESS_CANCELED' ? '결제가 취소되었습니다' : '토스 결제 인증 실패'
   const safeMessageByCode: Record<string, string> = {
-    PAY_PROCESS_CANCELED: '사용자가 결제를 취소했습니다. Backend 승인은 호출하지 않았습니다.',
+    PAY_PROCESS_CANCELED: '사용자가 결제를 취소했습니다. 결제 승인을 진행하지 않았습니다.',
     PAY_PROCESS_ABORTED: '결제 인증이 중단되었습니다. 결제 정보를 확인한 뒤 다시 시도하세요.',
     REJECT_CARD_COMPANY: '카드사에서 결제를 거절했습니다. 다른 결제수단을 확인하세요.',
   }
-  message.value = safeMessageByCode[code] ?? 'Toss Payments에서 결제 인증을 완료하지 못했습니다.'
+  message.value = safeMessageByCode[code] ?? '토스페이먼츠에서 결제 인증을 완료하지 못했습니다.'
   clearPendingPayment(flowId)
 }
 
@@ -117,13 +118,13 @@ function validateRedirect(stored: PendingPayment | null): string {
     return '진행 중인 결제 정보를 찾을 수 없습니다. 주문 목록에서 다시 시작하세요.'
   }
   if (!paymentKey || !returnedProviderOrderId || !Number.isSafeInteger(returnedAmount)) {
-    return 'Toss 성공 응답의 필수 값이 누락되었거나 형식이 올바르지 않습니다.'
+    return '결제 결과에 필요한 정보가 없거나 형식이 올바르지 않습니다.'
   }
   if (
     returnedProviderOrderId !== stored.payment.providerOrderId ||
     returnedAmount !== stored.payment.amount
   ) {
-    return 'Toss 응답의 주문 ID 또는 금액이 Backend 생성 결과와 일치하지 않습니다.'
+    return '토스 결제 정보의 주문 ID 또는 금액이 결제 생성 결과와 일치하지 않습니다.'
   }
   return ''
 }
@@ -142,7 +143,7 @@ function assertConfirmContract(confirmed: PaymentResponse, stored: PendingPaymen
 
 function handleConfirmError(error: unknown) {
   if (error instanceof ConfirmContractError) {
-    title.value = '승인 응답 계약 불일치'
+    title.value = '결제 정보 확인 실패'
     message.value = error.message
     errorCode.value = 'PAYMENT_CONFIRM_CONTRACT_MISMATCH'
     canRetry.value = false
@@ -154,7 +155,7 @@ function handleConfirmError(error: unknown) {
   } else if (isDependencyPaymentError(error)) {
     title.value = '결제 서비스를 확인할 수 없습니다'
   } else {
-    title.value = 'Backend 결제 승인 실패'
+    title.value = '결제 승인 실패'
   }
   message.value = paymentProblemMessage(error)
   errorCode.value = error instanceof PaymentApiError ? error.code : 'NETWORK_ERROR'
@@ -176,7 +177,7 @@ function formatAmount(amount: number, currency: string) {
 
 class ConfirmContractError extends Error {
   constructor() {
-    super('Backend 승인 응답이 생성된 결제 정보와 일치하지 않습니다.')
+    super('승인 결과가 생성된 결제 정보와 일치하지 않습니다.')
     this.name = 'ConfirmContractError'
   }
 }
@@ -185,12 +186,12 @@ class ConfirmContractError extends Error {
 <template>
   <main class="result-shell">
     <section class="result-card" aria-labelledby="result-title">
-      <p class="result-eyebrow">PAYMENT RESULT</p>
+      <p class="result-eyebrow">결제 결과</p>
       <h1 id="result-title">{{ title }}</h1>
       <p :class="{ 'result-error': errorCode }" :role="errorCode ? 'alert' : 'status'">
         {{ message }}
       </p>
-      <p v-if="errorCode" class="result-code">오류 코드: {{ errorCode }}</p>
+      <p v-if="errorCode" class="result-code">참고 코드: {{ errorCode }}</p>
 
       <dl v-if="result" class="result-facts">
         <div>
@@ -207,7 +208,7 @@ class ConfirmContractError extends Error {
         </div>
         <div>
           <dt>상태</dt>
-          <dd>{{ result.status }}</dd>
+          <dd>{{ displayLabel(result.status) }}</dd>
         </div>
       </dl>
 
