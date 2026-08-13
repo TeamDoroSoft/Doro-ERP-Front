@@ -7,6 +7,9 @@ import { RouterLink, RouterView } from 'vue-router'
     <RouterLink class="brand" to="/tables">Doro ERP</RouterLink>
     <nav aria-label="주요 메뉴">
       <RouterLink to="/tables">테이블</RouterLink>
+      <RouterLink to="/payments/test">결제 테스트</RouterLink>
+      <RouterLink to="/home">홈</RouterLink>
+      <RouterLink to="/about">소개</RouterLink>
     </nav>
   </header>
   <RouterView class="app-content" />
