@@ -35,7 +35,7 @@ export async function requestTossPayment(request: TossPaymentRequest): Promise<v
 
 export class TossPaymentConfigurationError extends Error {
   constructor() {
-    super('VITE_TOSS_CLIENT_KEY에는 test_gck_ 형식의 테스트 결제위젯 키만 사용할 수 있습니다.')
+    super('테스트 결제 설정을 확인해 주세요.')
     this.name = 'TossPaymentConfigurationError'
   }
 }
@@ -51,9 +51,9 @@ export function tossPaymentErrorMessage(error: unknown): string {
     PAY_PROCESS_CANCELED: '사용자가 결제를 취소했습니다.',
     PAY_PROCESS_ABORTED: '결제 인증이 중단되었습니다. 결제 정보를 확인하세요.',
     REJECT_CARD_COMPANY: '카드사에서 결제를 거절했습니다.',
-    NETWORK_ERROR: 'Toss Payments 연결에 실패했습니다. 잠시 후 다시 시도하세요.',
+    NETWORK_ERROR: '토스페이먼츠 연결에 실패했습니다. 잠시 후 다시 시도하세요.',
   }
-  return messageByCode[code] ?? 'Toss Payments 결제창을 열지 못했습니다.'
+  return messageByCode[code] ?? '토스페이먼츠 결제창을 열지 못했습니다.'
 }
 
 function readErrorCode(error: unknown): string {

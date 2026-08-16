@@ -67,7 +67,7 @@ describe('Toss payment adapter', () => {
         successUrl: 'https://front.example/payments/toss/success',
         failUrl: 'https://front.example/payments/toss/fail',
       }),
-    ).rejects.toThrow('test_gck_')
+    ).rejects.toThrow('테스트 결제 설정을 확인해 주세요')
 
     expect(loadTossPayments).not.toHaveBeenCalled()
   })

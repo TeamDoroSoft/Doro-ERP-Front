@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { displayLabel } from '@/ui/displayLabels'
 import {
   PaymentApiError,
   createPayment,
@@ -40,7 +41,7 @@ async function startPayment() {
   }
   if (!import.meta.env.VITE_TOSS_CLIENT_KEY?.trim()) {
     errorKind.value = '설정 오류'
-    errorMessage.value = 'VITE_TOSS_CLIENT_KEY가 설정되지 않았습니다.'
+    errorMessage.value = '테스트 결제 설정을 확인해 주세요.'
     return
   }
 
@@ -134,10 +135,10 @@ class PaymentContractError extends Error {
   <main class="payment-shell">
     <section class="payment-card" aria-labelledby="payment-title">
       <div>
-        <p class="payment-eyebrow">TOSS PAYMENTS TEST</p>
+        <p class="payment-eyebrow">토스페이먼츠 테스트</p>
         <h1 id="payment-title">직원 테스트 결제</h1>
         <p class="payment-description">
-          주문 ID와 표시 금액을 입력하면 직원 세션으로 Edge를 거쳐 결제를 생성합니다.
+          주문 ID와 표시 금액을 입력해 테스트 결제를 진행하세요.
         </p>
       </div>
 
@@ -148,7 +149,7 @@ class PaymentContractError extends Error {
           v-model.trim="orderId"
           required
           autocomplete="off"
-          placeholder="UUID"
+          placeholder="주문 ID 입력"
           :disabled="busy || Boolean(payment)"
         />
 
@@ -178,7 +179,7 @@ class PaymentContractError extends Error {
         </p>
 
         <p v-if="!orderIsValid" class="payment-error" role="alert">
-          결제할 주문 UUID와 1원 이상의 KRW 정수 금액을 입력하세요.
+          주문 ID와 1원 이상의 결제 금액을 입력하세요.
         </p>
         <div v-if="errorMessage" class="payment-error" role="alert">
           <strong>{{ errorKind }}</strong>
@@ -187,7 +188,7 @@ class PaymentContractError extends Error {
 
         <dl v-if="payment" class="payment-facts">
           <div>
-            <dt>Payment ID</dt>
+            <dt>결제 ID</dt>
             <dd>{{ payment.id }}</dd>
           </div>
           <div>
@@ -196,7 +197,7 @@ class PaymentContractError extends Error {
           </div>
           <div>
             <dt>결제 상태</dt>
-            <dd>{{ payment.status }}</dd>
+            <dd>{{ displayLabel(payment.status) }}</dd>
           </div>
         </dl>
 
@@ -213,7 +214,7 @@ class PaymentContractError extends Error {
       </form>
 
       <p class="payment-note">
-        테스트 클라이언트 키만 사용합니다. 최종 성공은 Backend 승인 결과가 PAID일 때만 표시됩니다.
+        테스트용 결제 키만 사용하며, 결제 완료 상태가 확인되면 완료됩니다.
       </p>
     </section>
   </main>

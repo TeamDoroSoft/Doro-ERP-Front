@@ -10,6 +10,7 @@ import {
   type TableResponse,
 } from '@/api/table'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import { displayLabel } from '@/ui/displayLabels'
 
 type FormMode = 'create' | 'edit'
 
@@ -162,7 +163,7 @@ function messageFor(error: unknown, fallback: string): string {
   <main class="table-page">
     <header class="page-heading">
       <div>
-        <p class="eyebrow">Store Access</p>
+        <p class="eyebrow">매장 운영</p>
         <h1>테이블 관리</h1>
         <p>주문에 사용할 활성 테이블의 번호와 표시 이름을 관리합니다.</p>
       </div>
@@ -172,9 +173,9 @@ function messageFor(error: unknown, fallback: string): string {
     </header>
 
     <p v-if="session.role === null" class="role-note">
-      로그인 Role을 확인할 수 없어 조회 전용으로 표시합니다.
+      현재 계정의 권한을 확인할 수 없어 조회 전용으로 표시합니다.
     </p>
-    <p v-else class="role-note">현재 권한: {{ session.role }}</p>
+    <p v-else class="role-note">현재 권한: {{ displayLabel(session.role) }}</p>
 
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <p v-if="operationError" class="error-banner" role="alert">{{ operationError }}</p>
@@ -236,7 +237,7 @@ function messageFor(error: unknown, fallback: string): string {
 .table-page {
   display: grid;
   gap: 1.25rem;
-  width: min(100%, 980px);
+  width: 100%;
   margin: 0 auto;
 }
 
@@ -259,7 +260,7 @@ function messageFor(error: unknown, fallback: string): string {
 }
 
 .eyebrow {
-  color: #246b52;
+  color: var(--color-primary);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.12em;
@@ -277,8 +278,9 @@ function messageFor(error: unknown, fallback: string): string {
 
 .role-note {
   margin: 0;
-  background: #eef5f2;
-  color: #35574b;
+  border: 1px solid #c7d2fe;
+  background: var(--color-primary-soft);
+  color: #4338ca;
 }
 
 .notice {
@@ -300,7 +302,7 @@ function messageFor(error: unknown, fallback: string): string {
 
 .editor,
 .table-list {
-  border: 1px solid #d9e3df;
+  border: 1px solid var(--color-border);
   background: white;
 }
 
@@ -320,10 +322,17 @@ label {
 
 input {
   min-height: 42px;
-  border: 1px solid #aebdb7;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   padding: 0.65rem 0.75rem;
   font: inherit;
+}
+
+input:focus-visible,
+button:focus-visible {
+  outline: 3px solid rgb(79 70 229 / 18%);
+  outline-offset: 2px;
+  border-color: var(--color-primary);
 }
 
 .field-error {
@@ -332,13 +341,15 @@ input {
 
 button {
   min-height: 40px;
-  border: 1px solid #9caca6;
+  border: 1px solid #cbd5e1;
   border-radius: 8px;
   background: white;
   padding: 0.55rem 0.85rem;
-  color: #233b33;
+  color: var(--color-text);
   cursor: pointer;
 }
+
+button:hover:not(:disabled) { background: #f8fafc; }
 
 button:disabled {
   cursor: wait;
@@ -346,10 +357,11 @@ button:disabled {
 }
 
 .primary {
-  border-color: #246b52;
-  background: #246b52;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: white;
 }
+.primary:hover:not(:disabled) { background: #4338ca; }
 
 .text-button {
   border-color: transparent;
@@ -375,13 +387,14 @@ button:disabled {
 }
 
 .table-card {
-  border: 1px solid #e1e8e5;
+  border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 1rem;
 }
+.table-card:hover { border-color: #c7d2fe; background: #fafaff; }
 
 .table-number {
-  color: #246b52;
+  color: var(--color-primary);
   font-size: 0.82rem;
   font-weight: 700;
 }
