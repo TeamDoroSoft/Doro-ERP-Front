@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { navigationForRole } from '@/navigation/adminNavigation'
+import { navigationForRole } from '@/navigation/posNavigation'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 import AppIcon from '@/components/ui/AppIcon.vue'
 
@@ -13,11 +13,11 @@ const items = computed(() => navigationForRole(session.role))
 </script>
 
 <template>
-  <aside class="sidebar" :class="{ open }" aria-label="관리자 메뉴">
-    <RouterLink class="brand" to="/admin/dashboard" @click="$emit('close')">
-      <span class="brand-mark">D</span><span>Doro ERP</span>
+  <aside class="sidebar" :class="{ open }" aria-label="POS 메뉴">
+    <RouterLink class="brand" to="/pos/orders" @click="$emit('close')">
+      <span class="brand-mark">D</span><span>Doro POS</span>
     </RouterLink>
-    <p class="section-label">매장 운영</p>
+    <p class="section-label">POS 운영</p>
     <nav>
       <RouterLink v-for="item in items" :key="item.to" :to="item.to" @click="$emit('close')">
         <span class="nav-icon"><AppIcon :name="item.icon" /></span>
@@ -25,7 +25,7 @@ const items = computed(() => navigationForRole(session.role))
         <span v-if="!item.ready" class="planned">준비</span>
       </RouterLink>
     </nav>
-    <div class="sidebar-note"><strong>운영자 화면</strong><span>권한에 따라 메뉴가 표시됩니다.</span></div>
+    <div class="sidebar-note"><strong>직원 POS 화면</strong><span>권한에 따라 메뉴가 표시됩니다.</span></div>
   </aside>
 </template>
 

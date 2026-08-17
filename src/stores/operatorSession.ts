@@ -56,6 +56,10 @@ export const useOperatorSessionStore = defineStore('operatorSession', () => {
 
   const authenticated = computed(() => status.value === 'authenticated' && role.value !== null)
   const canManageTables = computed(() => role.value === 'OWNER' || role.value === 'MANAGER')
+  const canManageSettings = computed(() => role.value === 'OWNER' || role.value === 'MANAGER')
+  const canManageHistory = computed(() => role.value === 'OWNER' || role.value === 'MANAGER')
+  const canDoDailyClosing = computed(() => role.value === 'OWNER' || role.value === 'MANAGER')
+  const canToggleSoldOut = computed(() => role.value === 'OWNER' || role.value === 'MANAGER' || role.value === 'STAFF')
   const roleLabel = computed(() => {
     if (role.value === 'OWNER') return '최고 관리자'
     if (role.value === 'MANAGER') return '관리자'
@@ -128,6 +132,10 @@ export const useOperatorSessionStore = defineStore('operatorSession', () => {
     initialized,
     authenticated,
     canManageTables,
+    canManageSettings,
+    canManageHistory,
+    canDoDailyClosing,
+    canToggleSoldOut,
     roleLabel,
     applyLogin,
     applyPreview,

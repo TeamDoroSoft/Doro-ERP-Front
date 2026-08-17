@@ -36,36 +36,6 @@ const allEmployees: EmployeeRole[] = ['OWNER', 'MANAGER', 'STAFF']
 const managers: EmployeeRole[] = ['OWNER', 'MANAGER']
 
 export const workspaceDefinitions = {
-  orders: {
-    eyebrow: '주문 운영',
-    title: '주문 관리',
-    description: '매장과 키오스크 주문을 영업일과 처리 상태별로 확인합니다.',
-    filters: [
-      { label: '영업일', placeholder: '영업일 선택', type: 'date' },
-      { label: '주문 상태', placeholder: '전체 상태', type: 'select', options: ['전체', option('CREATED', '주문 생성'), option('ACCEPTED', '주문 접수'), option('COMPLETED', '처리 완료'), option('CANCELLED', '주문 취소')] },
-    ],
-    columns: ['주문 번호', '서비스 유형', '상태', '총액', '영업일', '상세'],
-    statuses: [
-      { label: '결제 전', tone: 'warning' }, { label: '접수', tone: 'success' },
-      { label: '완료', tone: 'neutral' }, { label: '취소', tone: 'danger' },
-    ],
-    workflowTitle: '주문 처리 흐름',
-    workflow: ['주문 생성', '주문 접수', '조리 중·준비 완료', '처리 완료'],
-    emptyTitle: '주문 내역이 없습니다',
-    emptyDescription: '영업일이나 주문 상태를 변경해 보세요.',
-    primaryAction: {
-      label: 'POS 주문 등록', roles: allEmployees, title: '새 주문',
-      description: '매장 식사는 사용할 테이블을 선택하고, 포장은 테이블 없이 등록합니다.',
-      fields: [
-        { label: '주문 채널', placeholder: 'POS', type: 'select', options: ['POS'] },
-        { label: '서비스 유형', placeholder: '유형 선택', type: 'select', options: [option('DINE_IN', '매장 이용'), option('TAKEOUT', '포장')] },
-        { label: '테이블 ID', placeholder: '매장 식사일 때만 입력' },
-        { label: '주문 상품', placeholder: '상품과 수량을 선택하세요' },
-      ],
-    },
-    accessRoles: allEmployees,
-    contractNote: '영업일과 주문 상태를 기준으로 조회할 수 있습니다.',
-  },
   catalog: {
     eyebrow: '상품 운영', title: '상품·메뉴 관리',
     description: '카테고리와 판매 상품의 가격, 노출 순서, 판매·품절 상태를 관리합니다.',
