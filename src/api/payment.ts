@@ -1,39 +1,25 @@
-export interface PaymentResponse {
+import { ApiError, apiRequest } from './http'
+
+export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REVIEW_REQUIRED' | 'CANCELLED'
+
+/** Payment Service's payment representation. IDs are opaque values supplied by the service. */
+export interface PaymentView {
   id: string
   orderId: string
   providerOrderId: string
   amount: number
   currency: string
-  status: string
+  status: PaymentStatus
 }
 
-interface ProblemResponse {
-  code?: string
-  detail?: string
-  title?: string
-  status?: number
-}
+/** @deprecated Use PaymentView. Kept while the checkout flow adopts the contract name. */
+export type PaymentResponse = PaymentView
 
-export class PaymentApiError extends Error {
-  readonly status: number
-  readonly code: string
-  readonly detail: string
-
-  constructor(status: number, problem: ProblemResponse = {}) {
-    const code = problem.code ?? `HTTP_${status}`
-    const detail = problem.detail ?? problem.title ?? '결제 요청을 처리하지 못했습니다.'
-    super(detail)
-    this.name = 'PaymentApiError'
-    this.status = status
-    this.code = code
-    this.detail = detail
-  }
-}
+/** @deprecated Payment requests now use the shared API error and authentication handling. */
+export { ApiError as PaymentApiError } from './http'
 
 export function createPaymentIdempotencyKey(): string {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID()
-  }
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
 
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (token) => {
     const random = Math.floor(Math.random() * 16)
@@ -42,42 +28,53 @@ export function createPaymentIdempotencyKey(): string {
   })
 }
 
-export async function createPayment(
-  apiBaseUrl: string,
-  orderId: string,
-  idempotencyKey: string,
-): Promise<PaymentResponse> {
-  return paymentRequest<PaymentResponse>(apiBaseUrl, '/api/v1/payments', {
-    method: 'POST',
-    body: { orderId },
-    idempotencyKey,
-  })
+export function createPayment(orderId: string, idempotencyKey: string): Promise<PaymentView> {
+  return apiRequest<PaymentView>('/payments', commandOptions({ orderId }, idempotencyKey))
 }
 
-export async function confirmPayment(
-  apiBaseUrl: string,
+export function getPayment(paymentId: string): Promise<PaymentView> {
+  return apiRequest<PaymentView>(`/payments/${encodeURIComponent(paymentId)}`)
+}
+
+export function confirmPayment(
   paymentId: string,
   paymentKey: string,
   amount: number,
   idempotencyKey: string,
-): Promise<PaymentResponse> {
-  return paymentRequest<PaymentResponse>(
-    apiBaseUrl,
-    `/api/v1/payments/${encodeURIComponent(paymentId)}/confirm`,
-    {
-      method: 'POST',
-      body: { paymentKey, amount },
-      idempotencyKey,
-    },
+): Promise<PaymentView> {
+  return apiRequest<PaymentView>(
+    `/payments/${encodeURIComponent(paymentId)}/confirm`,
+    commandOptions({ paymentKey, amount }, idempotencyKey),
   )
 }
 
-export function paymentProblemMessage(error: unknown): string {
-  if (!(error instanceof PaymentApiError)) {
-    return '네트워크 상태를 확인한 뒤 다시 시도하세요.'
-  }
+export function cancelPayment(
+  paymentId: string,
+  reasonCode: string,
+  idempotencyKey: string,
+): Promise<PaymentView> {
+  return apiRequest<PaymentView>(
+    `/payments/${encodeURIComponent(paymentId)}/cancel`,
+    commandOptions({ reasonCode }, idempotencyKey),
+  )
+}
 
-  const messageByCode: Record<string, string> = {
+function commandOptions(body: unknown, idempotencyKey: string): RequestInit {
+  return {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(body),
+  }
+}
+
+/**
+ * Only recognised public problem codes are rendered. Never expose a raw Problem `detail`,
+ * which can include backend or provider diagnostics.
+ */
+export function paymentProblemMessage(error: unknown): string {
+  if (!(error instanceof ApiError)) return '네트워크 상태를 확인한 뒤 다시 시도하세요.'
+
+  const messageByCode: Partial<Record<string, string>> = {
     UNAUTHENTICATED: '직원 로그인이 필요합니다.',
     AUTHENTICATION_REQUIRED: '직원 로그인이 필요합니다.',
     SESSION_ABSOLUTE_EXPIRED: '직원 세션이 만료되었습니다. 다시 로그인하세요.',
@@ -94,77 +91,21 @@ export function paymentProblemMessage(error: unknown): string {
     PROVIDER_REJECTED: '결제 제공자가 요청을 거절했습니다.',
   }
 
-  return messageByCode[error.code] ?? error.detail
+  return messageByCode[error.code] ?? '결제 요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.'
 }
 
 export function isAuthenticationPaymentError(error: unknown): boolean {
   return (
-    error instanceof PaymentApiError &&
+    error instanceof ApiError &&
     ['UNAUTHENTICATED', 'AUTHENTICATION_REQUIRED', 'SESSION_ABSOLUTE_EXPIRED'].includes(error.code)
   )
 }
 
 export function isDependencyPaymentError(error: unknown): boolean {
   return (
-    error instanceof PaymentApiError &&
+    error instanceof ApiError &&
     ['SESSION_VALIDATION_UNAVAILABLE', 'PAYMENT_UNAVAILABLE', 'DEPENDENCY_UNAVAILABLE'].includes(
       error.code,
     )
   )
-}
-
-interface PaymentRequestOptions {
-  method?: string
-  body?: unknown
-  idempotencyKey?: string
-}
-
-async function paymentRequest<T>(
-  apiBaseUrl: string,
-  path: string,
-  options: PaymentRequestOptions = {},
-): Promise<T> {
-  const headers = new Headers({ Accept: 'application/json, application/problem+json' })
-  headers.set('X-Request-Id', createRequestId())
-  if (options.body !== undefined) {
-    headers.set('Content-Type', 'application/json')
-  }
-  if (options.idempotencyKey) {
-    headers.set('Idempotency-Key', options.idempotencyKey)
-  }
-
-  const response = await fetch(buildUrl(apiBaseUrl, path), {
-    method: options.method ?? 'GET',
-    headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    credentials: 'include',
-  })
-
-  if (!response.ok) {
-    throw new PaymentApiError(response.status, await readProblem(response))
-  }
-
-  return (await response.json()) as T
-}
-
-function buildUrl(apiBaseUrl: string, path: string): string {
-  const base = apiBaseUrl.trim().replace(/\/+$/, '')
-  return `${base}${path}`
-}
-
-async function readProblem(response: Response): Promise<ProblemResponse> {
-  try {
-    return (await response.json()) as ProblemResponse
-  } catch {
-    return {
-      code: response.status === 401 ? 'UNAUTHENTICATED' : `HTTP_${response.status}`,
-      detail: response.statusText,
-      status: response.status,
-    }
-  }
-}
-
-function createRequestId(): string {
-  const random = globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2, 12)
-  return `web-${random}`.slice(0, 64)
 }

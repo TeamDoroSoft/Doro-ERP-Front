@@ -4,8 +4,10 @@ import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
 import { cancelOrder, completeOrder, getOrder, type OrderResponse } from '@/api/order'
 import OrderDetailPanel from '@/components/orders/OrderDetailPanel.vue'
+import OrderPaymentPanel from '@/components/payments/OrderPaymentPanel.vue'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
+import { readRecentPaymentId } from '@/payments/pendingPayment'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,6 +15,7 @@ const order = ref<OrderResponse | null>(null)
 const loading = ref(false)
 const error = ref<ApiError | null>(null)
 const operationError = ref('')
+const recentPaymentId = ref<string | null>(null)
 const cancelling = ref(false)
 const completing = ref(false)
 
@@ -32,11 +35,17 @@ async function loadOrder(clearOperationError = true) {
   if (clearOperationError) operationError.value = ''
   try {
     order.value = await getOrder(orderId())
+    recentPaymentId.value = readRecentPaymentId(order.value.orderId)
   } catch (caught) {
     error.value = queryError(caught)
   } finally {
     loading.value = false
   }
+}
+
+function handlePaymentUpdated(paymentId: string, status: string) {
+  recentPaymentId.value = paymentId
+  if (status === 'PAID' || status === 'CANCELLED') void loadOrder(false)
 }
 
 async function cancel() {
@@ -130,6 +139,11 @@ function queryError(caught: unknown): ApiError {
         :completing="completing"
         @cancel="cancel"
         @complete="complete"
+      />
+      <OrderPaymentPanel
+        :order="order"
+        :recent-payment-id="recentPaymentId"
+        @payment-updated="handlePaymentUpdated"
       />
     </template>
   </main>

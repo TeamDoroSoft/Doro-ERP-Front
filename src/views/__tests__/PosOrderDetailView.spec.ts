@@ -25,6 +25,7 @@ const created: OrderResponse = {
 describe('PosOrderDetailView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
     api.getOrder.mockResolvedValue(created)
     api.cancelOrder.mockResolvedValue({ ...created, status: 'CANCELLED' })
     api.completeOrder.mockResolvedValue({ ...created, status: 'COMPLETED' })
@@ -33,6 +34,7 @@ describe('PosOrderDetailView', () => {
 
   it('cancels only after loading a CREATED order from the server', async () => {
     const wrapper = await mountView()
+    expect(wrapper.get('#order-payment-title').text()).toBe('주문 결제')
     await findButton(wrapper, '주문 취소').trigger('click')
     await flushPromises()
     expect(api.cancelOrder).toHaveBeenCalledWith('order-1')

@@ -87,6 +87,28 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/pos/tables')
   })
 
+  it('removes the retired standalone payment screen without forwarding input query values', async () => {
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'employee-1', role: 'STAFF', passwordChangeRequired: false },
+      'doro',
+    )
+
+    await router.push('/payments/test?orderId=untrusted&amount=1#secret')
+
+    expect(router.currentRoute.value.path).toBe('/pos/orders')
+    expect(router.currentRoute.value.query).toEqual({})
+    expect(router.currentRoute.value.hash).toBe('')
+  })
+
+  it('requires an employee session for Toss callback processing and drops sensitive query values', async () => {
+    await router.push(
+      '/payments/toss/success?flow=flow-1&paymentKey=must-not-survive&orderId=provider&amount=1',
+    )
+
+    expect(router.currentRoute.value.path).toBe('/pos/login')
+    expect(router.currentRoute.value.query).toEqual({ redirect: '/payments/toss/success' })
+  })
+
   it('safely handles an unknown route without retaining its location data', async () => {
     useOperatorSessionStore().applyLogin(
       { employeeId: 'employee-1', role: 'STAFF', passwordChangeRequired: false },

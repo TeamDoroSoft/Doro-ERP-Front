@@ -1,7 +1,6 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
 import PosLayout from '@/layouts/PosLayout.vue'
 import TableManagementView from '@/views/TableManagementView.vue'
-import PaymentCheckoutView from '@/views/PaymentCheckoutView.vue'
 import PaymentResultView from '@/views/PaymentResultView.vue'
 import LoginView from '@/views/LoginView.vue'
 import ChangePasswordView from '@/views/ChangePasswordView.vue'
@@ -49,6 +48,10 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/tables',
     redirect: redirectWithoutLocation('/pos/tables'),
+  },
+  {
+    path: '/payments/test',
+    redirect: redirectWithoutLocation('/pos/orders'),
   },
   // Legacy /admin/** Redirections
   {
@@ -181,19 +184,16 @@ const routes: RouteRecordRaw[] = [
 
   // 4. Payment Internal Routes (No Navigation Exposure)
   {
-    path: '/payments/test',
-    name: 'payment-checkout',
-    component: PaymentCheckoutView,
-  },
-  {
     path: '/payments/toss/success',
     name: 'payment-toss-success',
     component: PaymentResultView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/payments/toss/fail',
     name: 'payment-toss-fail',
     component: PaymentResultView,
+    meta: { requiresAuth: true },
   },
   {
     path: '/:pathMatch(.*)*',
@@ -234,7 +234,9 @@ router.beforeEach((to) => {
 
   // 4. Role Authorization Check
   if (session.authenticated && session.role) {
-    const matchedWithRoles = to.matched.filter((record) => record.meta.roles && record.meta.roles.length > 0)
+    const matchedWithRoles = to.matched.filter(
+      (record) => record.meta.roles && record.meta.roles.length > 0,
+    )
     for (const record of matchedWithRoles) {
       if (record.meta.roles && !record.meta.roles.includes(session.role)) {
         return {

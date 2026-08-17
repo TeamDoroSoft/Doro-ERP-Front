@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   PaymentApiError,
+  cancelPayment,
   confirmPayment,
   createPayment,
   createPaymentIdempotencyKey,
+  getPayment,
+  paymentProblemMessage,
 } from '@/api/payment'
 
 type FetchMock = (input: RequestInfo | URL, init?: RequestInit) => Promise<unknown>
@@ -14,85 +17,95 @@ describe('payment api client', () => {
     vi.unstubAllGlobals()
   })
 
-  it('creates a payment through the Edge public path with the employee session cookie', async () => {
-    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentResponse()))
+  it('creates a payment at the common API base with the command idempotency key', async () => {
+    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentView()))
     vi.stubGlobal('fetch', fetchMock)
 
-    await createPayment(
-      'https://edge.example.test/',
-      '11111111-1111-4111-8111-111111111111',
-      '22222222-2222-4222-8222-222222222222',
-    )
+    await createPayment('11111111-1111-4111-8111-111111111111', key('2'))
 
     expect(fetchMock).toHaveBeenCalledWith(
-      'https://edge.example.test/api/v1/payments',
+      '/api/v1/payments',
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
         body: JSON.stringify({ orderId: '11111111-1111-4111-8111-111111111111' }),
       }),
     )
-    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers
-    expect(headers.get('Idempotency-Key')).toBe('22222222-2222-4222-8222-222222222222')
-    expect(headers.get('Authorization')).toBeNull()
-    expect([...headers.keys()].some((name) => name.toLowerCase().startsWith('x-doro-'))).toBe(false)
+    expect(headers(fetchMock).get('Idempotency-Key')).toBe(key('2'))
   })
 
-  it('confirms with only the backend contract body and a separate idempotency key', async () => {
-    const fetchMock = vi
-      .fn<FetchMock>()
-      .mockResolvedValue(jsonResponse({ ...paymentResponse(), status: 'PAID' }))
+  it('gets an opaque payment ID using URL encoding', async () => {
+    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentView()))
     vi.stubGlobal('fetch', fetchMock)
 
-    await confirmPayment(
-      '',
-      '33333333-3333-4333-8333-333333333333',
-      'payment-key',
-      12_000,
-      '44444444-4444-4444-8444-444444444444',
-    )
+    await getPayment('payment/id?retry=1')
 
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      '/api/v1/payments/33333333-3333-4333-8333-333333333333/confirm',
-    )
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
-      JSON.stringify({ paymentKey: 'payment-key', amount: 12_000 }),
-    )
-    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers
-    expect(headers.get('Idempotency-Key')).toBe('44444444-4444-4444-8444-444444444444')
-    expect([...headers.keys()].some((name) => name.toLowerCase().startsWith('x-doro-'))).toBe(false)
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/payments/payment%2Fid%3Fretry%3D1')
   })
 
-  it('normalizes Edge and Payment problem responses', async () => {
+  it('confirms and cancels using their exact command bodies and independent UUID keys', async () => {
+    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentView()))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await confirmPayment('payment-42', 'provider-payment-key', 12_000, key('3'))
+    await cancelPayment('payment-42', 'CUSTOMER_REQUEST', key('4'))
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/payments/payment-42/confirm')
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ paymentKey: 'provider-payment-key', amount: 12_000 }),
+    )
+    expect(headers(fetchMock, 0).get('Idempotency-Key')).toBe(key('3'))
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/payments/payment-42/cancel')
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toBe(
+      JSON.stringify({ reasonCode: 'CUSTOMER_REQUEST' }),
+    )
+    expect(headers(fetchMock, 1).get('Idempotency-Key')).toBe(key('4'))
+  })
+
+  it.each([
+    [409, 'STATE_CONFLICT'],
+    [422, 'VALIDATION_FAILED'],
+    [503, 'PAYMENT_UNAVAILABLE'],
+  ])('keeps %i problem responses as shared API errors', async (status, code) => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn<FetchMock>()
-        .mockResolvedValue(
-          jsonResponse({ code: 'SESSION_ABSOLUTE_EXPIRED', detail: 'expired' }, false, 401),
-        ),
+      vi.fn<FetchMock>().mockResolvedValue(jsonResponse({ code }, false, status)),
     )
 
-    await expect(
-      createPayment('', '11111111-1111-4111-8111-111111111111', createPaymentIdempotencyKey()),
-    ).rejects.toEqual(
-      expect.objectContaining<Partial<PaymentApiError>>({
-        status: 401,
-        code: 'SESSION_ABSOLUTE_EXPIRED',
-      }),
+    await expect(createPayment('order-1', key('5'))).rejects.toEqual(
+      expect.objectContaining<Partial<PaymentApiError>>({ status, code }),
     )
   })
 
-  it('creates UUID idempotency keys required by the Payment backend', () => {
+  it('maps network failures and unknown problem details to safe UI text', async () => {
+    vi.stubGlobal('fetch', vi.fn<FetchMock>().mockRejectedValue(new TypeError('offline')))
+
+    await expect(createPayment('order-1', key('6'))).rejects.toEqual(
+      expect.objectContaining<Partial<PaymentApiError>>({ status: 0, code: 'NETWORK_ERROR' }),
+    )
+    expect(
+      paymentProblemMessage(new PaymentApiError(422, { code: 'UNKNOWN', detail: 'database host' })),
+    ).toBe('결제 요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.')
+  })
+
+  it('creates UUID idempotency keys required for every payment command', () => {
     expect(createPaymentIdempotencyKey()).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     )
   })
 })
 
-function paymentResponse() {
+function headers(fetchMock: ReturnType<typeof vi.fn<FetchMock>>, call = 0): Headers {
+  return fetchMock.mock.calls[call]?.[1]?.headers as Headers
+}
+
+function key(digit: string) {
+  return `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
+}
+
+function paymentView() {
   return {
-    id: '33333333-3333-4333-8333-333333333333',
+    id: 'payment-42',
     orderId: '11111111-1111-4111-8111-111111111111',
     providerOrderId: 'provider-order-123',
     amount: 12_000,

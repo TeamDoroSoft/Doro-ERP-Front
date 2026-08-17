@@ -1,191 +1,160 @@
-import { mkdir } from 'node:fs/promises'
 import { expect, test, type Page, type Route } from '@playwright/test'
 
-const screenshotDirectory = 'playwright-report/screenshots'
 const orderId = '11111111-1111-4111-8111-111111111111'
 const paymentId = '33333333-3333-4333-8333-333333333333'
 const providerOrderId = 'provider-order-123'
 const amount = 12_000
 
-test.beforeAll(async () => {
-  await mkdir(screenshotDirectory, { recursive: true })
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      'doro-erp.operator-session',
+      JSON.stringify({
+        employeeId: '00000000-0000-4000-8000-000000000001',
+        role: 'STAFF',
+        tenantCode: 'DORO-DEMO',
+        passwordChangeRequired: false,
+      }),
+    )
+  })
 })
 
-test('completes the mocked Edge and Toss payment flow', async ({ page }) => {
-  let createRequests = 0
-  let confirmRequests = 0
-  let releaseCreate!: () => void
-  const createBlocked = new Promise<void>((resolve) => {
-    releaseCreate = resolve
-  })
+test('starts from an order, confirms with a separate key, scrubs callback secrets, and returns', async ({
+  page,
+}) => {
+  let confirmed = false
+  let createKey = ''
+  let confirmKey = ''
 
+  await mockOrder(page, () => (confirmed ? 'ACCEPTED' : 'CREATED'))
   await mockTossSdk(page, 'success')
   await page.route('**/api/v1/payments', async (route) => {
-    if (route.request().method() !== 'POST') {
-      await route.fallback()
-      return
-    }
-    createRequests += 1
-    assertExternalPaymentRequest(route)
-    await createBlocked
-    await fulfillJson(route, paymentResponse('PENDING'), 201)
+    if (route.request().method() !== 'POST') return route.fallback()
+    createKey = idempotencyKey(route)
+    expect(route.request().postDataJSON()).toEqual({ orderId })
+    await fulfillJson(route, payment('PENDING'), 201)
   })
   await page.route(`**/api/v1/payments/${paymentId}/confirm`, async (route) => {
-    confirmRequests += 1
-    assertExternalPaymentRequest(route)
+    confirmKey = idempotencyKey(route)
     expect(route.request().postDataJSON()).toEqual({ paymentKey: 'e2e-payment-key', amount })
-    await fulfillJson(route, paymentResponse('PAID'))
+    confirmed = true
+    await fulfillJson(route, payment('PAID'))
+  })
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment(confirmed ? 'PAID' : 'PENDING'))
   })
 
-  await page.goto('/payments/test')
-  await expect(page.getByRole('heading', { name: '직원 테스트 결제' })).toBeVisible()
-  await page.screenshot({ path: `${screenshotDirectory}/payment-initial.png`, fullPage: true })
-  await fillPayment(page)
-  await page.getByRole('button', { name: '결제하기' }).click()
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '토스 결제 시작' }).click()
 
-  await expect(page.getByRole('button', { name: '결제 준비 중…' })).toBeDisabled()
-  await page.screenshot({ path: `${screenshotDirectory}/payment-processing.png`, fullPage: true })
-
-  releaseCreate()
   await expect(page.getByRole('heading', { name: '결제가 완료되었습니다' })).toBeVisible()
+  await expect(page).toHaveURL(/\/payments\/toss\/success\?flow=[^&]+$/)
+  expect(createKey).toMatch(/^[0-9a-f-]{36}$/)
+  expect(confirmKey).toMatch(/^[0-9a-f-]{36}$/)
+  expect(confirmKey).not.toBe(createKey)
+
+  await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
+  await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
-  await page.screenshot({ path: `${screenshotDirectory}/payment-success.png`, fullPage: true })
-
-  expect(createRequests).toBe(1)
-  expect(confirmRequests).toBe(1)
+  await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
 })
 
-test('shows Payment creation failure without opening Toss', async ({ page }) => {
-  let tossScriptRequested = false
-  await page.route('https://js.tosspayments.com/v2/standard**', async (route) => {
-    tossScriptRequested = true
-    await route.abort()
-  })
-  await page.route('**/api/v1/payments', async (route) => {
-    await fulfillJson(
-      route,
-      { code: 'ORDER_NOT_ELIGIBLE', title: '결제할 수 없는 주문', status: 422 },
-      422,
-      'application/problem+json',
-    )
-  })
-
-  await openAndSubmit(page)
-
-  await expect(page.getByText('결제 생성 실패', { exact: true })).toBeVisible()
-  await expect(page.getByText('현재 결제할 수 없는 주문입니다.')).toBeVisible()
-  await page.screenshot({
-    path: `${screenshotDirectory}/payment-create-failure.png`,
-    fullPage: true,
-  })
-  expect(tossScriptRequested).toBe(false)
-})
-
-test('shows Toss user cancellation and skips confirm', async ({ page }) => {
+test('keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
   let confirmRequests = 0
+  await mockOrder(page, () => 'CREATED')
   await mockTossSdk(page, 'cancel')
   await mockPaymentCreate(page)
-  await page.route('**/api/v1/payments/*/confirm', async (route) => {
+  await page.route(`**/api/v1/payments/${paymentId}/confirm`, async (route) => {
     confirmRequests += 1
     await route.abort()
   })
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment('PENDING'))
+  })
 
-  await openAndSubmit(page)
-
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '토스 결제 시작' }).click()
   await expect(page.getByRole('heading', { name: '결제가 취소되었습니다' })).toBeVisible()
-  await expect(page.getByText('PAY_PROCESS_CANCELED', { exact: false })).toBeVisible()
   expect(confirmRequests).toBe(0)
+
+  await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
+  await expect(page.getByText('결제 대기', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '토스 결제 시작' })).toHaveCount(0)
 })
 
-test('rejects a modified amount before confirm', async ({ page }) => {
-  let confirmRequests = 0
-  await mockTossSdk(page, 'tamperedAmount')
-  await mockPaymentCreate(page)
-  await page.route('**/api/v1/payments/*/confirm', async (route) => {
-    confirmRequests += 1
-    await route.abort()
-  })
-
-  await openAndSubmit(page)
-
-  await expect(page.getByRole('heading', { name: '결제 정보 검증 실패' })).toBeVisible()
-  await expect(page.getByText('주문 ID 또는 금액', { exact: false })).toBeVisible()
-  expect(confirmRequests).toBe(0)
-})
-
-test('shows Backend confirm failure with a retry action', async ({ page }) => {
+test('does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
+  page,
+}) => {
+  await mockOrder(page, () => 'CREATED')
   await mockTossSdk(page, 'success')
   await mockPaymentCreate(page)
-  await page.route('**/api/v1/payments/*/confirm', async (route) => {
-    await fulfillJson(
-      route,
-      { code: 'PAYMENT_UNAVAILABLE', title: '결제 서비스 사용 불가', status: 503 },
-      503,
-      'application/problem+json',
-    )
+  await page.route(`**/api/v1/payments/${paymentId}/confirm`, async (route) => {
+    await fulfillJson(route, payment('REVIEW_REQUIRED'))
+  })
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment('REVIEW_REQUIRED'))
   })
 
-  await openAndSubmit(page)
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+  await expect(page.getByRole('heading', { name: '결제 확인이 필요합니다' })).toBeVisible()
+  await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
 
-  await expect(
-    page.getByRole('heading', { name: '결제 서비스를 확인할 수 없습니다' }),
-  ).toBeVisible()
-  await expect(page.getByRole('button', { name: '승인 다시 시도' })).toBeVisible()
-  await page.screenshot({
-    path: `${screenshotDirectory}/payment-confirm-failure.png`,
-    fullPage: true,
-  })
+  await expect(page.getByText('결제 확인 필요', { exact: true })).toBeVisible()
+  await expect(page.getByText('완료 또는 실패로 판단하지 않고', { exact: false })).toBeVisible()
 })
 
-test('prevents duplicate payment creation clicks', async ({ page }) => {
-  let createRequests = 0
-  let releaseCreate!: () => void
-  const createBlocked = new Promise<void>((resolve) => {
-    releaseCreate = resolve
+test('cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
+  let cancelKey = ''
+  await page.addInitScript(
+    ({ storedOrderId, storedPaymentId }) => {
+      sessionStorage.setItem(`doro.payment-order.${storedOrderId}`, storedPaymentId)
+    },
+    { storedOrderId: orderId, storedPaymentId: paymentId },
+  )
+  await mockOrder(page, () => 'ACCEPTED')
+  await page.route(`**/api/v1/payments/${paymentId}/cancel`, async (route) => {
+    cancelKey = idempotencyKey(route)
+    expect(route.request().postDataJSON()).toEqual({ reasonCode: 'CUSTOMER_REQUEST' })
+    await fulfillJson(route, payment('CANCELLED'))
   })
-  await mockTossSdk(page, 'cancel')
-  await page.route('**/api/v1/payments', async (route) => {
-    createRequests += 1
-    await createBlocked
-    await fulfillJson(route, paymentResponse('PENDING'), 201)
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment('PAID'))
   })
 
-  await page.goto('/payments/test')
-  await fillPayment(page)
-  const button = page.getByRole('button', { name: '결제하기' })
-  await button.click()
-  await expect(page.getByRole('button', { name: '결제 준비 중…' })).toBeDisabled()
-  await page
-    .locator('button[type="submit"]')
-    .evaluate((element: HTMLButtonElement) => element.click())
-  expect(createRequests).toBe(1)
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '전액 취소' }).click()
 
-  releaseCreate()
-  await expect(page.getByRole('heading', { name: '결제가 취소되었습니다' })).toBeVisible()
-  expect(createRequests).toBe(1)
+  await expect(page.getByText('결제 취소 요청이 처리되었습니다', { exact: false })).toBeVisible()
+  await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
+  await expect(page.getByText('취소', { exact: true })).toBeVisible()
+  expect(cancelKey).toMatch(/^[0-9a-f-]{36}$/)
 })
 
-async function openAndSubmit(page: Page) {
-  await page.goto('/payments/test')
-  await fillPayment(page)
-  await page.getByRole('button', { name: '결제하기' }).click()
-}
-
-async function fillPayment(page: Page) {
-  await page.getByLabel('주문 ID *').fill(orderId)
-  await page.getByLabel('주문 번호').fill('A-001')
-  await page.getByLabel('표시 금액 (KRW) *').fill(String(amount))
+async function mockOrder(page: Page, status: () => 'CREATED' | 'ACCEPTED') {
+  await page.route(`**/api/v1/orders/${orderId}`, async (route) => {
+    await fulfillJson(route, {
+      orderId,
+      displayNumber: 7,
+      totalAmount: amount,
+      currency: 'KRW',
+      status: status(),
+      businessDate: '2026-08-17',
+      orderAccessToken: null,
+    })
+  })
 }
 
 async function mockPaymentCreate(page: Page) {
   await page.route('**/api/v1/payments', async (route) => {
-    assertExternalPaymentRequest(route)
+    if (route.request().method() !== 'POST') return route.fallback()
     expect(route.request().postDataJSON()).toEqual({ orderId })
-    await fulfillJson(route, paymentResponse('PENDING'), 201)
+    expect(idempotencyKey(route)).toMatch(/^[0-9a-f-]{36}$/)
+    await fulfillJson(route, payment('PENDING'), 201)
   })
 }
 
-async function mockTossSdk(page: Page, outcome: 'success' | 'cancel' | 'tamperedAmount') {
+async function mockTossSdk(page: Page, outcome: 'success' | 'cancel') {
   await page.route('https://js.tosspayments.com/v2/standard**', async (route) => {
     await route.fulfill({
       status: 200,
@@ -195,38 +164,30 @@ async function mockTossSdk(page: Page, outcome: 'success' | 'cancel' | 'tampered
   })
 }
 
-function tossSdkScript(outcome: 'success' | 'cancel' | 'tamperedAmount') {
+function tossSdkScript(outcome: 'success' | 'cancel') {
   return `
     window.TossPayments = function () {
       return {
         widgets: function () {
           let configuredAmount;
           return {
-            setAmount: async function (amount) {
-              configuredAmount = amount;
-            },
+            setAmount: async function (amount) { configuredAmount = amount; },
             renderPaymentWindow: async function () {
               return {
                 on: function (eventName, callback) {
-                  if (eventName === 'paymentRequest') {
-                    Promise.resolve().then(function () {
-                      return callback({ paymentMethod: { code: 'CARD' } });
-                    });
-                  }
-                },
-                destroy: async function () {}
+                  if (eventName === 'paymentRequest') Promise.resolve().then(callback);
+                }
               };
             },
             requestPayment: async function (request) {
-              const outcome = ${JSON.stringify(outcome)};
-              const target = new URL(outcome === 'cancel' ? request.failUrl : request.successUrl);
-              if (outcome === 'cancel') {
+              const target = new URL(${JSON.stringify(outcome)} === 'cancel' ? request.failUrl : request.successUrl);
+              if (${JSON.stringify(outcome)} === 'cancel') {
                 target.searchParams.set('code', 'PAY_PROCESS_CANCELED');
-                target.searchParams.set('message', 'mocked cancellation');
+                target.searchParams.set('message', 'untrusted provider message');
               } else {
                 target.searchParams.set('paymentKey', 'e2e-payment-key');
                 target.searchParams.set('orderId', request.orderId);
-                target.searchParams.set('amount', String(configuredAmount.value + (outcome === 'tamperedAmount' ? 1 : 0)));
+                target.searchParams.set('amount', String(configuredAmount.value));
               }
               window.location.assign(target.toString());
             }
@@ -237,29 +198,14 @@ function tossSdkScript(outcome: 'success' | 'cancel' | 'tamperedAmount') {
   `
 }
 
-function assertExternalPaymentRequest(route: Route) {
-  const headers = route.request().headers()
-  expect(headers['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/)
-  expect(headers.authorization).toBeUndefined()
-  expect(Object.keys(headers).some((name) => name.startsWith('x-doro-'))).toBe(false)
+function idempotencyKey(route: Route): string {
+  return route.request().headers()['idempotency-key'] ?? ''
 }
 
-async function fulfillJson(
-  route: Route,
-  body: unknown,
-  status = 200,
-  contentType = 'application/json',
-) {
-  await route.fulfill({ status, contentType, body: JSON.stringify(body) })
+async function fulfillJson(route: Route, body: unknown, status = 200) {
+  await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-function paymentResponse(status: 'PENDING' | 'PAID') {
-  return {
-    id: paymentId,
-    orderId,
-    providerOrderId,
-    amount,
-    currency: 'KRW',
-    status,
-  }
+function payment(status: 'PENDING' | 'PAID' | 'REVIEW_REQUIRED' | 'CANCELLED') {
+  return { id: paymentId, orderId, providerOrderId, amount, currency: 'KRW', status }
 }

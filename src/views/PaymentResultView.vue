@@ -12,6 +12,7 @@ import {
 import {
   clearPendingPayment,
   readPendingPayment,
+  saveRecentPaymentId,
   type PendingPayment,
 } from '@/payments/pendingPayment'
 import { displayLabel } from '@/ui/displayLabels'
@@ -27,6 +28,7 @@ const title = ref('결제 결과 확인 중')
 const message = ref('결제 승인 결과를 확인하고 있습니다.')
 const errorCode = ref('')
 const canRetry = ref(false)
+const orderId = ref('')
 
 let pending: PendingPayment | null = null
 let paymentKey = ''
@@ -36,9 +38,11 @@ let returnedAmount = 0
 onMounted(async () => {
   if (successRedirect.value) {
     captureSuccessRedirect()
+    captureOrderId()
     await removeSensitiveQuery()
     await approvePayment()
   } else {
+    captureOrderId()
     showTossFailure()
     await removeSensitiveQuery()
   }
@@ -49,6 +53,9 @@ async function approvePayment() {
     return
   }
   pending = pending ?? readPendingPayment(flowId)
+  if (pending) {
+    orderId.value = pending.payment.orderId
+  }
   const validationMessage = validateRedirect(pending)
   if (validationMessage) {
     title.value = '결제 정보 검증 실패'
@@ -66,7 +73,6 @@ async function approvePayment() {
   canRetry.value = false
   try {
     const confirmed = await confirmPayment(
-      pending!.apiBaseUrl,
       pending!.payment.id,
       paymentKey,
       returnedAmount,
@@ -74,6 +80,7 @@ async function approvePayment() {
     )
     assertConfirmContract(confirmed, pending!)
     result.value = confirmed
+    saveRecentPaymentId(confirmed.orderId, confirmed.id)
     clearPendingPayment(flowId)
 
     if (confirmed.status === 'PAID') {
@@ -100,8 +107,20 @@ function captureSuccessRedirect() {
   returnedAmount = Number(queryValue('amount'))
 }
 
+function captureOrderId() {
+  const stored = readPendingPayment(flowId)
+  if (stored) {
+    orderId.value = stored.payment.orderId
+    // The payment has already been created even when Toss is cancelled or its
+    // redirect fails validation; let the originating order find that payment.
+    saveRecentPaymentId(stored.payment.orderId, stored.payment.id)
+  }
+}
+
 function showTossFailure() {
-  const code = queryValue('code') || 'TOSS_PAYMENT_FAILED'
+  const returnedCode = queryValue('code')
+  const knownCodes = ['PAY_PROCESS_CANCELED', 'PAY_PROCESS_ABORTED', 'REJECT_CARD_COMPANY']
+  const code = knownCodes.includes(returnedCode) ? returnedCode : 'TOSS_PAYMENT_FAILED'
   errorCode.value = code
   title.value = code === 'PAY_PROCESS_CANCELED' ? '결제가 취소되었습니다' : '토스 결제 인증 실패'
   const safeMessageByCode: Record<string, string> = {
@@ -117,7 +136,12 @@ function validateRedirect(stored: PendingPayment | null): string {
   if (!stored) {
     return '진행 중인 결제 정보를 찾을 수 없습니다. 주문 목록에서 다시 시작하세요.'
   }
-  if (!paymentKey || !returnedProviderOrderId || !Number.isSafeInteger(returnedAmount)) {
+  if (
+    !paymentKey ||
+    !returnedProviderOrderId ||
+    !Number.isSafeInteger(returnedAmount) ||
+    returnedAmount <= 0
+  ) {
     return '결제 결과에 필요한 정보가 없거나 형식이 올바르지 않습니다.'
   }
   if (
@@ -135,7 +159,8 @@ function assertConfirmContract(confirmed: PaymentResponse, stored: PendingPaymen
     confirmed.orderId !== stored.payment.orderId ||
     confirmed.providerOrderId !== stored.payment.providerOrderId ||
     confirmed.amount !== stored.payment.amount ||
-    confirmed.currency !== stored.payment.currency
+    confirmed.currency !== stored.payment.currency ||
+    !['PAID', 'FAILED', 'REVIEW_REQUIRED'].includes(confirmed.status)
   ) {
     throw new ConfirmContractError()
   }
@@ -157,13 +182,53 @@ function handleConfirmError(error: unknown) {
   } else {
     title.value = '결제 승인 실패'
   }
-  message.value = paymentProblemMessage(error)
+  message.value = safeConfirmMessage(error)
   errorCode.value = error instanceof PaymentApiError ? error.code : 'NETWORK_ERROR'
-  canRetry.value = true
+  canRetry.value = isRetriableConfirmError(error)
+}
+
+function isRetriableConfirmError(error: unknown): boolean {
+  return (
+    error instanceof PaymentApiError &&
+    (error.status === 0 || error.status >= 500 || error.code === 'IDEMPOTENCY_REQUEST_IN_PROGRESS')
+  )
+}
+
+function safeConfirmMessage(error: unknown): string {
+  if (!(error instanceof PaymentApiError)) {
+    return '네트워크 상태를 확인한 뒤 다시 시도하세요.'
+  }
+  const safeCodes = new Set([
+    'UNAUTHENTICATED',
+    'AUTHENTICATION_REQUIRED',
+    'SESSION_ABSOLUTE_EXPIRED',
+    'SESSION_VALIDATION_UNAVAILABLE',
+    'PAYMENT_UNAVAILABLE',
+    'DEPENDENCY_UNAVAILABLE',
+    'PAYMENT_NOT_FOUND',
+    'ACCESS_DENIED',
+    'VALIDATION_FAILED',
+    'IDEMPOTENCY_KEY_REUSED',
+    'IDEMPOTENCY_REQUEST_IN_PROGRESS',
+    'STATE_CONFLICT',
+    'ORDER_NOT_ELIGIBLE',
+    'PROVIDER_REJECTED',
+  ])
+  return safeCodes.has(error.code)
+    ? paymentProblemMessage(error)
+    : '결제 승인을 완료하지 못했습니다. 주문에서 결제 상태를 확인하세요.'
 }
 
 async function removeSensitiveQuery() {
   await router.replace({ name: route.name ?? undefined, query: flowId ? { flow: flowId } : {} })
+}
+
+async function returnToOrder() {
+  await router.replace(
+    orderId.value
+      ? { name: 'pos-orders-detail', params: { orderId: orderId.value } }
+      : { name: 'pos-orders' },
+  )
 }
 
 function queryValue(key: string): string {
@@ -222,8 +287,9 @@ class ConfirmContractError extends Error {
         >
           {{ busy ? '승인 확인 중…' : '승인 다시 시도' }}
         </button>
-        <RouterLink class="result-button" to="/payments/test">새 테스트 결제</RouterLink>
-        <RouterLink class="result-button" to="/">홈으로</RouterLink>
+        <button type="button" class="result-button result-button--primary" @click="returnToOrder">
+          주문으로 돌아가기
+        </button>
       </div>
     </section>
   </main>

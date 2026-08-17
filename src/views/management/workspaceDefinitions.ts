@@ -82,18 +82,6 @@ export const workspaceDefinitions = {
     accessRoles: allEmployees,
     contractNote: '입장·취소·미방문을 처리하고, 조리가 끝난 주문은 준비 완료로 변경할 수 있습니다.',
   },
-  payments: {
-    eyebrow: '결제 운영', title: '결제 관리',
-    description: '주문과 연결된 결제의 승인·실패·검토·취소 상태를 안전하게 확인합니다.',
-    filters: [{ label: '결제 ID', placeholder: '결제 ID 입력' }],
-    columns: ['결제 ID', '주문 ID', '금액', '결제 상태', '결제사', '처리 시각', '상세'],
-    statuses: [{ label: '결제 대기', tone: 'warning' }, { label: '결제 완료', tone: 'success' }, { label: '결제 실패', tone: 'danger' }, { label: '결제 확인 필요', tone: 'warning' }, { label: '결제 취소', tone: 'neutral' }],
-    workflowTitle: '결제 처리 흐름', workflow: ['승인 대기', '승인 완료', '결제 완료', '결제 취소'],
-    emptyTitle: '결제 ID를 입력해 주세요',
-    emptyDescription: '결제 ID를 입력하면 결제 상태를 확인할 수 있습니다.',
-    accessRoles: allEmployees,
-    contractNote: '확인 필요 상태의 결제는 완료로 처리하지 말고 결제 내역을 확인하세요.',
-  },
   sales: {
     eyebrow: '매출 운영', title: '매출·마감',
     description: '영업일별 승인·취소 금액과 완료 주문을 확인하고 마감 상태를 관리합니다.',
