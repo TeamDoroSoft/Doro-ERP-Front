@@ -40,4 +40,8 @@ test('[mock-ui] shows the active table management screen', async ({ page }) => {
   await expect(page.getByText('A-1')).toBeVisible()
   await expect(page.getByText('창가')).toBeVisible()
   await expect(page.getByRole('button', { name: '테이블 등록' })).toBeVisible()
+
+  await page.reload()
+  await expect(page).toHaveURL(/\/pos\/tables$/)
+  await expect(page.getByRole('heading', { name: '테이블 관리' })).toBeVisible()
 })

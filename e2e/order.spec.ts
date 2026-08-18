@@ -297,10 +297,10 @@ test('[mock-ui] completes an ACCEPTED order only after the server answers', asyn
 
   // Nothing is optimistically applied while the command is in flight.
   await expect(page.getByRole('button', { name: '완료 확인 중…' })).toBeVisible()
-  await expect(page.getByText('처리 완료')).toHaveCount(0)
+  await expect(page.getByText('처리 완료', { exact: true })).toHaveCount(0)
 
   releaseComplete()
-  await expect(page.getByText('처리 완료')).toBeVisible()
+  await expect(page.getByText('처리 완료', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '주문 완료' })).toHaveCount(0)
   expect(completeRequests).toBe(1)
 })

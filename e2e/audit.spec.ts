@@ -53,9 +53,36 @@ test('[mock-ui] shows the audit list and detail drawer', async ({ page }) => {
   await expect(page.getByText('commerce')).toBeVisible()
 
   await page.getByRole('button', { name: '감사 기록 상세 보기' }).click()
-  await expect(page.getByRole('heading', { name: '감사 기록 상세' })).toBeVisible()
-  await expect(page.getByText('orderChannel')).toBeVisible()
-  await expect(page.locator('.metadata').getByText('POS', { exact: true })).toBeVisible()
+  // Scope the assertions to the drawer so a matching value in the table row cannot satisfy them.
+  const drawer = page.getByRole('dialog', { name: '감사 기록 상세' })
+  await expect(drawer).toBeVisible()
+  await expect(drawer.getByText('orderChannel')).toBeVisible()
+  await expect(drawer.getByText('POS', { exact: true })).toBeVisible()
+})
+
+test('[mock-ui] shows a permission-denied notice when Edge rejects an allowed role with 403', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/audits?*', async (route) => {
+    await route.fulfill({
+      status: 403,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        code: 'AUDIT_ROLE_NOT_ALLOWED',
+        requestId: 'req-audit-403-test',
+      }),
+    })
+  })
+
+  await page.goto('/pos/history')
+
+  await expect(
+    page.getByText('이 기능에 접근할 권한이 없습니다.', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 시도' })).toHaveCount(0)
 })
 
 test('[mock-ui] keeps the audit screen usable at tablet width', async ({ page }) => {

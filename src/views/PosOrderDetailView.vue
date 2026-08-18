@@ -30,12 +30,22 @@ function orderId(): string {
 }
 
 async function loadOrder(clearOperationError = true, showLoading = true) {
-  if (showLoading) loading.value = true
+  // `showLoading`은 이 호출이 Foreground 재조회인지 나타낸다: 최초 mount, orderId Route 변경,
+  // 사용자의 명시적 재시도. Foreground에서만 이전 주문을 비워서, 다른 주문으로 이동하는 중에
+  // 이전 주문의 취소·완료 Button을 누를 수 없게 한다.
+  // 결제 상태 변경 후의 Background 동기화는 `false`를 넘겨 `loading`을 건드리지 않는다. 건드리면
+  // 아래 `v-else-if="order"` 분기가 OrderPaymentPanel을 unmount하고, 다시 mount되면서 최초 결제
+  // 조회가 다시 실행되어 `payment-updated`를 재발행하고 loadOrder를 또 호출하는 무한 Loop가 된다.
+  if (showLoading) {
+    order.value = null
+    loading.value = true
+  }
   error.value = null
   if (clearOperationError) operationError.value = ''
   try {
-    order.value = await getOrder(orderId())
-    recentPaymentId.value = readRecentPaymentId(order.value.orderId)
+    const fetched = await getOrder(orderId())
+    order.value = fetched
+    recentPaymentId.value = readRecentPaymentId(fetched.orderId)
   } catch (caught) {
     error.value = queryError(caught)
   } finally {
@@ -60,7 +70,7 @@ async function cancel() {
   try {
     order.value = await cancelOrder(order.value.orderId)
   } catch (caught) {
-    if (isConflict(caught)) await loadOrder(false)
+    if (isConflict(caught)) await loadOrder(false, false)
     operationError.value = mutationMessage(caught, '주문을 취소하지 못했습니다.')
   } finally {
     cancelling.value = false
@@ -74,7 +84,7 @@ async function complete() {
   try {
     order.value = await completeOrder(order.value.orderId)
   } catch (caught) {
-    if (isConflict(caught)) await loadOrder(false)
+    if (isConflict(caught)) await loadOrder(false, false)
     operationError.value = isConflict(caught)
       ? '준비 완료 상태가 아니거나 주문 상태가 바뀌었습니다. 최신 주문 정보를 다시 확인했습니다.'
       : mutationMessage(caught, '주문 완료를 처리하지 못했습니다.')
