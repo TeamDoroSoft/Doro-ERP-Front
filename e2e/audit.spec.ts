@@ -53,9 +53,10 @@ test('shows the audit list and detail drawer', async ({ page }) => {
   await expect(page.getByText('commerce')).toBeVisible()
 
   await page.getByRole('button', { name: '감사 기록 상세 보기' }).click()
-  await expect(page.getByRole('heading', { name: '감사 기록 상세' })).toBeVisible()
-  await expect(page.getByText('orderChannel')).toBeVisible()
-  await expect(page.getByText('POS')).toBeVisible()
+  const drawer = page.getByRole('complementary', { name: '감사 기록 상세' })
+  await expect(drawer).toBeVisible()
+  await expect(drawer.getByText('orderChannel')).toBeVisible()
+  await expect(drawer.getByText('POS', { exact: true })).toBeVisible()
 })
 
 test('shows a permission-denied notice when Edge rejects an allowed role with 403', async ({

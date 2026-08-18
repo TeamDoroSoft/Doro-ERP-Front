@@ -30,9 +30,12 @@ test('navigates every Phase 1 POS destination from the sidebar', async ({ page }
   await page.goto('/pos/orders')
 
   for (const [menu, heading] of screens) {
-    await page.getByRole('link', { name: menu, exact: true }).click()
+    // Sidebar links whose feature is still `ready: false` append a "준비" badge to the
+    // accessible name (see PosSidebar.vue), so match the label as a prefix, not exact.
+    const menuLink = page.getByRole('link', { name: new RegExp(`^${menu}`) })
+    await menuLink.click()
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
-    await expect(page.getByRole('link', { name: menu, exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(menuLink).toHaveAttribute('aria-current', 'page')
   }
 })
 

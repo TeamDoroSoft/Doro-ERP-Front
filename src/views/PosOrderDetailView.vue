@@ -30,7 +30,11 @@ function orderId(): string {
 }
 
 async function loadOrder(clearOperationError = true) {
-  loading.value = true
+  // Only show the full-page loading state for the initial load. A background refresh
+  // (e.g. after a payment status change) must not flip this to true, or the `v-else-if="order"`
+  // branch below unmounts OrderPaymentPanel; remounting it re-triggers its initial payment
+  // fetch, which re-emits `payment-updated` and calls loadOrder again — an infinite loop.
+  if (!order.value) loading.value = true
   error.value = null
   if (clearOperationError) operationError.value = ''
   try {
