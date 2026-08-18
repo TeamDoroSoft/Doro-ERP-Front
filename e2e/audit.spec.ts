@@ -46,7 +46,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 test('shows the audit list and detail drawer', async ({ page }) => {
-  await page.goto('/admin/audit')
+  await page.goto('/pos/history')
 
   await expect(page.getByRole('heading', { name: '감사 이력', exact: true })).toBeVisible()
   await expect(page.getByText('주문 접수')).toBeVisible()
@@ -60,7 +60,7 @@ test('shows the audit list and detail drawer', async ({ page }) => {
 
 test('keeps the audit screen usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
-  await page.goto('/admin/audit')
+  await page.goto('/pos/history')
 
   await expect(page.getByRole('heading', { name: '감사 이력', exact: true })).toBeVisible()
   await expect(page.getByRole('form', { name: '감사 이력 필터' })).toBeVisible()

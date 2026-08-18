@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
 import { logout } from '@/api/auth'
-import AdminHeader from '@/components/layout/AdminHeader.vue'
+import PosHeader from '@/components/layout/PosHeader.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 
 vi.mock('@/api/auth', async (importOriginal) => {
@@ -11,14 +11,14 @@ vi.mock('@/api/auth', async (importOriginal) => {
   return { ...original, logout: vi.fn<typeof original.logout>() }
 })
 
-describe('AdminHeader', () => {
+describe('PosHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionStorage.clear()
     setActivePinia(createPinia())
   })
 
-  it('shows the authenticated role and safely logs out', async () => {
+  it('shows the authenticated role and safely logs out to /pos/login', async () => {
     vi.mocked(logout).mockResolvedValue(undefined)
     const session = useOperatorSessionStore()
     session.applyLogin({ employeeId: 'employee-1', role: 'MANAGER', passwordChangeRequired: false }, 'doro')
@@ -34,7 +34,7 @@ describe('AdminHeader', () => {
 
     expect(logout).toHaveBeenCalledOnce()
     expect(session.authenticated).toBe(false)
-    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/login')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/login')
   })
 
   it('shows the DEV badge and clears preview without a Backend logout request', async () => {
@@ -50,7 +50,7 @@ describe('AdminHeader', () => {
     expect(logout).not.toHaveBeenCalled()
     expect(session.authenticated).toBe(false)
     expect(session.isPreview).toBe(false)
-    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/login')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/login')
   })
 })
 
@@ -58,12 +58,12 @@ async function mountHeader() {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/admin/dashboard', component: { template: '<div />' } },
-      { path: '/login', component: { template: '<div />' } },
-      { path: '/account/change-password', component: { template: '<div />' } },
+      { path: '/pos/orders', component: { template: '<div />' } },
+      { path: '/pos/login', component: { template: '<div />' } },
+      { path: '/pos/account/change-password', component: { template: '<div />' } },
     ],
   })
-  await router.push('/admin/dashboard')
+  await router.push('/pos/orders')
   await router.isReady()
-  return mount(AdminHeader, { global: { plugins: [router] } })
+  return mount(PosHeader, { global: { plugins: [router] } })
 }

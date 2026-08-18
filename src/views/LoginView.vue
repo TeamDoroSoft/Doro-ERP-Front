@@ -14,8 +14,8 @@ const errors = ref<Record<string, string>>({})
 const submitError = ref('')
 const busy = ref(false)
 const showPassword = ref(false)
-const DevAdminPreviewEntry = import.meta.env.DEV
-  ? defineAsyncComponent(() => import('@/components/dev/DevAdminPreviewEntry.vue'))
+const DevPosPreviewEntry = import.meta.env.DEV
+  ? defineAsyncComponent(() => import('@/components/dev/DevPosPreviewEntry.vue'))
   : null
 const sessionExpired = computed(() => route.query.reason === 'session-expired')
 
@@ -32,10 +32,9 @@ async function submit() {
     })
     session.applyLogin(result, form.tenantCode.trim())
     if (result.passwordChangeRequired) {
-      await router.push('/account/change-password')
+      await router.push('/pos/account/change-password')
     } else {
-      const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/admin/dashboard'
-      await router.push(redirect.startsWith('/admin') ? redirect : '/admin/dashboard')
+      await router.push(loginDestination(route.query.redirect))
     }
   } catch (error) {
     submitError.value = loginErrorMessage(error)
@@ -44,9 +43,20 @@ async function submit() {
   }
 }
 
+function loginDestination(redirect: unknown) {
+  if (typeof redirect !== 'string' || !redirect.startsWith('/pos/')) return '/pos/orders'
+  if (redirect.includes('?') || redirect.includes('#')) return '/pos/orders'
+
+  const resolved = router.resolve(redirect)
+  if (resolved.name === undefined || resolved.name === 'not-found' || resolved.name === 'pos-login') {
+    return '/pos/orders'
+  }
+  return redirect
+}
+
 async function enterPreview() {
   session.applyPreview()
-  await router.push('/admin/dashboard')
+  await router.push('/pos/orders')
 }
 
 function validate() {
@@ -88,7 +98,7 @@ function loginErrorMessage(error: unknown) {
           <label>비밀번호<span class="password-field"><input v-model="form.password" name="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" placeholder="비밀번호" :aria-invalid="Boolean(errors.password)" /><button type="button" :aria-label="showPassword ? '비밀번호 숨기기' : '비밀번호 보기'" @click="showPassword = !showPassword">{{ showPassword ? '숨김' : '보기' }}</button></span><small v-if="errors.password">{{ errors.password }}</small></label>
           <button class="submit-button" type="submit" :disabled="busy">{{ busy ? '로그인 확인 중…' : '로그인' }}</button>
         </form>
-        <component :is="DevAdminPreviewEntry" v-if="DevAdminPreviewEntry" @preview="enterPreview" />
+        <component :is="DevPosPreviewEntry" v-if="DevPosPreviewEntry" @preview="enterPreview" />
         <p class="support">계정 문제가 있으면 매장 관리자에게 문의하세요.</p>
       </div>
     </section>

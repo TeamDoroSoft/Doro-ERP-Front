@@ -16,8 +16,8 @@ app.use(router)
 
 registerUnauthorizedHandler(() => {
   useOperatorSessionStore(pinia).clearSession()
-  if (router.currentRoute.value.path !== '/login') {
-    void router.push({ path: '/login', query: { reason: 'session-expired' } })
+  if (router.currentRoute.value.path !== '/pos/login') {
+    void router.replace({ path: '/pos/login', query: { reason: 'session-expired' } })
   }
 })
 

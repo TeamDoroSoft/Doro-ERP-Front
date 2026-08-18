@@ -27,14 +27,38 @@ describe('LoginView', () => {
     expect(wrapper.find('input[name="password"]').attributes('type')).toBe('password')
   })
 
-  it('applies a successful role and enters the dashboard', async () => {
+  it('applies a successful role and enters the POS orders view', async () => {
     vi.mocked(login).mockResolvedValue({ employeeId: 'employee-1', role: 'OWNER', passwordChangeRequired: false })
     const wrapper = await mountLogin()
     await fillAndSubmit(wrapper)
     await flushPromises()
 
     expect(useOperatorSessionStore().role).toBe('OWNER')
-    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/admin/dashboard')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/orders')
+  })
+
+  it('returns to a safe internal POS destination after login', async () => {
+    vi.mocked(login).mockResolvedValue({ employeeId: 'employee-1', role: 'OWNER', passwordChangeRequired: false })
+    const wrapper = await mountLogin('/pos/login?redirect=/pos/tables')
+    await fillAndSubmit(wrapper)
+    await flushPromises()
+
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/tables')
+  })
+
+  it.each([
+    '//external.example/path',
+    '/pos/orders?paymentKey=must-not-survive',
+    '/pos/missing',
+    '/pos/login',
+  ])('rejects an unsafe login redirect: %s', async (redirect) => {
+    vi.mocked(login).mockResolvedValue({ employeeId: 'employee-1', role: 'OWNER', passwordChangeRequired: false })
+    const wrapper = await mountLogin(`/pos/login?redirect=${encodeURIComponent(redirect)}`)
+    await fillAndSubmit(wrapper)
+    await flushPromises()
+
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/orders')
+    expect(wrapper.vm.$router.currentRoute.value.query).toEqual({})
   })
 
   it('sends temporary-password users to the required change screen', async () => {
@@ -42,7 +66,7 @@ describe('LoginView', () => {
     const wrapper = await mountLogin()
     await fillAndSubmit(wrapper)
     await flushPromises()
-    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/account/change-password')
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/account/change-password')
   })
 
   it('shows a safe invalid-credential error', async () => {
@@ -54,16 +78,22 @@ describe('LoginView', () => {
   })
 })
 
-async function mountLogin() {
+async function mountLogin(location = '/pos/login') {
   const router = createRouter({
     history: createMemoryHistory(),
     routes: [
-      { path: '/login', component: LoginView },
-      { path: '/admin/dashboard', component: { template: '<div>dashboard</div>' } },
-      { path: '/account/change-password', component: { template: '<div>password</div>' } },
+      { path: '/pos/login', name: 'pos-login', component: LoginView },
+      { path: '/pos/orders', name: 'pos-orders', component: { template: '<div>orders</div>' } },
+      { path: '/pos/tables', name: 'pos-tables', component: { template: '<div>tables</div>' } },
+      {
+        path: '/pos/account/change-password',
+        name: 'pos-change-password',
+        component: { template: '<div>password</div>' },
+      },
+      { path: '/:pathMatch(.*)*', name: 'not-found', component: { template: '<div>missing</div>' } },
     ],
   })
-  await router.push('/login')
+  await router.push(location)
   await router.isReady()
   const wrapper = mount(LoginView, { global: { plugins: [router] } })
   await flushPromises()

@@ -1,0 +1,74 @@
+import { apiRequest } from './http'
+
+export type OrderChannel = 'POS' | 'KIOSK'
+export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
+export type OrderStatus = 'CREATED' | 'ACCEPTED' | 'COMPLETED' | 'CANCELLED'
+
+/** A request can contain at most 100 lines; each quantity must be between 1 and 999. */
+export interface CreateOrderLineRequest {
+  productId: string
+  quantity: number
+}
+
+/** Prices, names, and totals are deliberately absent: Commerce calculates them from Catalog. */
+export interface CreateOrderRequest {
+  orderChannel: OrderChannel
+  serviceType: OrderServiceType
+  tableId?: string
+  lines: CreateOrderLineRequest[]
+}
+
+/**
+ * Current Commerce `OrderView` wire contract. `orderAccessToken` is only populated for Kiosk
+ * creation/replay and is null for employee POS responses.
+ */
+export interface OrderResponse {
+  orderId: string
+  displayNumber: number
+  totalAmount: number
+  currency: string
+  status: OrderStatus
+  businessDate: string
+  orderAccessToken: string | null
+}
+
+export interface OrderListQuery {
+  businessDate?: string
+  status?: OrderStatus
+}
+
+export function createOrder(
+  request: CreateOrderRequest,
+  idempotencyKey: string,
+): Promise<OrderResponse> {
+  return apiRequest<OrderResponse>('/orders', {
+    method: 'POST',
+    headers: { 'Idempotency-Key': idempotencyKey },
+    body: JSON.stringify(request),
+  })
+}
+
+export function getOrders(query: OrderListQuery = {}): Promise<OrderResponse[]> {
+  const search = new URLSearchParams()
+  if (query.businessDate) search.set('businessDate', query.businessDate)
+  if (query.status) search.set('status', query.status)
+  const suffix = search.size === 0 ? '' : `?${search.toString()}`
+
+  return apiRequest<OrderResponse[]>(`/orders${suffix}`)
+}
+
+export function getOrder(orderId: string): Promise<OrderResponse> {
+  return apiRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}`)
+}
+
+export function cancelOrder(orderId: string): Promise<OrderResponse> {
+  return apiRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/cancel`, {
+    method: 'POST',
+  })
+}
+
+export function completeOrder(orderId: string): Promise<OrderResponse> {
+  return apiRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/complete`, {
+    method: 'POST',
+  })
+}

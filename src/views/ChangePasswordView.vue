@@ -20,7 +20,7 @@ async function submit() {
   try {
     await changeOwnPassword({ currentPassword: form.currentPassword, newPassword: form.newPassword })
     session.clearSession()
-    await router.push({ path: '/login', query: { reason: 'password-changed' } })
+    await router.push({ path: '/pos/login', query: { reason: 'password-changed' } })
   } catch (error) {
     errorMessage.value = passwordErrorMessage(error)
   } finally {
@@ -49,7 +49,7 @@ function passwordErrorMessage(error: unknown) {
       <div class="icon"><AppIcon name="audit" :size="24" /></div>
       <p class="eyebrow">계정 보안</p>
       <h1>{{ required ? '비밀번호를 먼저 변경해 주세요' : '비밀번호 변경' }}</h1>
-      <p class="description">{{ required ? '임시 비밀번호를 변경한 뒤 관리자 화면을 이용할 수 있습니다.' : '변경이 완료되면 다시 로그인해야 합니다.' }}</p>
+      <p class="description">{{ required ? '임시 비밀번호를 변경한 뒤 POS 화면을 이용할 수 있습니다.' : '변경이 완료되면 다시 로그인해야 합니다.' }}</p>
       <p v-if="errorMessage" class="error" role="alert">{{ errorMessage }}</p>
       <form @submit.prevent="submit">
         <label>현재 비밀번호<input v-model="form.currentPassword" name="currentPassword" type="password" autocomplete="current-password" /></label>
@@ -57,7 +57,7 @@ function passwordErrorMessage(error: unknown) {
         <label>새 비밀번호 확인<input v-model="form.confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" /></label>
         <button type="submit" :disabled="busy">{{ busy ? '변경 중…' : '비밀번호 변경' }}</button>
       </form>
-      <button v-if="!required" class="back" type="button" @click="router.push('/admin/dashboard')">관리자 화면으로 돌아가기</button>
+      <button v-if="!required" class="back" type="button" @click="router.push('/pos/orders')">POS 화면으로 돌아가기</button>
     </section>
   </main>
 </template>

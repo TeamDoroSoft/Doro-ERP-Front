@@ -36,36 +36,6 @@ const allEmployees: EmployeeRole[] = ['OWNER', 'MANAGER', 'STAFF']
 const managers: EmployeeRole[] = ['OWNER', 'MANAGER']
 
 export const workspaceDefinitions = {
-  orders: {
-    eyebrow: '주문 운영',
-    title: '주문 관리',
-    description: '매장과 키오스크 주문을 영업일과 처리 상태별로 확인합니다.',
-    filters: [
-      { label: '영업일', placeholder: '영업일 선택', type: 'date' },
-      { label: '주문 상태', placeholder: '전체 상태', type: 'select', options: ['전체', option('CREATED', '주문 생성'), option('ACCEPTED', '주문 접수'), option('COMPLETED', '처리 완료'), option('CANCELLED', '주문 취소')] },
-    ],
-    columns: ['주문 번호', '서비스 유형', '상태', '총액', '영업일', '상세'],
-    statuses: [
-      { label: '결제 전', tone: 'warning' }, { label: '접수', tone: 'success' },
-      { label: '완료', tone: 'neutral' }, { label: '취소', tone: 'danger' },
-    ],
-    workflowTitle: '주문 처리 흐름',
-    workflow: ['주문 생성', '주문 접수', '조리 중·준비 완료', '처리 완료'],
-    emptyTitle: '주문 내역이 없습니다',
-    emptyDescription: '영업일이나 주문 상태를 변경해 보세요.',
-    primaryAction: {
-      label: 'POS 주문 등록', roles: allEmployees, title: '새 주문',
-      description: '매장 식사는 사용할 테이블을 선택하고, 포장은 테이블 없이 등록합니다.',
-      fields: [
-        { label: '주문 채널', placeholder: 'POS', type: 'select', options: ['POS'] },
-        { label: '서비스 유형', placeholder: '유형 선택', type: 'select', options: [option('DINE_IN', '매장 이용'), option('TAKEOUT', '포장')] },
-        { label: '테이블 ID', placeholder: '매장 식사일 때만 입력' },
-        { label: '주문 상품', placeholder: '상품과 수량을 선택하세요' },
-      ],
-    },
-    accessRoles: allEmployees,
-    contractNote: '영업일과 주문 상태를 기준으로 조회할 수 있습니다.',
-  },
   catalog: {
     eyebrow: '상품 운영', title: '상품·메뉴 관리',
     description: '카테고리와 판매 상품의 가격, 노출 순서, 판매·품절 상태를 관리합니다.',
@@ -111,18 +81,6 @@ export const workspaceDefinitions = {
     },
     accessRoles: allEmployees,
     contractNote: '입장·취소·미방문을 처리하고, 조리가 끝난 주문은 준비 완료로 변경할 수 있습니다.',
-  },
-  payments: {
-    eyebrow: '결제 운영', title: '결제 관리',
-    description: '주문과 연결된 결제의 승인·실패·검토·취소 상태를 안전하게 확인합니다.',
-    filters: [{ label: '결제 ID', placeholder: '결제 ID 입력' }],
-    columns: ['결제 ID', '주문 ID', '금액', '결제 상태', '결제사', '처리 시각', '상세'],
-    statuses: [{ label: '결제 대기', tone: 'warning' }, { label: '결제 완료', tone: 'success' }, { label: '결제 실패', tone: 'danger' }, { label: '결제 확인 필요', tone: 'warning' }, { label: '결제 취소', tone: 'neutral' }],
-    workflowTitle: '결제 처리 흐름', workflow: ['승인 대기', '승인 완료', '결제 완료', '결제 취소'],
-    emptyTitle: '결제 ID를 입력해 주세요',
-    emptyDescription: '결제 ID를 입력하면 결제 상태를 확인할 수 있습니다.',
-    accessRoles: allEmployees,
-    contractNote: '확인 필요 상태의 결제는 완료로 처리하지 말고 결제 내역을 확인하세요.',
   },
   sales: {
     eyebrow: '매출 운영', title: '매출·마감',

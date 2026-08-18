@@ -31,11 +31,11 @@ test('shows the active table management screen', async ({ page }) => {
   })
 
   await page.goto('/')
-  await expect(page).toHaveURL(/\/admin\/dashboard$/)
-  await expect(page.getByRole('heading', { name: '대시보드' })).toBeVisible()
+  await expect(page).toHaveURL(/\/pos\/orders$/)
+  await expect(page.getByRole('heading', { name: '주문 목록' })).toBeVisible()
 
   await page.goto('/tables')
-  await expect(page).toHaveURL(/\/admin\/tables$/)
+  await expect(page).toHaveURL(/\/pos\/tables$/)
   await expect(page.getByRole('heading', { name: '테이블 관리' })).toBeVisible()
   await expect(page.getByText('A-1')).toBeVisible()
   await expect(page.getByText('창가')).toBeVisible()
