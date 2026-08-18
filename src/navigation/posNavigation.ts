@@ -13,7 +13,7 @@ const managersOnly: EmployeeRole[] = ['OWNER', 'MANAGER']
 
 export const posNavigation: PosNavigationItem[] = [
   { label: '주문 관리', to: '/pos/orders', icon: 'orders', roles: allEmployees, ready: true },
-  { label: '대기·조리', to: '/pos/queues/entry', icon: 'queue', roles: allEmployees, ready: false },
+  { label: '대기·조리', to: '/pos/queues/entry', icon: 'queue', roles: allEmployees, ready: true },
   { label: '상품·메뉴', to: '/pos/catalog', icon: 'catalog', roles: allEmployees, ready: false },
   { label: '테이블', to: '/pos/tables', icon: 'tables', roles: managersOnly, ready: true },
   { label: '매출·마감', to: '/pos/sales', icon: 'sales', roles: allEmployees, ready: false },

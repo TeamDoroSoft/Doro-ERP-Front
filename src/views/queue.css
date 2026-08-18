@@ -1,0 +1,24 @@
+.queue-page { display: grid; gap: 18px; width: 100%; }
+.queue-header, .queue-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.queue-header p, .queue-header h1, .queue-header span, .queue-section-heading h2, .queue-section-heading p { margin: 0; }
+.queue-header p { color: var(--color-primary); font-size: 12px; font-weight: 800; }
+.queue-header h1 { margin: 4px 0; color: var(--color-heading); font-size: 25px; }
+.queue-header span, .queue-section-heading p { color: var(--color-muted); font-size: 13px; }
+.queue-card { display: grid; gap: 16px; border: 1px solid var(--color-border); border-radius: 14px; background: white; padding: 20px; }
+.queue-card h2 { margin: 0; font-size: 17px; }
+.queue-form { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(120px, 1fr) auto; align-items: end; gap: 12px; }
+.queue-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
+.queue-form input { min-height: 40px; border: 1px solid var(--color-border); border-radius: 8px; padding: 0 10px; }
+button { min-height: 38px; border: 1px solid var(--color-border-hover); border-radius: 8px; background: white; padding: 0 13px; color: var(--color-heading); font: inherit; font-weight: 700; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+.queue-form > button { border-color: var(--color-primary); background: var(--color-primary); color: white; }
+.queue-error { margin: 0; color: #b91c1c; }
+.queue-lag { margin: 0; border-radius: 10px; background: #fffbeb; padding: 12px 15px; color: #854d0e; }
+.queue-empty { margin: 0; padding: 40px 12px; color: var(--color-muted); text-align: center; }
+.queue-table-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 680px; border-collapse: collapse; }
+th, td { border-bottom: 1px solid var(--color-border); padding: 12px; text-align: left; }
+th { color: var(--color-muted); font-size: 12px; }
+.queue-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+a { color: var(--color-primary); font-weight: 700; }
+@media (max-width: 700px) { .queue-header { align-items: flex-start; flex-direction: column; }.queue-form { grid-template-columns: 1fr; } }

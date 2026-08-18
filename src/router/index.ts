@@ -9,7 +9,8 @@ import PosOrdersView from '@/views/PosOrdersView.vue'
 import PosOrderCreateView from '@/views/PosOrderCreateView.vue'
 import PosOrderDetailView from '@/views/PosOrderDetailView.vue'
 import CatalogManagementView from '@/views/CatalogManagementView.vue'
-import QueueOperationsView from '@/views/QueueOperationsView.vue'
+import EntryQueueView from '@/views/EntryQueueView.vue'
+import FulfillmentQueueView from '@/views/FulfillmentQueueView.vue'
 import SalesClosingView from '@/views/SalesClosingView.vue'
 import StoreSettingsView from '@/views/StoreSettingsView.vue'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
@@ -140,13 +141,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'queues/entry',
         name: 'pos-queues-entry',
-        component: QueueOperationsView,
+        component: EntryQueueView,
         meta: { roles: ['OWNER', 'MANAGER', 'STAFF'] },
       },
       {
         path: 'queues/fulfillment',
         name: 'pos-queues-fulfillment',
-        component: QueueOperationsView,
+        component: FulfillmentQueueView,
         meta: { roles: ['OWNER', 'MANAGER', 'STAFF'] },
       },
       {

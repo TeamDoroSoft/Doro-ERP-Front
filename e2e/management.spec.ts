@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 test('navigates every Phase 1 POS destination from the sidebar', async ({ page }) => {
   const screens = [
     ['주문 관리', '주문 목록'],
-    ['대기·조리 준비', '대기·조리'],
+    ['대기·조리', '입장 대기 관리'],
     ['상품·메뉴 준비', '상품·메뉴 관리'],
     ['테이블', '테이블 관리'],
     ['매출·마감 준비', '매출·마감'],
