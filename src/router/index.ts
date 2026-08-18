@@ -4,7 +4,7 @@ import TableManagementView from '@/views/TableManagementView.vue'
 import PaymentResultView from '@/views/PaymentResultView.vue'
 import LoginView from '@/views/LoginView.vue'
 import ChangePasswordView from '@/views/ChangePasswordView.vue'
-import AuditLogView from '@/views/AuditLogView.vue'
+import HistoryView from '@/views/HistoryView.vue'
 import PosOrdersView from '@/views/PosOrdersView.vue'
 import PosOrderCreateView from '@/views/PosOrderCreateView.vue'
 import PosOrderDetailView from '@/views/PosOrderDetailView.vue'
@@ -177,7 +177,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'history',
         name: 'pos-history',
-        component: AuditLogView,
+        component: HistoryView,
         meta: { roles: ['OWNER', 'MANAGER'] },
       },
     ],

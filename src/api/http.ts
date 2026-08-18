@@ -60,19 +60,27 @@ export async function apiRequest<T>(
   options: RequestInit = {},
   behavior: { handleUnauthorized?: boolean } = {},
 ): Promise<T> {
+  const response = await apiResponse(path, options, behavior)
+
+  if (response.status === 204) return undefined as T
+
+  return (await response.json()) as T
+}
+
+export async function apiResponse(
+  path: string,
+  options: RequestInit = {},
+  behavior: { handleUnauthorized?: boolean } = {},
+): Promise<Response> {
   const method = (options.method ?? 'GET').toUpperCase()
   const headers = new Headers(options.headers)
   headers.set('Accept', 'application/json, application/problem+json')
-
-  if (options.body !== undefined && !headers.has('Content-Type')) {
+  if (options.body !== undefined && !headers.has('Content-Type'))
     headers.set('Content-Type', 'application/json')
-  }
-
   if (!safeMethods.has(method)) {
     const csrfToken = readCookie('XSRF-TOKEN')
     if (csrfToken) headers.set('X-XSRF-TOKEN', csrfToken)
   }
-
   let response: Response
   try {
     response = await fetch(`${apiBaseUrl}/${path.replace(/^\//, '')}`, {
@@ -94,7 +102,5 @@ export async function apiRequest<T>(
     if (error.status === 401 && behavior.handleUnauthorized !== false) unauthorizedHandler?.()
     throw error
   }
-  if (response.status === 204) return undefined as T
-
-  return (await response.json()) as T
+  return response
 }
