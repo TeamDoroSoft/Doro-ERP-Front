@@ -59,6 +59,66 @@ test('starts from an order, confirms with a separate key, scrubs callback secret
   await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
 })
 
+test('shows a non-retriable message when the payment provider rejects confirmation', async ({
+  page,
+}) => {
+  await mockOrder(page, () => 'CREATED')
+  await mockTossSdk(page, 'success')
+  await mockPaymentCreate(page)
+  await page.route(`**/api/v1/payments/${paymentId}/confirm`, async (route) => {
+    await route.fulfill({
+      status: 422,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({
+        type: 'about:blank',
+        title: 'Unprocessable Entity',
+        status: 422,
+        code: 'PROVIDER_REJECTED',
+        requestId: 'req-provider-rejected-test',
+      }),
+    })
+  })
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment('PENDING'))
+  })
+
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+
+  await expect(page.getByRole('heading', { name: '결제 승인 실패' })).toBeVisible()
+  await expect(page.getByText('결제 제공자가 요청을 거절했습니다.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '승인 다시 시도' })).toHaveCount(0)
+
+  await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
+  await expect(page.getByText('결제 대기', { exact: true })).toBeVisible()
+})
+
+test('offers a retry when the confirm request fails on the network', async ({ page }) => {
+  await mockOrder(page, () => 'CREATED')
+  await mockTossSdk(page, 'success')
+  await mockPaymentCreate(page)
+  let confirmAttempts = 0
+  await page.route(`**/api/v1/payments/${paymentId}/confirm`, async (route) => {
+    confirmAttempts += 1
+    await route.abort()
+  })
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment('PENDING'))
+  })
+
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+
+  await expect(page.getByRole('heading', { name: '결제 승인 실패' })).toBeVisible()
+  await expect(
+    page.getByText('결제 승인을 완료하지 못했습니다. 주문에서 결제 상태를 확인하세요.', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '승인 다시 시도' })).toBeVisible()
+  expect(confirmAttempts).toBe(1)
+})
+
 test('keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
   let confirmRequests = 0
   await mockOrder(page, () => 'CREATED')

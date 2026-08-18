@@ -58,6 +58,31 @@ test('shows the audit list and detail drawer', async ({ page }) => {
   await expect(page.getByText('POS')).toBeVisible()
 })
 
+test('shows a permission-denied notice when Edge rejects an allowed role with 403', async ({
+  page,
+}) => {
+  await page.route('**/api/v1/audits?*', async (route) => {
+    await route.fulfill({
+      status: 403,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({
+        type: 'about:blank',
+        title: 'Forbidden',
+        status: 403,
+        code: 'AUDIT_ROLE_NOT_ALLOWED',
+        requestId: 'req-audit-403-test',
+      }),
+    })
+  })
+
+  await page.goto('/pos/history')
+
+  await expect(
+    page.getByText('이 기능에 접근할 권한이 없습니다.', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 시도' })).toHaveCount(0)
+})
+
 test('keeps the audit screen usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
   await page.goto('/pos/history')

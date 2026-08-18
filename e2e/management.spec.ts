@@ -36,6 +36,37 @@ test('navigates every Phase 1 POS destination from the sidebar', async ({ page }
   }
 })
 
+test('hides manager-only menu items and redirects STAFF away from a direct URL', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem(
+      'doro-erp.operator-session',
+      JSON.stringify({
+        employeeId: '00000000-0000-4000-8000-000000000002',
+        role: 'STAFF',
+        tenantCode: 'DORO-DEMO',
+        passwordChangeRequired: false,
+      }),
+    )
+  })
+  await page.route('**/api/v1/orders*', (route) =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }),
+  )
+  await page.goto('/pos/orders')
+
+  await expect(page.getByRole('link', { name: '테이블', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: '매장·직원 설정', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: '감사·보안 이력', exact: true })).toHaveCount(0)
+
+  await page.goto('/pos/tables')
+
+  await expect(page).toHaveURL(/\/pos\/orders\?reason=forbidden$/)
+  await expect(
+    page.getByText('현재 계정으로는 요청한 화면에 접근할 수 없습니다.', { exact: true }),
+  ).toBeVisible()
+})
+
 test('keeps management filters and action drawer usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
   await page.goto('/pos/catalog')
