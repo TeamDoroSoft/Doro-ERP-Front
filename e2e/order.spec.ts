@@ -105,12 +105,21 @@ test('opens a listed CREATED order and cancels it without an accept action', asy
       body: JSON.stringify([order]),
     })
   })
-  await page.route(`**/api/v1/orders/${orderId}*`, async (route) => {
-    const isCancel = route.request().url().endsWith('/cancel')
+  await page.route(`**/api/v1/orders/${orderId}/cancel`, async (route) => {
+    expect(route.request().method()).toBe('POST')
+    expect(route.request().postData()).toBeNull()
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(isCancel ? cancelled : order),
+      body: JSON.stringify(cancelled),
+    })
+  })
+  await page.route(`**/api/v1/orders/${orderId}`, async (route) => {
+    expect(route.request().method()).toBe('GET')
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(order),
     })
   })
   page.on('dialog', (dialog) => dialog.accept())

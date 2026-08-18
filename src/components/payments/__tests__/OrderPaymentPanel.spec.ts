@@ -97,4 +97,30 @@ describe('OrderPaymentPanel', () => {
       expect.objectContaining({ amount: 12000, providerOrderId: 'server-order-1' }),
     )
   })
+
+  it('does not report an initial or repeated PAID snapshot as a status transition', async () => {
+    const paid = { ...payment, status: 'PAID' as const }
+    const cancelled = { ...payment, status: 'CANCELLED' as const }
+    getPayment.mockResolvedValue(paid)
+    cancelPayment.mockResolvedValue(cancelled)
+
+    const wrapper = mount(OrderPaymentPanel, {
+      props: { order: { ...order, status: 'ACCEPTED' }, recentPaymentId: payment.id },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('결제 완료')
+    expect(wrapper.findAll('button').some((button) => button.text() === '전액 취소')).toBe(true)
+    expect(wrapper.emitted('payment-updated')).toBeUndefined()
+
+    await wrapper.get('.payment-panel__heading button').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('payment-updated')).toBeUndefined()
+
+    await wrapper.get('.payment-panel__actions button').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('payment-updated')).toEqual([
+      [payment.id, 'CANCELLED', 'PAID'],
+    ])
+  })
 })

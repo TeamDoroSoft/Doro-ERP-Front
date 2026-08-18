@@ -16,7 +16,9 @@ const props = withDefaults(
   }>(),
   { recentPaymentId: null, pollIntervalMs: 3_000, maxPollAttempts: 5 },
 )
-const emit = defineEmits<{ 'payment-updated': [paymentId: string, status: string] }>()
+const emit = defineEmits<{
+  'payment-updated': [paymentId: string, status: string, previousStatus: string]
+}>()
 
 const model = useOrderPayment(() => props.order, {
   recentPaymentId: () => props.recentPaymentId,
@@ -26,8 +28,15 @@ const model = useOrderPayment(() => props.order, {
 const tossError = computed(() => model.errorMessage.value)
 const orderName = computed(() => `주문 ${props.order.displayNumber}`.slice(0, 100))
 
-watch(model.payment, (payment) => {
-  if (payment) emit('payment-updated', payment.id, payment.status)
+watch(model.payment, (payment, previousPayment) => {
+  if (
+    payment &&
+    previousPayment &&
+    payment.id === previousPayment.id &&
+    payment.status !== previousPayment.status
+  ) {
+    emit('payment-updated', payment.id, payment.status, previousPayment.status)
+  }
 })
 async function startTossPayment() {
   const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY?.trim()

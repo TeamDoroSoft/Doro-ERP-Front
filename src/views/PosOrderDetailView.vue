@@ -29,8 +29,8 @@ function orderId(): string {
   return String(route.params.orderId)
 }
 
-async function loadOrder(clearOperationError = true) {
-  loading.value = true
+async function loadOrder(clearOperationError = true, showLoading = true) {
+  if (showLoading) loading.value = true
   error.value = null
   if (clearOperationError) operationError.value = ''
   try {
@@ -39,13 +39,18 @@ async function loadOrder(clearOperationError = true) {
   } catch (caught) {
     error.value = queryError(caught)
   } finally {
-    loading.value = false
+    if (showLoading) loading.value = false
   }
 }
 
-function handlePaymentUpdated(paymentId: string, status: string) {
+function handlePaymentUpdated(paymentId: string, status: string, previousStatus: string) {
   recentPaymentId.value = paymentId
-  if (status === 'PAID' || status === 'CANCELLED') void loadOrder(false)
+  if (
+    status !== previousStatus &&
+    (status === 'PAID' || (previousStatus === 'PAID' && status === 'CANCELLED'))
+  ) {
+    void loadOrder(false, false)
+  }
 }
 
 async function cancel() {

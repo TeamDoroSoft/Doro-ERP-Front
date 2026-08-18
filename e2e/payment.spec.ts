@@ -23,10 +23,14 @@ test('starts from an order, confirms with a separate key, scrubs callback secret
   page,
 }) => {
   let confirmed = false
+  let orderRequests = 0
   let createKey = ''
   let confirmKey = ''
 
-  await mockOrder(page, () => (confirmed ? 'ACCEPTED' : 'CREATED'))
+  await mockOrder(page, () => {
+    orderRequests += 1
+    return confirmed ? 'ACCEPTED' : 'CREATED'
+  })
   await mockTossSdk(page, 'success')
   await page.route('**/api/v1/payments', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
@@ -57,6 +61,7 @@ test('starts from an order, confirms with a separate key, scrubs callback secret
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
   await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
+  expect(orderRequests).toBe(2)
 })
 
 test('keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
@@ -106,13 +111,17 @@ test('does not infer REVIEW_REQUIRED and lets the employee recheck it from the o
 
 test('cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
   let cancelKey = ''
+  let orderRequests = 0
   await page.addInitScript(
     ({ storedOrderId, storedPaymentId }) => {
       sessionStorage.setItem(`doro.payment-order.${storedOrderId}`, storedPaymentId)
     },
     { storedOrderId: orderId, storedPaymentId: paymentId },
   )
-  await mockOrder(page, () => 'ACCEPTED')
+  await mockOrder(page, () => {
+    orderRequests += 1
+    return 'ACCEPTED'
+  })
   await page.route(`**/api/v1/payments/${paymentId}/cancel`, async (route) => {
     cancelKey = idempotencyKey(route)
     expect(route.request().postDataJSON()).toEqual({ reasonCode: 'CUSTOMER_REQUEST' })
@@ -123,12 +132,15 @@ test('cancels a PAID payment without optimistically cancelling the order', async
   })
 
   await page.goto(`/pos/orders/${orderId}`)
+  await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
+  expect(orderRequests).toBe(1)
   await page.getByRole('button', { name: '전액 취소' }).click()
 
   await expect(page.getByText('결제 취소 요청이 처리되었습니다', { exact: false })).toBeVisible()
   await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
   await expect(page.getByText('취소', { exact: true })).toBeVisible()
   expect(cancelKey).toMatch(/^[0-9a-f-]{36}$/)
+  expect(orderRequests).toBe(2)
 })
 
 async function mockOrder(page: Page, status: () => 'CREATED' | 'ACCEPTED') {
