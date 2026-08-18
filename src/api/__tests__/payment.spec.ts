@@ -18,7 +18,7 @@ describe('payment api client', () => {
   })
 
   it('creates a payment at the common API base with the command idempotency key', async () => {
-    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentView()))
+    const fetchMock = vi.fn<FetchMock>().mockImplementation(async () => jsonResponse(paymentView()))
     vi.stubGlobal('fetch', fetchMock)
 
     await createPayment('11111111-1111-4111-8111-111111111111', key('2'))
@@ -35,7 +35,7 @@ describe('payment api client', () => {
   })
 
   it('gets an opaque payment ID using URL encoding', async () => {
-    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentView()))
+    const fetchMock = vi.fn<FetchMock>().mockImplementation(async () => jsonResponse(paymentView()))
     vi.stubGlobal('fetch', fetchMock)
 
     await getPayment('payment/id?retry=1')
@@ -44,10 +44,10 @@ describe('payment api client', () => {
   })
 
   it('confirms and cancels using their exact command bodies and independent UUID keys', async () => {
-    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(jsonResponse(paymentView()))
+    const fetchMock = vi.fn<FetchMock>().mockImplementation(async () => jsonResponse(paymentView()))
     vi.stubGlobal('fetch', fetchMock)
 
-    await confirmPayment('payment-42', 'provider-payment-key', 12_000, key('3'))
+    await confirmPayment('payment-42', 'provider-payment-key', '12000', key('3'))
     await cancelPayment('payment-42', 'CUSTOMER_REQUEST', key('4'))
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/payments/payment-42/confirm')
@@ -69,7 +69,7 @@ describe('payment api client', () => {
   ])('keeps %i problem responses as shared API errors', async (status, code) => {
     vi.stubGlobal(
       'fetch',
-      vi.fn<FetchMock>().mockResolvedValue(jsonResponse({ code }, false, status)),
+      vi.fn<FetchMock>().mockImplementation(async () => jsonResponse({ code }, false, status)),
     )
 
     await expect(createPayment('order-1', key('5'))).rejects.toEqual(
@@ -86,6 +86,40 @@ describe('payment api client', () => {
     expect(
       paymentProblemMessage(new PaymentApiError(422, { code: 'UNKNOWN', detail: 'database host' })),
     ).toBe('결제 요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.')
+  })
+
+  it('keeps an int64 payment amount beyond Number.MAX_SAFE_INTEGER exact in both directions', async () => {
+    const fetchMock = vi.fn<FetchMock>().mockResolvedValue(
+      new Response(
+        '{"id":"payment-42","orderId":"11111111-1111-4111-8111-111111111111",' +
+          '"providerOrderId":"provider-order-123","amount":9007199254740993,' +
+          '"currency":"KRW","status":"PENDING"}',
+        { status: 200 },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const confirmed = await confirmPayment(
+      'payment-42',
+      'provider-payment-key',
+      '9007199254740993',
+      key('7'),
+    )
+
+    expect(confirmed.amount).toBe('9007199254740993')
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      '{"paymentKey":"provider-payment-key","amount":9007199254740993}',
+    )
+  })
+
+  it('refuses to send a malformed int64 confirm amount', async () => {
+    const fetchMock = vi.fn<FetchMock>().mockImplementation(async () => jsonResponse(paymentView()))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(
+      confirmPayment('payment-42', 'provider-payment-key', '12000.5', key('8')),
+    ).rejects.toThrow('정수 금액 형식이 올바르지 않습니다.')
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('creates UUID idempotency keys required for every payment command', () => {
@@ -115,10 +149,9 @@ function paymentView() {
 }
 
 function jsonResponse(body: unknown, ok = true, status = 200) {
-  return {
-    ok,
+  return new Response(JSON.stringify(body), {
     status,
     statusText: ok ? 'OK' : 'Error',
-    json: vi.fn<() => Promise<unknown>>().mockResolvedValue(body),
-  }
+    headers: { 'Content-Type': 'application/json' },
+  })
 }

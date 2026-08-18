@@ -50,7 +50,7 @@ async function submit() {
       flow.orderKey,
     )
     if (!flow.order.orderAccessToken) throw new Error('missing access token')
-    flow.payment = await createPayment(flow.order.orderId, flow.paymentCreateKey)
+    flow.payment = await createPayment(flow.order.orderId, flow.paymentCreateKey, 'kiosk')
     await router.push(`/kiosk/payments/${flow.payment.id}`)
   } catch {
     error.value = '주문을 처리하지 못했습니다. 같은 주문으로 다시 시도해주세요.'

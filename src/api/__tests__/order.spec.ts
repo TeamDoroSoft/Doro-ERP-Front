@@ -8,7 +8,8 @@ import {
   type CreateOrderRequest,
 } from '@/api/order'
 
-const order = {
+/** Wire shape exactly as Commerce serialises `OrderView`: `totalAmount` is a JSON int64 number. */
+const orderWire = {
   orderId: '11111111-1111-4111-8111-111111111111',
   displayNumber: 7,
   totalAmount: 9000,
@@ -17,6 +18,8 @@ const order = {
   businessDate: '2026-08-17',
   orderAccessToken: null,
 }
+
+const order = { ...orderWire, totalAmount: '9000' }
 
 const createRequest: CreateOrderRequest = {
   orderChannel: 'POS',
@@ -35,7 +38,7 @@ describe('order API', () => {
   })
 
   it('creates an order with its operation idempotency key and no client price fields', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(order), { status: 201 }))
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(orderWire), { status: 201 }))
 
     await expect(createOrder(createRequest, 'key-1')).resolves.toEqual(order)
 
@@ -50,7 +53,7 @@ describe('order API', () => {
   })
 
   it('uses only the confirmed list filters and encodes them', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify([order]), { status: 200 }))
+    fetchMock.mockResolvedValue(new Response(JSON.stringify([orderWire]), { status: 200 }))
 
     await expect(getOrders({ businessDate: '2026-08-17', status: 'ACCEPTED' })).resolves.toEqual([
       order,
@@ -62,7 +65,7 @@ describe('order API', () => {
   })
 
   it('gets, cancels, and completes an opaque order id with the confirmed paths', async () => {
-    fetchMock.mockImplementation(async () => new Response(JSON.stringify(order), { status: 200 }))
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify(orderWire), { status: 200 }))
 
     await getOrder('order/id')
     await cancelOrder('order/id')
@@ -85,6 +88,21 @@ describe('order API', () => {
     expect(new Headers(fetchMock.mock.calls[2]?.[1]?.headers).get('X-XSRF-TOKEN')).toBe(
       'csrf token',
     )
+  })
+
+  it('keeps an int64 totalAmount beyond Number.MAX_SAFE_INTEGER exact', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '{"orderId":"11111111-1111-4111-8111-111111111111","displayNumber":7,' +
+          '"totalAmount":9007199254740993,"currency":"KRW","status":"CREATED",' +
+          '"businessDate":"2026-08-17","orderAccessToken":null}',
+        { status: 200 },
+      ),
+    )
+
+    await expect(getOrder('order-1')).resolves.toMatchObject({
+      totalAmount: '9007199254740993',
+    })
   })
 
   it('exposes idempotency payload conflicts as Problem Details', async () => {

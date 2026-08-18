@@ -94,6 +94,48 @@ test('[mock-ui] blocks an invalid or revoked credential without revealing which 
   await expect(page.getByText('internal')).toHaveCount(0)
 })
 
+test('[mock-ui] a kiosk payment 401 never touches the employee POS session', async ({ page }) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem('doro.kiosk-device-active', '1')
+    sessionStorage.setItem(
+      'doro-erp.operator-session',
+      JSON.stringify({
+        employeeId: 'staff-1',
+        role: 'STAFF',
+        tenantCode: 'DORO',
+        passwordChangeRequired: false,
+        isPreview: false,
+      }),
+    )
+  })
+  await mocks(page, () => {})
+  await page.unroute('**/api/v1/payments')
+  await page.route('**/api/v1/payments', (r) =>
+    r.fulfill({
+      status: 401,
+      contentType: 'application/problem+json',
+      body: JSON.stringify({ code: 'KIOSK_AUTHENTICATION_FAILED', detail: 'internal' }),
+    }),
+  )
+
+  await page.goto('/kiosk')
+  await page.getByRole('button', { name: /아메리카노/ }).click()
+  await page.getByRole('button', { name: /장바구니 담기/ }).click()
+  await page.getByRole('link', { name: /장바구니/ }).click()
+  await page.getByRole('link', { name: '주문하기', exact: true }).click()
+  await page.getByRole('button', { name: '주문하고 결제하기' }).click()
+
+  // The kiosk returns to its own activation screen, never to the employee login.
+  await expect(page).toHaveURL(/\/kiosk\/activate$/)
+  await expect(page).not.toHaveURL(/\/pos\//)
+  await expect(page.getByText('internal')).toHaveCount(0)
+  // The employee session survives untouched and the stale ACTIVE hint is gone.
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('doro-erp.operator-session')),
+  ).toContain('staff-1')
+  expect(await page.evaluate(() => sessionStorage.getItem('doro.kiosk-device-active'))).toBeNull()
+})
+
 async function mocks(page: Page, capture: (body: unknown) => void) {
   let statusReads = 0
   await page.route('**/api/v1/kiosk-auth/activate', (r) => r.fulfill({ status: 204 }))

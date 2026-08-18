@@ -8,6 +8,7 @@ import {
   type PaymentResponse,
 } from '@/api/payment'
 import type { OrderResponse } from '@/api/order'
+import { isPositiveInt64 } from '@/api/int64'
 
 const DEFAULT_POLL_INTERVAL_MS = 3_000
 const DEFAULT_MAX_POLL_ATTEMPTS = 5
@@ -220,8 +221,7 @@ function isMatchingPayment(
     payment.id.length > 0 &&
     payment.id === expectedPaymentId &&
     payment.orderId === order.orderId &&
-    Number.isSafeInteger(payment.amount) &&
-    payment.amount > 0 &&
+    isPositiveInt64(payment.amount) &&
     payment.currency === order.currency &&
     ['PENDING', 'PAID', 'FAILED', 'REVIEW_REQUIRED', 'CANCELLED'].includes(payment.status)
   )

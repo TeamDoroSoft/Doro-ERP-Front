@@ -23,7 +23,10 @@ test('[mock-ui] session expiry clears employee state and removes sensitive locat
     }),
   )
   await page.goto('/pos/orders?paymentKey=must-not-survive#secret')
-  await expect(page).toHaveURL(/\/pos\/login\?reason=session-expired$/)
+  // Only the safe internal path returns; the sensitive query and hash are dropped.
+  await expect(page).toHaveURL(
+    /\/pos\/login\?reason=session-expired&redirect=%2Fpos%2Forders$|\/pos\/login\?reason=session-expired&redirect=\/pos\/orders$/,
+  )
   await expect(page).not.toHaveURL(/paymentKey|secret/)
   await expect
     .poll(() => page.evaluate(() => sessionStorage.getItem('doro-erp.operator-session')))

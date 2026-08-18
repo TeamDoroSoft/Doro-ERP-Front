@@ -2,11 +2,12 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { displayLabel } from '@/ui/displayLabels'
 import type { OrderStatus } from '@/api/order'
+import { formatInt64, type Int64String } from '@/api/int64'
 
 export interface OrderSummary {
   orderId: string
   displayNumber: number
-  totalAmount: string | number
+  totalAmount: Int64String
   currency: string
   status: OrderStatus
   businessDate: string
@@ -15,18 +16,8 @@ export interface OrderSummary {
 defineProps<{ orders: OrderSummary[] }>()
 defineEmits<{ select: [orderId: string] }>()
 
-function formatAmount(amount: string | number, currency: string): string {
-  if (typeof amount === 'number') {
-    return Number.isSafeInteger(amount)
-      ? `${amount.toLocaleString('ko-KR')} ${currency}`
-      : `금액 확인 필요 ${currency}`
-  }
-
-  try {
-    return `${BigInt(amount).toLocaleString('ko-KR')} ${currency}`
-  } catch {
-    return `금액 확인 필요 ${currency}`
-  }
+function formatAmount(amount: Int64String, currency: string): string {
+  return `${formatInt64(amount)} ${currency}`
 }
 
 function tone(status: OrderStatus) {

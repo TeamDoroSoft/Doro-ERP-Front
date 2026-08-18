@@ -31,7 +31,7 @@ describe('Toss payment adapter', () => {
 
     await requestTossPayment({
       clientKey: 'test_gck_client',
-      amount: 12_000,
+      amount: '12000',
       currency: 'KRW',
       providerOrderId: 'provider-order-123',
       orderName: '주문 A-001',
@@ -60,7 +60,7 @@ describe('Toss payment adapter', () => {
     await expect(
       requestTossPayment({
         clientKey: 'live_gck_not_allowed',
-        amount: 12_000,
+        amount: '12000',
         currency: 'KRW',
         providerOrderId: 'provider-order-123',
         orderName: '주문 A-001',
@@ -70,5 +70,42 @@ describe('Toss payment adapter', () => {
     ).rejects.toThrow('테스트 결제 설정을 확인해 주세요')
 
     expect(loadTossPayments).not.toHaveBeenCalled()
+  })
+
+  it.each(['9007199254740992', '9007199254740993', '0', '12000.5'])(
+    'never opens the provider window for an amount the SDK cannot represent exactly: %s',
+    async (amount) => {
+      await expect(
+        requestTossPayment({
+          clientKey: 'test_gck_client',
+          amount,
+          currency: 'KRW',
+          providerOrderId: 'provider-order-123',
+          orderName: '주문 A-001',
+          successUrl: 'https://front.example/payments/toss/success',
+          failUrl: 'https://front.example/payments/toss/fail',
+        }),
+      ).rejects.toThrow('결제 가능한 금액 범위를 확인해 주세요')
+
+      expect(loadTossPayments).not.toHaveBeenCalled()
+      expect(setAmount).not.toHaveBeenCalled()
+    },
+  )
+
+  it('passes the largest safely representable amount through unchanged', async () => {
+    setAmount.mockResolvedValue(undefined)
+    renderPaymentWindow.mockResolvedValue({ on: onPaymentWindow })
+
+    await requestTossPayment({
+      clientKey: 'test_gck_client',
+      amount: '9007199254740991',
+      currency: 'KRW',
+      providerOrderId: 'provider-order-123',
+      orderName: '주문 A-001',
+      successUrl: 'https://front.example/payments/toss/success',
+      failUrl: 'https://front.example/payments/toss/fail',
+    })
+
+    expect(setAmount).toHaveBeenCalledWith({ currency: 'KRW', value: 9007199254740991 })
   })
 })

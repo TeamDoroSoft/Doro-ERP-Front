@@ -5,7 +5,11 @@ import { useKioskSessionStore } from '@/stores/kioskSession'
 const session = useKioskSessionStore(),
   router = useRouter(),
   form = reactive({ tenantCode: '', deviceCode: '', secret: '' }),
-  message = ref('')
+  message = ref(
+    session.deviceState === 'AUTH_FAILED'
+      ? '기기 인증을 다시 확인해 주세요.'
+      : '',
+  )
 async function activate() {
   message.value = ''
   try {

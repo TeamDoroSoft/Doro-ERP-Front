@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { changeProductSoldOut, createCategory, createProduct, getManagedCategories, getManagedProducts, getSalesMenu, updateCategory, updateProduct } from '@/api/catalog'
 
-const menu = {
+/** Wire shape exactly as Commerce serialises `SalesMenuView`: `price` is a JSON int64 number. */
+const menuWire = {
   currency: 'KRW',
   categories: [
     {
@@ -15,6 +16,16 @@ const menu = {
   ],
 }
 
+const menu = {
+  ...menuWire,
+  categories: [
+    {
+      ...menuWire.categories[0]!,
+      products: [{ ...menuWire.categories[0]!.products[0]!, price: '4500' }],
+    },
+  ],
+}
+
 describe('catalog API', () => {
   const fetchMock = vi.fn<typeof fetch>()
 
@@ -24,7 +35,7 @@ describe('catalog API', () => {
   })
 
   it('loads only the Commerce sales-menu resource', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify(menu), { status: 200 }))
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(menuWire), { status: 200 }))
 
     await expect(getSalesMenu()).resolves.toEqual(menu)
 
@@ -32,6 +43,22 @@ describe('catalog API', () => {
     expect(url).toBe('/api/v1/catalog/menu')
     expect(options?.method).toBe('GET')
     expect(options?.credentials).toBe('include')
+  })
+
+  it('keeps an int64 menu price beyond Number.MAX_SAFE_INTEGER exact', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '{"currency":"KRW","categories":[{"categoryId":"category-1","name":"커피",' +
+          '"displayOrder":1,"products":[{"productId":"product-1","name":"고가 상품",' +
+          '"description":"price 9007199254740993","price":9007199254740993,"displayOrder":1}]}]}',
+        { status: 200 },
+      ),
+    )
+
+    const loaded = await getSalesMenu()
+
+    expect(loaded.categories[0]?.products[0]?.price).toBe('9007199254740993')
+    expect(loaded.categories[0]?.products[0]?.description).toBe('price 9007199254740993')
   })
 
   it('preserves a service-unavailable Problem Detail', async () => {

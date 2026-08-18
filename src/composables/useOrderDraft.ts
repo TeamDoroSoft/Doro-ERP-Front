@@ -1,10 +1,11 @@
 import { computed, ref } from 'vue'
+import { multiplyInt64, sumInt64, type Int64String } from '@/api/int64'
 
 export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
 export interface DraftProduct {
   productId: string
   name: string
-  price: number
+  price: Int64String
 }
 export interface OrderDraftLine extends DraftProduct {
   quantity: number
@@ -29,7 +30,7 @@ export function useOrderDraft(createKey: () => string = () => crypto.randomUUID(
   const lines = ref<OrderDraftLine[]>([])
   const idempotencyKey = ref(createKey())
   const estimatedTotal = computed(() =>
-    lines.value.reduce((total, line) => total + line.price * line.quantity, 0),
+    sumInt64(lines.value.map((line) => multiplyInt64(line.price, line.quantity))),
   )
 
   function setServiceType(next: OrderServiceType) {

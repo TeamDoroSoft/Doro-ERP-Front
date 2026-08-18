@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { getKioskMenu, type KioskMenu, type KioskMenuItem } from '@/api/kiosk'
+import { formatKrw, multiplyInt64 } from '@/api/int64'
 import KioskStatePanel from '@/components/kiosk/KioskStatePanel.vue'
 import { useKioskCartStore } from '@/stores/kioskCart'
+import { useKioskSessionStore } from '@/stores/kioskSession'
 const cart = useKioskCartStore(),
+  session = useKioskSessionStore(),
   menu = ref<KioskMenu | null>(null),
   loading = ref(true),
   error = ref(false),
@@ -22,6 +25,7 @@ async function load() {
   error.value = false
   try {
     menu.value = await getKioskMenu()
+    session.markAuthenticated()
     categoryId.value = menu.value.categories[0]?.categoryId ?? ''
   } catch {
     error.value = true
@@ -64,7 +68,7 @@ function add() {
   cart.addItem(selected.value, quantity.value)
   selected.value = null
 }
-const money = (n: number) => `${n.toLocaleString('ko-KR')}원`
+const money = formatKrw
 </script>
 <template>
   <section>
@@ -133,7 +137,7 @@ const money = (n: number) => `${n.toLocaleString('ko-KR')}원`
           ><button aria-label="수량 늘리기" @click="quantity++">+</button>
         </div>
         <button class="add" @click="add">
-          {{ money(selected.price * quantity) }} · 장바구니 담기
+          {{ money(multiplyInt64(selected.price, quantity)) }} · 장바구니 담기
         </button>
       </section>
     </div>

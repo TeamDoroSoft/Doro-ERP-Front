@@ -1,5 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import { ApiError } from '@/api/http'
+import { toSafeInteger } from '@/api/int64'
 import * as catalogApi from '@/api/catalog'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 
@@ -15,7 +16,7 @@ export function useCatalogManagement(api = catalogApi) {
   const canManage = computed(() => session.role === 'OWNER' || session.role === 'MANAGER')
   const selectedProducts = computed(() => products.value.filter((item) => item.categoryId === selectedCategoryId.value))
   const categoryDraft = reactive({ name: '', displayOrder: 0, active: true })
-  const productDraft = reactive({ categoryId: '', name: '', description: '', price: 0, displayOrder: 0, active: true })
+  const productDraft = reactive({ categoryId: '', name: '', description: '', price: '0', displayOrder: 0, active: true })
 
   async function load() {
     loading.value = true
@@ -55,12 +56,12 @@ export function useCatalogManagement(api = catalogApi) {
 
   async function saveProduct(existing?: catalogApi.ManagedProductResponse) {
     if (!canManage.value || busyId.value) return
-    if (!productDraft.categoryId || !productDraft.name.trim() || !Number.isSafeInteger(productDraft.price) || productDraft.price < 0 || !Number.isInteger(productDraft.displayOrder) || productDraft.displayOrder < 0 || productDraft.displayOrder > 9999) {
+    if (!productDraft.categoryId || !productDraft.name.trim() || !/^\d+$/.test(productDraft.price) || !Number.isInteger(productDraft.displayOrder) || productDraft.displayOrder < 0 || productDraft.displayOrder > 9999) {
       errorMessage.value = '상품명, Category, 0원 이상의 정수 가격과 표시 순서를 확인해 주세요.'; return
     }
     busyId.value = existing?.productId ?? 'new-product'; errorMessage.value = ''
     try {
-      const request = { ...productDraft, name: productDraft.name.trim(), description: productDraft.description.trim() }
+      const request = { ...productDraft, price: toSafeInteger(productDraft.price), name: productDraft.name.trim(), description: productDraft.description.trim() }
       if (existing) await api.updateProduct(existing.productId, request, existing.version)
       else await api.createProduct(request)
       notice.value = existing ? '상품을 수정했습니다.' : '상품을 생성했습니다.'
@@ -87,7 +88,7 @@ export function useCatalogManagement(api = catalogApi) {
     errorMessage.value = message(error, 'Catalog 요청을 처리하지 못했습니다.')
   }
   function resetCategoryDraft() { Object.assign(categoryDraft, { name: '', displayOrder: 0, active: true }) }
-  function resetProductDraft() { Object.assign(productDraft, { categoryId: selectedCategoryId.value, name: '', description: '', price: 0, displayOrder: 0, active: true }) }
+  function resetProductDraft() { Object.assign(productDraft, { categoryId: selectedCategoryId.value, name: '', description: '', price: '0', displayOrder: 0, active: true }) }
   return { categories, products, selectedProducts, selectedCategoryId, loading, busyId, errorMessage, notice, canManage, categoryDraft, productDraft, load, saveCategory, editCategory, toggleCategory, saveProduct, editProduct, toggleProductActive, toggleSoldOut, resetCategoryDraft, resetProductDraft }
 }
 

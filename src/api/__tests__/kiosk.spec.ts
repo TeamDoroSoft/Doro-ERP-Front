@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { activateKiosk, createKioskOrder, getKioskOrder } from '@/api/kiosk'
+import { activateKiosk, createKioskOrder, getKioskMenu, getKioskOrder } from '@/api/kiosk'
 describe('kiosk api', () => {
   beforeEach(() => vi.restoreAllMocks())
   it('activates with the exact credential body and no persistence', async () => {
@@ -39,6 +39,37 @@ describe('kiosk api', () => {
         lines: [{ productId: 'p1', quantity: 1 }],
       }),
     )
+  })
+  it('keeps int64 kiosk menu prices and order totals exact', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementationOnce(async () =>
+          new Response(
+            '{"currency":"KRW","categories":[{"categoryId":"c1","name":"커피","displayOrder":1,' +
+              '"products":[{"productId":"p1","name":"커피","description":"",' +
+              '"price":9007199254740993,"displayOrder":1}]}]}',
+            { status: 200 },
+          ),
+        )
+        .mockImplementationOnce(async () =>
+          new Response(
+            '{"orderId":"o1","displayNumber":1,"totalAmount":9007199254740993,"currency":"KRW",' +
+              '"status":"CREATED","businessDate":"2026-08-17","orderAccessToken":"t"}',
+            { status: 201 },
+          ),
+        ),
+    )
+
+    const menu = await getKioskMenu()
+    const order = await createKioskOrder(
+      { orderChannel: 'KIOSK', serviceType: 'TAKEOUT', lines: [{ productId: 'p1', quantity: 1 }] },
+      'order-key',
+    )
+
+    expect(menu.categories[0]?.products[0]?.price).toBe('9007199254740993')
+    expect(order.totalAmount).toBe('9007199254740993')
   })
   it('uses a short-lived header rather than a query for restricted order lookup', async () => {
     vi.stubGlobal(

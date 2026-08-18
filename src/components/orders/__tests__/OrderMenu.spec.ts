@@ -10,7 +10,7 @@ describe('OrderMenu', () => {
           {
             categoryId: 'c1',
             name: '커피',
-            products: [{ productId: 'p1', name: '아메리카노', description: '', price: 4500 }],
+            products: [{ productId: 'p1', name: '아메리카노', description: '', price: '4500' }],
           },
         ],
       },
@@ -20,7 +20,7 @@ describe('OrderMenu', () => {
     expect(wrapper.text()).not.toContain('품절')
     await wrapper.get('button').trigger('click')
     expect(wrapper.emitted('add')?.[0]).toEqual([
-      { productId: 'p1', name: '아메리카노', description: '', price: 4500 },
+      { productId: 'p1', name: '아메리카노', description: '', price: '4500' },
     ])
   })
 })

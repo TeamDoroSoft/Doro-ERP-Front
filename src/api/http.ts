@@ -51,10 +51,17 @@ export function safeApiErrorMessage(
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
 let unauthorizedHandler: (() => void) | undefined
+let kioskUnauthorizedHandler: (() => void) | undefined
 
 export function registerUnauthorizedHandler(handler: () => void) {
   unauthorizedHandler = handler
 }
+
+export function registerKioskUnauthorizedHandler(handler: () => void) {
+  kioskUnauthorizedHandler = handler
+}
+
+type UnauthorizedBehavior = { handleUnauthorized?: boolean | 'kiosk' }
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined
@@ -75,7 +82,7 @@ async function readProblem(response: Response): Promise<ProblemDetails> {
 export async function apiRequest<T>(
   path: string,
   options: RequestInit = {},
-  behavior: { handleUnauthorized?: boolean } = {},
+  behavior: UnauthorizedBehavior = {},
 ): Promise<T> {
   const response = await apiResponse(path, options, behavior)
 
@@ -87,7 +94,7 @@ export async function apiRequest<T>(
 export async function apiResponse(
   path: string,
   options: RequestInit = {},
-  behavior: { handleUnauthorized?: boolean } = {},
+  behavior: UnauthorizedBehavior = {},
 ): Promise<Response> {
   const method = (options.method ?? 'GET').toUpperCase()
   const headers = new Headers(options.headers)
@@ -116,7 +123,10 @@ export async function apiResponse(
 
   if (!response.ok) {
     const error = new ApiError(response.status, await readProblem(response))
-    if (error.status === 401 && behavior.handleUnauthorized !== false) unauthorizedHandler?.()
+    if (error.status === 401) {
+      if (behavior.handleUnauthorized === 'kiosk') kioskUnauthorizedHandler?.()
+      else if (behavior.handleUnauthorized !== false) unauthorizedHandler?.()
+    }
     throw error
   }
   return response

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { formatCurrencyInt64 } from '@/api/int64'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import { useCatalogManagement } from '@/composables/useCatalogManagement'
@@ -13,7 +14,7 @@ function openCategory(item: ManagedCategoryResponse | null) { categoryEditor.val
 function openProduct(item: ManagedProductResponse | null) { productEditor.value = item; if (item) catalog.editProduct(item); else catalog.resetProductDraft() }
 async function submitCategory() { await catalog.saveCategory(categoryEditor.value ?? undefined); if (!catalog.errorMessage.value) categoryEditor.value = undefined }
 async function submitProduct() { await catalog.saveProduct(productEditor.value ?? undefined); if (!catalog.errorMessage.value) productEditor.value = undefined }
-function money(value: number) { return Number.isSafeInteger(value) ? new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(value) : '금액 확인 필요' }
+const money = (value: string) => formatCurrencyInt64(value, 'KRW')
 </script>
 <template>
   <main class="catalog-page">
@@ -31,7 +32,7 @@ function money(value: number) { return Number.isSafeInteger(value) ? new Intl.Nu
         <p v-if="!catalog.selectedCategoryId.value" class="empty">Category를 선택해 주세요.</p><p v-else-if="catalog.selectedProducts.value.length === 0" class="empty">선택한 Category에 상품이 없습니다.</p>
         <div v-else class="table-wrap"><table><thead><tr><th>상품</th><th>가격</th><th>상태</th><th>품절</th><th>처리</th></tr></thead><tbody><tr v-for="item in catalog.selectedProducts.value" :key="item.productId"><td><strong>{{ item.name }}</strong><small>{{ item.description }}</small></td><td>{{ money(item.price) }}</td><td>{{ item.active ? '활성' : '비활성' }}</td><td>{{ item.soldOut ? '품절' : '판매 가능' }}</td><td class="actions"><button type="button" :disabled="!!catalog.busyId.value" @click="catalog.toggleSoldOut(item)">{{ item.soldOut ? '품절 해제' : '품절 처리' }}</button><button v-if="catalog.canManage.value" type="button" @click="openProduct(item)">수정</button><button v-if="catalog.canManage.value" type="button" :disabled="!!catalog.busyId.value" @click="catalog.toggleProductActive(item)">{{ item.active ? '비활성화' : '활성화' }}</button></td></tr></tbody></table></div>
       </section>
-      <section v-if="productEditor !== undefined && catalog.canManage.value" class="catalog-card editor" aria-labelledby="product-editor-title"><div class="section-heading"><h2 id="product-editor-title">{{ productEditor ? '상품 수정' : '상품 생성' }}</h2><button type="button" @click="productEditor = undefined">닫기</button></div><form @submit.prevent="submitProduct"><label>Category<select v-model="catalog.productDraft.categoryId"><option v-for="item in catalog.categories.value" :key="item.categoryId" :value="item.categoryId">{{ item.name }}</option></select></label><label>상품명<input v-model="catalog.productDraft.name" maxlength="100" /></label><label>설명<input v-model="catalog.productDraft.description" maxlength="500" /></label><label>가격<input v-model.number="catalog.productDraft.price" type="number" min="0" step="1" /></label><label>표시 순서<input v-model.number="catalog.productDraft.displayOrder" type="number" min="0" max="9999" /></label><label class="check"><input v-model="catalog.productDraft.active" type="checkbox" /> 활성</label><button class="primary" type="submit" :disabled="!!catalog.busyId.value">저장</button></form></section>
+      <section v-if="productEditor !== undefined && catalog.canManage.value" class="catalog-card editor" aria-labelledby="product-editor-title"><div class="section-heading"><h2 id="product-editor-title">{{ productEditor ? '상품 수정' : '상품 생성' }}</h2><button type="button" @click="productEditor = undefined">닫기</button></div><form @submit.prevent="submitProduct"><label>Category<select v-model="catalog.productDraft.categoryId"><option v-for="item in catalog.categories.value" :key="item.categoryId" :value="item.categoryId">{{ item.name }}</option></select></label><label>상품명<input v-model="catalog.productDraft.name" maxlength="100" /></label><label>설명<input v-model="catalog.productDraft.description" maxlength="500" /></label><label>가격<input v-model="catalog.productDraft.price" inputmode="numeric" pattern="\d+" /></label><label>표시 순서<input v-model.number="catalog.productDraft.displayOrder" type="number" min="0" max="9999" /></label><label class="check"><input v-model="catalog.productDraft.active" type="checkbox" /> 활성</label><button class="primary" type="submit" :disabled="!!catalog.busyId.value">저장</button></form></section>
     </template>
   </main>
 </template>

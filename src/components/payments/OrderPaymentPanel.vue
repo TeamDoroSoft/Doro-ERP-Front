@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { formatCurrencyInt64, type Int64String } from '@/api/int64'
 import type { OrderResponse } from '@/api/order'
 import { createPaymentIdempotencyKey } from '@/api/payment'
 import { useOrderPayment } from '@/composables/useOrderPayment'
@@ -75,8 +76,8 @@ function redirectUrl(outcome: 'success' | 'fail', flowId: string): string {
   return url.toString()
 }
 
-function formatAmount(amount: number, currency: string) {
-  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency }).format(amount)
+function formatAmount(amount: Int64String, currency: string) {
+  return formatCurrencyInt64(amount, currency)
 }
 </script>
 

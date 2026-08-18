@@ -6,7 +6,7 @@ import { useCatalogManagement } from '@/composables/useCatalogManagement'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
 
 const category = { categoryId: 'category-1', name: '커피', displayOrder: 1, active: true, version: 2 }
-const product = { productId: 'product-1', categoryId: category.categoryId, name: '라테', description: '', price: 5000, soldOut: false, active: true, displayOrder: 1, version: 3 }
+const product = { productId: 'product-1', categoryId: category.categoryId, name: '라테', description: '', price: '5000', soldOut: false, active: true, displayOrder: 1, version: 3 }
 
 describe('useCatalogManagement', () => {
   beforeEach(() => { setActivePinia(createPinia()); sessionStorage.clear() })

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import KioskStatePanel from '@/components/kiosk/KioskStatePanel.vue'
+import { formatKrw, multiplyInt64 } from '@/api/int64'
 import { useKioskCartStore } from '@/stores/kioskCart'
-const cart = useKioskCartStore(),
-  money = (n: number) => `${n.toLocaleString('ko-KR')}원`
+const cart = useKioskCartStore()
 </script>
 <template>
   <section>
@@ -15,7 +15,7 @@ const cart = useKioskCartStore(),
         <article v-for="line in cart.lines" :key="line.productId">
           <div>
             <h2>{{ line.name }}</h2>
-            <strong>{{ money(line.unitPrice * line.quantity) }}</strong>
+            <strong>{{ formatKrw(multiplyInt64(line.unitPrice, line.quantity)) }}</strong>
           </div>
           <div class="controls">
             <button
@@ -35,7 +35,7 @@ const cart = useKioskCartStore(),
       </div>
       <aside>
         <p>총 {{ cart.itemCount }}개</p>
-        <strong>{{ money(cart.estimatedTotal) }}</strong
+        <strong>{{ formatKrw(cart.estimatedTotal) }}</strong
         ><small>최종 금액은 주문 확인 시 확정됩니다.</small
         ><RouterLink to="/kiosk/checkout">주문하기</RouterLink
         ><RouterLink class="secondary" to="/kiosk">계속 주문</RouterLink

@@ -1,4 +1,5 @@
-import { apiRequest } from './http'
+import { apiRequest, apiResponse } from './http'
+import { parseJsonWithInt64, type Int64String } from './int64'
 import type { PaymentStatus } from './payment'
 import type { OrderStatus, OrderServiceType } from './order'
 
@@ -7,7 +8,7 @@ export interface KioskMenuItem {
   productId: string
   name: string
   description: string
-  price: number
+  price: Int64String
   displayOrder: number
 }
 export interface KioskMenuCategory {
@@ -30,7 +31,7 @@ export interface KioskTable {
 export interface KioskCreatedOrder {
   orderId: string
   displayNumber: number
-  totalAmount: number
+  totalAmount: Int64String
   currency: string
   status: OrderStatus
   businessDate: string
@@ -57,18 +58,27 @@ export const activateKiosk = (tenantCode: string, deviceCode: string, secret: st
     { handleUnauthorized: false },
   )
 export const getKioskMenu = () =>
-  apiRequest<KioskMenu>('/catalog/menu', {}, { handleUnauthorized: false })
+  exactKioskRequest<KioskMenu>('/catalog/menu', {}, ['price'])
 export const getKioskTables = () =>
-  apiRequest<KioskTable[]>('/tables', {}, { handleUnauthorized: false })
+  apiRequest<KioskTable[]>('/tables', {}, { handleUnauthorized: 'kiosk' })
 export const createKioskOrder = (body: KioskOrderRequest, key: string) =>
-  apiRequest<KioskCreatedOrder>(
+  exactKioskRequest<KioskCreatedOrder>(
     '/orders',
     { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(body) },
-    { handleUnauthorized: false },
+    ['totalAmount'],
   )
 export const getKioskOrder = (id: string, token: string) =>
   apiRequest<KioskOrderStatus>(
     `/orders/${encodeURIComponent(id)}`,
     { headers: { 'X-Order-Access-Token': token } },
-    { handleUnauthorized: false },
+    { handleUnauthorized: 'kiosk' },
   )
+
+async function exactKioskRequest<T>(
+  path: string,
+  options: RequestInit,
+  fields: readonly string[],
+): Promise<T> {
+  const response = await apiResponse(path, options, { handleUnauthorized: 'kiosk' })
+  return parseJsonWithInt64<T>(await response.text(), fields)
+}

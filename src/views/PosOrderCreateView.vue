@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
+import { formatInt64 } from '@/api/int64'
 import { getSalesMenu, type SalesMenuResponse } from '@/api/catalog'
 import { createOrder } from '@/api/order'
 import { getTables, type TableResponse } from '@/api/table'
@@ -37,7 +38,7 @@ const categories = computed<SalesMenuCategory[]>(() =>
   })),
 )
 const safeTables = computed(() => tables.value.filter((table) => table.status === 'ACTIVE'))
-const estimatedTotal = computed(() => draft.estimatedTotal.value.toLocaleString('ko-KR'))
+const estimatedTotal = computed(() => formatInt64(draft.estimatedTotal.value))
 const loadErrorMessage = computed(() => {
   if (!loadError.value) return ''
   if (loadError.value.status === 403) return '판매 메뉴를 조회할 권한이 없습니다.'
@@ -84,7 +85,7 @@ function toMenuProduct(
 }
 
 function addProduct(product: SalesMenuProduct) {
-  if (!Number.isSafeInteger(product.price) || product.price < 0) return
+  if (!/^\d+$/.test(product.price)) return
   changedDraft(() => draft.addProduct(product))
 }
 

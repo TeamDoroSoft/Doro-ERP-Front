@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
 import { confirmPayment } from '@/api/payment'
+import { formatKrw } from '@/api/int64'
 import { requestTossPayment, tossPaymentErrorMessage } from '@/payments/tossPayment'
 import { useKioskFlowStore } from '@/stores/kioskFlow'
 const route = useRoute(),
@@ -45,7 +46,7 @@ async function start() {
 async function approve() {
   const paymentKey = String(route.query.paymentKey ?? ''),
     providerId = String(route.query.orderId ?? ''),
-    amount = Number(route.query.amount)
+    amount = String(route.query.amount ?? '')
   await router.replace({ path: route.path })
   if (
     !payment.value ||
@@ -64,6 +65,7 @@ async function approve() {
       paymentKey,
       amount,
       flow.paymentConfirmKey,
+      'kiosk',
     )
     flow.payment = result
     if (result.status === 'PAID') {
@@ -94,7 +96,7 @@ function callback(outcome: string) {
       <p>주문 {{ flow.order?.displayNumber }}</p>
       <h1>{{ review ? '결제 확인 필요' : '결제를 진행해주세요' }}</h1>
       <span>{{ message }}</span
-      ><strong>{{ payment.amount.toLocaleString('ko-KR') }}원</strong
+      ><strong>{{ formatKrw(payment.amount) }}</strong
       ><button v-if="!review" :disabled="busy" @click="start">
         {{ busy ? '처리 중…' : '결제하기' }}
       </button>

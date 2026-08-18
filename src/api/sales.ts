@@ -1,4 +1,5 @@
 import { apiResponse } from './http'
+import { formatKrw, parseJsonWithInt64 } from './int64'
 export interface DailySales {
   businessDate: string
   approvedAmount: string
@@ -33,12 +34,15 @@ export async function getDailyClosing(businessDate: string) {
     await (await apiResponse(`/sales/closings/${encodeURIComponent(businessDate)}`)).text(),
   )
 }
-const exactFields =
-  /"(approvedAmount|cancelledAmount|netSales|completedOrderCount|cancelledOrderCount)"\s*:\s*(-?\d+)/g
 function parse<T>(text: string): T {
-  return JSON.parse(text.replace(exactFields, '"$1":"$2"')) as T
+  return parseJsonWithInt64<T>(text, [
+    'approvedAmount',
+    'cancelledAmount',
+    'netSales',
+    'completedOrderCount',
+    'cancelledOrderCount',
+  ])
 }
 export function formatExactKrw(value: string) {
-  if (!/^-?\d+$/.test(value)) return '금액 확인 필요'
-  return `${BigInt(value).toLocaleString('ko-KR')}원`
+  return formatKrw(value)
 }

@@ -28,7 +28,7 @@ const menu = {
           productId: 'product-1',
           name: '아메리카노',
           description: '',
-          price: 4500,
+          price: '4500',
           displayOrder: 1,
         },
       ],
@@ -45,7 +45,7 @@ const table = {
 const createdOrder = {
   orderId: 'order-1',
   displayNumber: 1,
-  totalAmount: 4500,
+  totalAmount: '4500',
   currency: 'KRW',
   status: 'CREATED' as const,
   businessDate: '2026-08-17',

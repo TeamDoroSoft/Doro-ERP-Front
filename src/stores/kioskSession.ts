@@ -1,22 +1,21 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiError } from '@/api/http'
 import { activateKiosk, type KioskDeviceState } from '@/api/kiosk'
 
 export const useKioskSessionStore = defineStore('kioskSession', () => {
   const activeMarkerKey = 'doro.kiosk-device-active'
-  const deviceState = ref<KioskDeviceState>(
-      typeof sessionStorage !== 'undefined' && sessionStorage.getItem(activeMarkerKey) === '1'
-        ? 'ACTIVE'
-        : 'UNREGISTERED',
+  const restoring = ref(
+      typeof sessionStorage !== 'undefined' && sessionStorage.getItem(activeMarkerKey) === '1',
     ),
+    deviceState = ref<KioskDeviceState>('UNREGISTERED'),
     activating = ref(false)
+  const canAccessProtected = computed(() => deviceState.value === 'ACTIVE' || restoring.value)
   async function activate(tenantCode: string, deviceCode: string, secret: string) {
     activating.value = true
     try {
       await activateKiosk(tenantCode, deviceCode, secret)
-      deviceState.value = 'ACTIVE'
-      sessionStorage.setItem(activeMarkerKey, '1')
+      markAuthenticated()
     } catch (reason) {
       deviceState.value = stateFor(reason)
       sessionStorage.removeItem(activeMarkerKey)
@@ -33,7 +32,27 @@ export const useKioskSessionStore = defineStore('kioskSession', () => {
   }
   function markUnauthenticated() {
     deviceState.value = 'UNREGISTERED'
+    restoring.value = false
     sessionStorage.removeItem(activeMarkerKey)
   }
-  return { deviceState, activating, activate, markUnauthenticated }
+  function markAuthenticationFailed() {
+    deviceState.value = 'AUTH_FAILED'
+    restoring.value = false
+    sessionStorage.removeItem(activeMarkerKey)
+  }
+  function markAuthenticated() {
+    deviceState.value = 'ACTIVE'
+    restoring.value = false
+    sessionStorage.setItem(activeMarkerKey, '1')
+  }
+  return {
+    deviceState,
+    restoring,
+    canAccessProtected,
+    activating,
+    activate,
+    markAuthenticated,
+    markUnauthenticated,
+    markAuthenticationFailed,
+  }
 })

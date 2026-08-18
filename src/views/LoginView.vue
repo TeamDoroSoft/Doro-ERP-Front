@@ -5,6 +5,7 @@ import { login } from '@/api/auth'
 import { ApiError } from '@/api/http'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import { safePosReturnPath } from '@/router/safePosReturn'
 
 const route = useRoute()
 const router = useRouter()
@@ -44,14 +45,7 @@ async function submit() {
 }
 
 function loginDestination(redirect: unknown) {
-  if (typeof redirect !== 'string' || !redirect.startsWith('/pos/')) return '/pos/orders'
-  if (redirect.includes('?') || redirect.includes('#')) return '/pos/orders'
-
-  const resolved = router.resolve(redirect)
-  if (resolved.name === undefined || resolved.name === 'not-found' || resolved.name === 'pos-login') {
-    return '/pos/orders'
-  }
-  return redirect
+  return safePosReturnPath(router, redirect) ?? '/pos/orders'
 }
 
 async function enterPreview() {

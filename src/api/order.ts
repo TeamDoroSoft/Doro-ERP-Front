@@ -1,4 +1,5 @@
-import { apiRequest } from './http'
+import { apiResponse } from './http'
+import { parseJsonWithInt64, type Int64String } from './int64'
 
 export type OrderChannel = 'POS' | 'KIOSK'
 export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
@@ -25,7 +26,7 @@ export interface CreateOrderRequest {
 export interface OrderResponse {
   orderId: string
   displayNumber: number
-  totalAmount: number
+  totalAmount: Int64String
   currency: string
   status: OrderStatus
   businessDate: string
@@ -41,7 +42,7 @@ export function createOrder(
   request: CreateOrderRequest,
   idempotencyKey: string,
 ): Promise<OrderResponse> {
-  return apiRequest<OrderResponse>('/orders', {
+  return exactOrderRequest<OrderResponse>('/orders', {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify(request),
@@ -54,21 +55,25 @@ export function getOrders(query: OrderListQuery = {}): Promise<OrderResponse[]> 
   if (query.status) search.set('status', query.status)
   const suffix = search.size === 0 ? '' : `?${search.toString()}`
 
-  return apiRequest<OrderResponse[]>(`/orders${suffix}`)
+  return exactOrderRequest<OrderResponse[]>(`/orders${suffix}`)
 }
 
 export function getOrder(orderId: string): Promise<OrderResponse> {
-  return apiRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}`)
+  return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}`)
 }
 
 export function cancelOrder(orderId: string): Promise<OrderResponse> {
-  return apiRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/cancel`, {
+  return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/cancel`, {
     method: 'POST',
   })
 }
 
 export function completeOrder(orderId: string): Promise<OrderResponse> {
-  return apiRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/complete`, {
+  return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/complete`, {
     method: 'POST',
   })
+}
+
+async function exactOrderRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return parseJsonWithInt64<T>(await (await apiResponse(path, options)).text(), ['totalAmount'])
 }

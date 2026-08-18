@@ -45,7 +45,7 @@ import OrderPaymentPanel from '@/components/payments/OrderPaymentPanel.vue'
 const order: OrderResponse = {
   orderId: 'order-1',
   displayNumber: 42,
-  totalAmount: 1,
+  totalAmount: '1',
   currency: 'KRW',
   status: 'CREATED',
   businessDate: '2026-08-17',
@@ -55,7 +55,7 @@ const payment: PaymentResponse = {
   id: 'payment-1',
   orderId: order.orderId,
   providerOrderId: 'server-order-1',
-  amount: 12000,
+  amount: '12000',
   currency: 'KRW',
   status: 'PENDING',
 }
@@ -94,7 +94,7 @@ describe('OrderPaymentPanel', () => {
       expect.objectContaining({ confirmIdempotencyKey: 'confirm-key' }),
     )
     expect(requestTossPayment).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 12000, providerOrderId: 'server-order-1' }),
+      expect.objectContaining({ amount: '12000', providerOrderId: 'server-order-1' }),
     )
   })
 

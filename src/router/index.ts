@@ -247,8 +247,8 @@ router.beforeEach((to) => {
   const kioskRoute = to.matched.some((record) => record.meta.kiosk)
   const kioskActivation = to.matched.some((record) => record.meta.kioskActivation)
   if (kioskRoute) {
-    if (kioskSession.deviceState !== 'ACTIVE' && !kioskActivation) return '/kiosk/activate'
-    if (kioskSession.deviceState === 'ACTIVE' && kioskActivation) return '/kiosk'
+    if (!kioskSession.canAccessProtected && !kioskActivation) return '/kiosk/activate'
+    if (kioskSession.canAccessProtected && kioskActivation) return '/kiosk'
     return true
   }
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)

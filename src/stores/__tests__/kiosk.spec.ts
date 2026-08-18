@@ -24,13 +24,40 @@ describe('Kiosk stores', () => {
       expect(kiosk.deviceState).toBe(state)
     },
   )
+  it('treats the stored ACTIVE marker as a UX hint that a protected API must confirm', () => {
+    sessionStorage.setItem('doro.kiosk-device-active', '1')
+    const kiosk = useKioskSessionStore()
+
+    // The hint allows the restoring screens to render, but it is not an authentication result.
+    expect(kiosk.restoring).toBe(true)
+    expect(kiosk.deviceState).toBe('UNREGISTERED')
+    expect(kiosk.canAccessProtected).toBe(true)
+
+    kiosk.markAuthenticated()
+    expect(kiosk.restoring).toBe(false)
+    expect(kiosk.deviceState).toBe('ACTIVE')
+    expect(sessionStorage.getItem('doro.kiosk-device-active')).toBe('1')
+  })
+
+  it('discards the ACTIVE marker as soon as a kiosk API reports 401', () => {
+    sessionStorage.setItem('doro.kiosk-device-active', '1')
+    const kiosk = useKioskSessionStore()
+
+    kiosk.markAuthenticationFailed()
+
+    expect(sessionStorage.getItem('doro.kiosk-device-active')).toBeNull()
+    expect(kiosk.restoring).toBe(false)
+    expect(kiosk.canAccessProtected).toBe(false)
+    expect(kiosk.deviceState).toBe('AUTH_FAILED')
+  })
+
   it('adds, changes, removes and clears option-free cart lines', () => {
     const cart = useKioskCartStore(),
-      product = { productId: 'p1', name: '커피', description: '', price: 4500, displayOrder: 1 }
+      product = { productId: 'p1', name: '커피', description: '', price: '4500', displayOrder: 1 }
     cart.addItem(product)
     cart.addItem(product, 2)
     expect(cart.itemCount).toBe(3)
-    expect(cart.estimatedTotal).toBe(13500)
+    expect(cart.estimatedTotal).toBe('13500')
     cart.setQuantity('p1', 2)
     expect(cart.itemCount).toBe(2)
     cart.removeItem('p1')
@@ -44,7 +71,7 @@ describe('Kiosk stores', () => {
       cart = useKioskCartStore(),
       flow = useKioskFlowStore()
     device.deviceState = 'ACTIVE'
-    cart.addItem({ productId: 'p1', name: '커피', description: '', price: 1, displayOrder: 1 })
+    cart.addItem({ productId: 'p1', name: '커피', description: '', price: '1', displayOrder: 1 })
     const oldOrder = flow.orderKey,
       oldPayment = flow.paymentCreateKey
     flow.resetCustomer()
