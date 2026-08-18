@@ -30,16 +30,23 @@ function orderId(): string {
 }
 
 async function loadOrder(clearOperationError = true) {
-  // Only show the full-page loading state for the initial load. A background refresh
-  // (e.g. after a payment status change) must not flip this to true, or the `v-else-if="order"`
-  // branch below unmounts OrderPaymentPanel; remounting it re-triggers its initial payment
-  // fetch, which re-emits `payment-updated` and calls loadOrder again — an infinite loop.
-  if (!order.value) loading.value = true
+  // `clearOperationError` doubles as "this is a foreground (re)load" — the initial mount,
+  // an orderId route change, or an explicit user retry. Those must show the full-page loading
+  // state and drop any stale order so a different order's Cancel/Complete buttons can't be
+  // clicked mid-navigation. A background sync after a payment status change passes `false` and
+  // must not flip `loading`, or the `v-else-if="order"` branch below unmounts OrderPaymentPanel;
+  // remounting it re-triggers its initial payment fetch, which re-emits `payment-updated` and
+  // calls loadOrder again — an infinite loop.
+  if (clearOperationError) {
+    order.value = null
+    loading.value = true
+    operationError.value = ''
+  }
   error.value = null
-  if (clearOperationError) operationError.value = ''
   try {
-    order.value = await getOrder(orderId())
-    recentPaymentId.value = readRecentPaymentId(order.value.orderId)
+    const fetched = await getOrder(orderId())
+    order.value = fetched
+    recentPaymentId.value = readRecentPaymentId(fetched.orderId)
   } catch (caught) {
     error.value = queryError(caught)
   } finally {
