@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { getAudit, getAudits, type AuditRecord } from '@/api/audit'
 import { ApiError } from '@/api/http'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
@@ -24,6 +24,8 @@ const validationError = ref('')
 const selected = ref<AuditRecord | null>(null)
 const detailLoading = ref(false)
 const detailError = ref<ApiError | null>(null)
+const drawer = ref<HTMLElement | null>(null)
+const drawerReturnFocus = ref<HTMLElement | null>(null)
 const canQuery = computed(() => session.role === 'OWNER' || session.role === 'MANAGER')
 
 onMounted(() => {
@@ -87,7 +89,10 @@ async function previousPage() {
 }
 
 async function openDetail(item: AuditRecord) {
+  drawerReturnFocus.value = document.activeElement as HTMLElement | null
   selected.value = item
+  await nextTick()
+  drawer.value?.querySelector<HTMLElement>('button[aria-label="상세 닫기"]')?.focus()
   detailLoading.value = true
   detailError.value = null
   try {
@@ -102,6 +107,7 @@ async function openDetail(item: AuditRecord) {
 function closeDetail() {
   selected.value = null
   detailError.value = null
+  nextTick(() => drawerReturnFocus.value?.focus())
 }
 
 function validateFilters() {
@@ -195,7 +201,7 @@ function actorLabel(item: AuditRecord) {
     </template>
 
     <div v-if="selected" class="drawer-backdrop" @click.self="closeDetail">
-      <aside class="detail-drawer" aria-labelledby="audit-detail-title">
+      <aside ref="drawer" class="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="audit-detail-title" @keydown.esc.prevent="closeDetail">
         <header><div><p>상세 정보</p><h2 id="audit-detail-title">감사 기록 상세</h2></div><button type="button" aria-label="상세 닫기" @click="closeDetail">×</button></header>
         <LoadingState v-if="detailLoading" />
         <ApiErrorNotice v-else-if="detailError" :message="errorMessage(detailError)" :request-id="detailError.requestId" />

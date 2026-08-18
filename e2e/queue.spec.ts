@@ -10,12 +10,12 @@ const ids = [
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     sessionStorage.setItem('doro-erp.operator-session', JSON.stringify({
-      employeeId: '00000000-0000-4000-8000-000000000001', role: 'STAFF', tenantCode: 'DORO-DEMO', passwordChangeRequired: false,
+      employeeId: '00000000-0000-4000-8000-000000000001', role: 'MANAGER', tenantCode: 'DORO-DEMO', passwordChangeRequired: false,
     }))
   })
 })
 
-test('registers an entry and handles enter, cancel, and no-show from WAITING', async ({ page }) => {
+test('[mock-ui] registers an entry and handles enter, cancel, and no-show from WAITING', async ({ page, browserName }) => {
   const entries = ids.map((entryId, index) => entry(entryId, index + 1))
   await page.route('**/api/v1/queues/entry?businessDate=*', (route) => fulfill(route, entries))
   await page.route('**/api/v1/queues/entry', async (route) => {
@@ -44,17 +44,24 @@ test('registers an entry and handles enter, cancel, and no-show from WAITING', a
   await page.getByLabel('인원수').fill('4')
   await page.getByRole('button', { name: '등록', exact: true }).click()
   await expect(page.getByText('#4', { exact: true })).toBeVisible()
+  if (browserName === 'chromium') {
+    await page.setViewportSize({ width: 1024, height: 768 })
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/pos-manager-queue-tablet-waiting.png',
+      fullPage: true,
+    })
+  }
 
   await row(page, '#1').getByRole('button', { name: '입장', exact: true }).click()
   await expect(row(page, '#1').getByText('입장 완료', { exact: true })).toBeVisible()
   await row(page, '#2').getByRole('button', { name: '취소', exact: true }).click()
   await expect(row(page, '#2').getByText('취소', { exact: true })).toBeVisible()
   await row(page, '#3').getByRole('button', { name: '미방문', exact: true }).click()
-  await expect(row(page, '#3').getByText('미방문', { exact: true })).toBeVisible()
+  await expect(row(page, '#3').getByRole('cell', { name: '미방문', exact: true })).toBeVisible()
   await expect(row(page, '#1').getByRole('button', { name: '입장', exact: true })).toBeDisabled()
 })
 
-test('shows fulfillment event lag and moves only PREPARING to READY', async ({ page }) => {
+test('[mock-ui] shows fulfillment event lag and moves only PREPARING to READY', async ({ page }) => {
   const items = [
     fulfillment('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'PREPARING', 7),
     fulfillment('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'READY', 8),
@@ -74,7 +81,7 @@ test('shows fulfillment event lag and moves only PREPARING to READY', async ({ p
   await expect(page.getByRole('button', { name: /등록/ })).toHaveCount(0)
 })
 
-test('renders empty entry and unavailable fulfillment states safely', async ({ page }) => {
+test('[mock-ui] renders empty entry and unavailable fulfillment states safely', async ({ page }) => {
   await page.route('**/api/v1/queues/entry?businessDate=*', (route) => fulfill(route, []))
   await page.goto('/pos/queues/entry')
   await page.getByLabel('영업일').fill(businessDate)

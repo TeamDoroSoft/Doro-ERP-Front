@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-test('enters and exits the OWNER DEV preview without calling Backend auth', async ({ page }) => {
+test('[mock-ui] enters and exits the OWNER DEV preview without calling Backend auth', async ({ page }) => {
   let authRequestCount = 0
   await page.route('**/api/v1/auth/**', async (route) => {
     authRequestCount += 1

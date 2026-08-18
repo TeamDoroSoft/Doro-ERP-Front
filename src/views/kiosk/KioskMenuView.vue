@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { getKioskMenu, type KioskMenu, type KioskMenuItem } from '@/api/kiosk'
 import KioskStatePanel from '@/components/kiosk/KioskStatePanel.vue'
 import { useKioskCartStore } from '@/stores/kioskCart'
@@ -10,6 +10,8 @@ const cart = useKioskCartStore(),
   categoryId = ref(''),
   selected = ref<KioskMenuItem | null>(null),
   quantity = ref(1),
+  dialog = ref<HTMLElement | null>(null),
+  returnFocus = ref<HTMLElement | null>(null),
   categories = computed(() => menu.value?.categories ?? []),
   category = computed(
     () => categories.value.find((x) => x.categoryId === categoryId.value) ?? categories.value[0],
@@ -27,9 +29,35 @@ async function load() {
     loading.value = false
   }
 }
-function choose(p: KioskMenuItem) {
+async function choose(p: KioskMenuItem, trigger: Event) {
+  returnFocus.value = trigger.currentTarget as HTMLElement
   selected.value = p
   quantity.value = 1
+  await nextTick()
+  dialog.value?.querySelector<HTMLElement>('.close')?.focus()
+}
+function closeDialog() {
+  selected.value = null
+  nextTick(() => returnFocus.value?.focus())
+}
+function dialogKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeDialog()
+    return
+  }
+  if (event.key !== 'Tab' || !dialog.value) return
+  const focusable = [...dialog.value.querySelectorAll<HTMLElement>('button:not(:disabled)')]
+  if (!focusable.length) return
+  const first = focusable[0]!,
+    last = focusable[focusable.length - 1]!
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
 }
 function add() {
   if (!selected.value) return
@@ -74,7 +102,7 @@ const money = (n: number) => `${n.toLocaleString('ko-KR')}원`
         </button>
       </nav>
       <div v-if="category?.products.length" class="grid">
-        <button v-for="p in category.products" :key="p.productId" @click="choose(p)">
+        <button v-for="p in category.products" :key="p.productId" @click="choose(p, $event)">
           <span>{{ p.name.slice(0, 1) }}</span
           ><b>{{ p.name }}</b
           ><small>{{ p.description }}</small
@@ -86,10 +114,17 @@ const money = (n: number) => `${n.toLocaleString('ko-KR')}원`
         title="이 카테고리에 판매 중인 메뉴가 없어요"
         message="다른 카테고리를 선택해주세요."
     /></template>
-    <div v-if="selected" class="backdrop" @click.self="selected = null">
-      <section class="dialog" role="dialog">
-        <button class="close" aria-label="상품 선택 닫기" @click="selected = null">×</button>
-        <h2>{{ selected.name }}</h2>
+    <div v-if="selected" class="backdrop" @click.self="closeDialog">
+      <section
+        ref="dialog"
+        class="dialog"
+        role="dialog"
+        aria-modal="true"
+        :aria-labelledby="`kiosk-product-${selected.productId}`"
+        @keydown="dialogKeydown"
+      >
+        <button class="close" aria-label="상품 선택 닫기" @click="closeDialog">×</button>
+        <h2 :id="`kiosk-product-${selected.productId}`">{{ selected.name }}</h2>
         <p>{{ selected.description }}</p>
         <strong>{{ money(selected.price) }}</strong>
         <div class="quantity">

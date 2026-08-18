@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
       'doro-erp.operator-session',
       JSON.stringify({
         employeeId: '00000000-0000-4000-8000-000000000001',
-        role: 'STAFF',
+        role: 'OWNER',
         tenantCode: 'DORO-DEMO',
         passwordChangeRequired: false,
       }),
@@ -19,8 +19,8 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('starts from an order, confirms with a separate key, scrubs callback secrets, and returns', async ({
-  page,
+test('[mock-ui] starts from an order, confirms with a separate key, scrubs callback secrets, and returns', async ({
+  page, browserName,
 }) => {
   let confirmed = false
   let orderRequests = 0
@@ -61,10 +61,16 @@ test('starts from an order, confirms with a separate key, scrubs callback secret
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
   await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
+  if (browserName === 'chromium') {
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/pos-owner-order-detail-desktop-paid.png',
+      fullPage: true,
+    })
+  }
   expect(orderRequests).toBe(2)
 })
 
-test('keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
+test('[mock-ui] keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
   let confirmRequests = 0
   await mockOrder(page, () => 'CREATED')
   await mockTossSdk(page, 'cancel')
@@ -87,7 +93,7 @@ test('keeps the created PENDING payment discoverable when Toss is cancelled', as
   await expect(page.getByRole('button', { name: '토스 결제 시작' })).toHaveCount(0)
 })
 
-test('does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
+test('[mock-ui] does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
   page,
 }) => {
   await mockOrder(page, () => 'CREATED')
@@ -109,7 +115,7 @@ test('does not infer REVIEW_REQUIRED and lets the employee recheck it from the o
   await expect(page.getByText('완료 또는 실패로 판단하지 않고', { exact: false })).toBeVisible()
 })
 
-test('cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
+test('[mock-ui] cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
   let cancelKey = ''
   let orderRequests = 0
   await page.addInitScript(

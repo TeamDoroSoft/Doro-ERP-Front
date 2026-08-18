@@ -54,8 +54,8 @@ function tone(status: OrderStatus) {
     <section class="contract-notice" aria-label="주문 상세 정보 안내">
       <h2>주문 요약</h2>
       <p>
-        현재는 주문 번호, 영업일, 금액과 상태만 확인할 수 있습니다. 품목과 테이블 정보는 연동
-        준비 중입니다.
+        현재 주문 조회 계약은 주문 번호, 영업일, 금액과 상태만 제공합니다. 품목과 테이블 상세는
+        응답에 포함되지 않습니다.
       </p>
     </section>
     <div class="actions">

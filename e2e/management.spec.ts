@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('navigates every Phase 1 POS destination from the sidebar', async ({ page }) => {
+test('[mock-ui] navigates every Phase 1 POS destination from the sidebar', async ({ page, browserName }) => {
   const screens = [
     ['주문 관리', '주문 목록'],
     ['대기·조리', '입장 대기 관리'],
@@ -27,16 +27,24 @@ test('navigates every Phase 1 POS destination from the sidebar', async ({ page }
 
   await page.route('**/api/v1/tables', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
   await page.route('**/api/v1/audits?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[],"nextCursor":null}' }))
+  await page.route('**/api/v1/sales/daily?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"businessDate":"2026-08-18","grossSales":184500,"netSales":172500,"refundAmount":12000,"orderCount":37,"closed":false}' }))
+  await page.route('**/api/v1/sales/closings/*', (route) => route.fulfill({ status: 404, contentType: 'application/problem+json', body: '{"code":"CLOSING_NOT_FOUND"}' }))
   await page.goto('/pos/orders')
 
   for (const [menu, heading] of screens) {
     await page.getByRole('link', { name: menu, exact: true }).click()
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
     await expect(page.getByRole('link', { name: menu, exact: true })).toHaveAttribute('aria-current', 'page')
+    if (browserName === 'chromium' && menu === '매출·마감') {
+      await page.screenshot({
+        path: 'docs/screenshots/phase08/pos-owner-sales-desktop.png',
+        fullPage: true,
+      })
+    }
   }
 })
 
-test('keeps the implemented Catalog editor usable at tablet width', async ({ page }) => {
+test('[mock-ui] keeps the implemented Catalog editor usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
   await page.route('**/api/v1/catalog/categories', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[{"categoryId":"11111111-1111-4111-8111-111111111111","name":"커피","displayOrder":1,"active":true,"version":0}]' }))
   await page.route('**/api/v1/catalog/products', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))

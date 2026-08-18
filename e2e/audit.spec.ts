@@ -45,7 +45,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('shows the audit list and detail drawer', async ({ page }) => {
+test('[mock-ui] shows the audit list and detail drawer', async ({ page }) => {
   await page.goto('/pos/history')
 
   await expect(page.getByRole('heading', { name: '감사 이력', exact: true })).toBeVisible()
@@ -58,7 +58,7 @@ test('shows the audit list and detail drawer', async ({ page }) => {
   await expect(page.locator('.metadata').getByText('POS', { exact: true })).toBeVisible()
 })
 
-test('keeps the audit screen usable at tablet width', async ({ page }) => {
+test('[mock-ui] keeps the audit screen usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
   await page.goto('/pos/history')
 

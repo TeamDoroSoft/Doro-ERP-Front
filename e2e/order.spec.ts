@@ -27,7 +27,7 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('creates a takeout order with one idempotent command and opens server detail', async ({
+test('[mock-ui] creates a takeout order with one idempotent command and opens server detail', async ({
   page,
 }) => {
   let createRequests = 0
@@ -95,7 +95,7 @@ test('creates a takeout order with one idempotent command and opens server detai
   expect(idempotencyKey).toMatch(/^[0-9a-f-]{36}$/)
 })
 
-test('opens a listed CREATED order and cancels it without an accept action', async ({ page }) => {
+test('[mock-ui] opens a listed CREATED order and cancels it without an accept action', async ({ page }) => {
   const cancelled = { ...order, status: 'CANCELLED' }
 
   await page.route('**/api/v1/orders', async (route) => {

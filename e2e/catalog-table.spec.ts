@@ -5,7 +5,7 @@ const productId = '22222222-2222-4222-8222-222222222222'
 const category = { categoryId, name: '커피', displayOrder: 1, active: true, version: 0 }
 const product = { productId, categoryId, name: '라테', description: '', price: 5000, soldOut: false, active: true, displayOrder: 1, version: 0 }
 
-test('OWNER creates and updates Catalog data and changes sold-out state', async ({ page }) => {
+test('[mock-ui] OWNER creates and updates Catalog data and changes sold-out state', async ({ page, browserName }) => {
   await session(page, 'OWNER')
   const categories = [{ ...category }]
   const products = [{ ...product }]
@@ -38,9 +38,15 @@ test('OWNER creates and updates Catalog data and changes sold-out state', async 
   await latte.getByRole('button', { name: '품절 처리' }).click()
   await expect(latte.getByText('품절', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '삭제' })).toHaveCount(0)
+  if (browserName === 'chromium') {
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/pos-owner-catalog-desktop.png',
+      fullPage: true,
+    })
+  }
 })
 
-test('STAFF can change sold-out but cannot open Catalog management forms', async ({ page }) => {
+test('[mock-ui] STAFF can change sold-out but cannot open Catalog management forms', async ({ page }) => {
   await session(page, 'STAFF'); const categories = [{ ...category }]; const products = [{ ...product }]
   await catalogRoutes(page, categories, products); await page.goto('/pos/catalog')
   await expect(page.getByRole('button', { name: 'Category 생성' })).toHaveCount(0)
@@ -50,7 +56,7 @@ test('STAFF can change sold-out but cannot open Catalog management forms', async
   await expect(page.getByRole('cell', { name: '품절', exact: true })).toBeVisible()
 })
 
-test('MANAGER manages active tables, sees conflict, and STAFF is route-guarded', async ({ browser }) => {
+test('[mock-ui] MANAGER manages active tables, sees conflict, and STAFF is route-guarded', async ({ browser }) => {
   const manager = await browser.newPage(); await session(manager, 'MANAGER')
   const tables = [{ id: '33333333-3333-4333-8333-333333333333', tableNumber: 'A-1', displayName: '창가', status: 'ACTIVE', version: 0 }]
   await manager.route('**/api/v1/tables', async (route) => {

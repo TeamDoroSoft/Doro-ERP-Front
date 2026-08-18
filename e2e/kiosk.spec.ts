@@ -3,8 +3,8 @@ const orderId = '11111111-1111-4111-8111-111111111111',
   paymentId = '33333333-3333-4333-8333-333333333333',
   providerOrderId = 'kiosk-provider-1'
 
-test('activates a separate kiosk and reaches the option-free TAKEOUT checkout', async ({
-  page,
+test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT checkout', async ({
+  page, browserName,
 }) => {
   let orderBody: unknown
   await mocks(page, (b) => (orderBody = b))
@@ -17,7 +17,21 @@ test('activates a separate kiosk and reaches the option-free TAKEOUT checkout', 
   await page.getByLabel('일회성 Secret').fill('one-time')
   await page.getByRole('button', { name: '기기 활성화' }).click()
   await expect(page.getByRole('heading', { name: '무엇을 드릴까요?' })).toBeVisible()
+  await page.setViewportSize({ width: 768, height: 1024 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  await page.setViewportSize({ width: 1366, height: 768 })
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  if (browserName === 'chromium') {
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/kiosk-menu-landscape.png',
+      fullPage: true,
+    })
+  }
   await expect(page.getByText(/옵션|토핑|사이즈/)).toHaveCount(0)
+  await page.getByRole('button', { name: /아메리카노/ }).click()
+  await expect(page.getByRole('button', { name: '상품 선택 닫기' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: /아메리카노/ })).toBeFocused()
   await page.getByRole('button', { name: /아메리카노/ }).click()
   await page.getByRole('button', { name: '수량 늘리기' }).click()
   await page.getByRole('button', { name: /장바구니 담기/ }).click()
@@ -28,6 +42,13 @@ test('activates a separate kiosk and reaches the option-free TAKEOUT checkout', 
   await expect(page.getByText('창가 1번')).toBeVisible()
   await page.getByText('창가 1번').click()
   await page.getByText('포장', { exact: true }).click()
+  if (browserName === 'chromium') {
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/kiosk-checkout-portrait.png',
+      fullPage: true,
+    })
+  }
   await page.getByRole('button', { name: '주문하고 결제하기' }).click()
   await expect(page).toHaveURL(new RegExp(`/kiosk/payments/${paymentId}`))
   expect(orderBody).toEqual({
@@ -44,11 +65,17 @@ test('activates a separate kiosk and reaches the option-free TAKEOUT checkout', 
   await page.getByRole('button', { name: '수동 새로고침' }).click()
   await expect(page.getByText('준비 완료')).toBeVisible()
   await expect(page.getByText(/초 후 다음 고객 화면/)).toBeVisible()
+  if (browserName === 'chromium') {
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/kiosk-order-status-portrait-ready.png',
+      fullPage: true,
+    })
+  }
   await page.getByRole('button', { name: '새 고객 시작' }).click()
   await expect(page).toHaveURL(/\/kiosk$/)
 })
 
-test('blocks an invalid or revoked credential without revealing which one it is', async ({
+test('[mock-ui] blocks an invalid or revoked credential without revealing which one it is', async ({
   page,
 }) => {
   await page.route('**/api/v1/kiosk-auth/activate', (r) =>
@@ -81,7 +108,7 @@ async function mocks(page: Page, capture: (body: unknown) => void) {
           products: [
             {
               productId: 'p1',
-              name: '아메리카노',
+              name: '아메리카노 매우 긴 메뉴 이름 테스트',
               description: '깔끔한 커피',
               price: 4500,
               displayOrder: 1,

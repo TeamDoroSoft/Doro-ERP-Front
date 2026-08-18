@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import {
   closeDailySales,
   formatExactKrw,
@@ -88,7 +88,7 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <LoadingState v-if="loading" /><ApiErrorNotice
       v-else-if="error"
-      :message="error.message"
+      :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="load"

@@ -28,16 +28,20 @@
 
 화면 파일이 있다는 사실만으로 구현 완료로 판단하지 않는다. `ManagementWorkspace` 기반 화면은 목록이 비어 있고 저장 동작이 없는 Placeholder다.
 
-## 2026-08-17 기준 진행 상태
+## 2026-08-18 기준 진행 상태
 
 | Phase | 상태 | 다음 작업 |
 |---|---|---|
-| Phase 1 POS Shell | `FRONT_IMPLEMENTED` | 코드·Unit·Build 완료. Playwright는 실행 환경의 `libglib-2.0.so.0` 부재로 미검증 |
-| Phase 2 Order | `INTEGRATION_BLOCKED` | Front·Mock Test 완료. Edge의 Commerce·Table Route 개방 후 실제 연동 검증 필요 |
-| Phase 3 Payment | `FRONT_IMPLEMENTED` | Order 상세 결제·승인·전액 취소와 Mock 경계 Test 완료. 실제 Edge 통합은 미검증 |
-| Phase 4~8 | `NOT_STARTED` | 앞 Phase 종료 Gate 통과 후 순차 진행 |
+| Phase 1 POS Shell | `FRONT_IMPLEMENTED` | Route·Guard·Role Mock UI 완료. 실제 Edge Session Runtime 미검증 |
+| Phase 2 Order | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | Front·Mock UI 완료. Edge Commerce Route 미개방 |
+| Phase 3 Payment | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | 결제 Mock UI 완료. 실제 Edge Runtime·Toss Sandbox 미검증 |
+| Phase 4 Queue | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | Entry·Fulfillment Mock UI 완료. Edge Route·SQS Runtime 미검증 |
+| Phase 5 Catalog·Table | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | 관리·Role Mock UI 완료. Edge Route 미개방 |
+| Phase 6 Sales·Admin | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | Sales·Settings·History 완료. 관련 Edge Route 미개방 |
+| Phase 7 Kiosk | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | 독립 Session·주문·결제 Mock UI 완료. CTX-006-K·Kiosk Edge Route 미완료 |
+| Phase 8 Hardening | `FRONT_IMPLEMENTED` / `INTEGRATION_BLOCKED` | 공통 UX·접근성·반응형·Mock UI·Release 검증 완료. 실제 Runtime 종단 미검증 |
 
-Phase 1·2 구현은 `75f7896`에 Commit했다. Phase 3은 검증을 마친 미Commit 작업본이다. `package-lock.json`은 구현과 무관한 선행 변경으로 보존했다. 다음 작업은 [Phase 4 — Queue](./PHASE_04_QUEUE.md)다.
+Phase 08까지 `admin-front-v2`에 로컬 Commit했다. Browser Mock 결과를 실제 통합으로 올리지 않으며, Edge·SQS·Provider Runtime이 준비되면 별도의 `edge-integration`·`provider-sandbox` 검증이 필요하다.
 
 ## 올바른 상태 모델
 

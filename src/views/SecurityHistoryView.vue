@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
 import { getSecurityHistory, type SecurityEntry } from '@/api/administration'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
@@ -68,7 +68,7 @@ async function load(append: boolean) {
     </form>
     <ApiErrorNotice
       v-if="error"
-      :message="error.message"
+      :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="load(false)"

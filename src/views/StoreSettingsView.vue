@@ -18,7 +18,7 @@ import {
   type Role,
   type StoreView,
 } from '@/api/administration'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -212,7 +212,7 @@ function asError(e: unknown) {
     <p v-if="notice" class="notice">{{ notice }}</p>
     <LoadingState v-if="loading" /><ApiErrorNotice
       v-else-if="error"
-      :message="error.message"
+      :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="loadAll"

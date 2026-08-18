@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { cancelOrder, completeOrder, getOrder, type OrderResponse } from '@/api/order'
 import OrderDetailPanel from '@/components/orders/OrderDetailPanel.vue'
 import OrderPaymentPanel from '@/components/payments/OrderPaymentPanel.vue'
@@ -131,7 +131,7 @@ function queryError(caught: unknown): ApiError {
     <LoadingState v-if="loading" />
     <ApiErrorNotice
       v-else-if="error"
-      :message="error.message"
+      :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="loadOrder"

@@ -55,15 +55,12 @@ async function signOut() {
     <div class="store-context">
       <span class="status-dot" aria-hidden="true" />
       <div>
-        <strong>{{ session.tenantCode || '매장 정보 준비 중' }}</strong>
-        <span>연동 후 매장 정보를 확인할 수 있습니다.</span>
+        <strong>{{ session.tenantCode || '매장 미선택' }}</strong>
+        <span>현재 로그인한 업체 범위입니다.</span>
       </div>
       <component :is="DevPreviewBadge" v-if="DevPreviewBadge && session.isPreview" />
     </div>
     <div class="header-actions">
-      <button class="notification" type="button" aria-label="알림 준비 중" title="알림 연동 준비 중">
-        <AppIcon name="bell" />
-      </button>
       <div class="profile-menu">
         <button
           class="profile"

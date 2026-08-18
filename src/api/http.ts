@@ -31,6 +31,23 @@ export class ApiError extends Error {
   }
 }
 
+export function safeApiErrorMessage(
+  error: unknown,
+  fallback = '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+) {
+  if (!(error instanceof ApiError)) return fallback
+  if (error.status === 0) return '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
+  if (error.status === 401) return '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.'
+  if (error.status === 403) return '이 작업을 수행할 권한이 없습니다.'
+  if (error.status === 404) return '요청한 정보를 찾을 수 없습니다.'
+  if (error.status === 409)
+    return '다른 작업과 충돌했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.'
+  if (error.status === 503) return '현재 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+  if (error.status === 400 || error.code === 'VALIDATION_FAILED')
+    return '입력한 내용을 확인해 주세요.'
+  return fallback
+}
+
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
 let unauthorizedHandler: (() => void) | undefined
