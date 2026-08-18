@@ -132,6 +132,16 @@ async function handleMutationError(error: unknown) {
       await loadTables()
       return
     }
+    if (error.code === 'TABLE_HAS_ACTIVE_ORDER') {
+      operationError.value = '진행 중인 주문이 있어 테이블을 비활성화할 수 없습니다.'
+      await loadTables()
+      return
+    }
+    if (error.code === 'TABLE_ORDER_VALIDATION_UNAVAILABLE') {
+      operationError.value = '진행 주문을 확인할 수 없어 테이블 상태를 변경하지 않았습니다.'
+      await loadTables()
+      return
+    }
     if (error.code === 'TABLE_NOT_FOUND') {
       operationError.value = '테이블 정보를 찾을 수 없습니다. 최신 목록을 다시 불러왔습니다.'
       formMode.value = null

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import type { Component } from 'vue'
-import CatalogManagementView from '@/views/CatalogManagementView.vue'
 import SalesClosingView from '@/views/SalesClosingView.vue'
 import StaffManagementView from '@/views/StaffManagementView.vue'
 import StoreSettingsView from '@/views/StoreSettingsView.vue'
@@ -18,7 +17,6 @@ interface ViewCase {
 }
 
 const views: ViewCase[] = [
-  { name: 'Catalog', component: CatalogManagementView, title: '상품·메뉴 관리', empty: '등록된 상품이 없습니다', primary: '메뉴 등록' },
   { name: 'Sales', component: SalesClosingView, title: '매출·마감', empty: '매출 내역을 준비하고 있습니다', primary: '마감 조건 확인' },
   { name: 'Staff', component: StaffManagementView, title: '직원 관리', empty: '등록된 직원이 없습니다', primary: '직원 생성', deniedRole: 'STAFF' },
   { name: 'Store', component: StoreSettingsView, title: '매장 설정', empty: '매장 정보를 준비하고 있습니다', primary: '기본 정보 수정', deniedRole: 'STAFF' },

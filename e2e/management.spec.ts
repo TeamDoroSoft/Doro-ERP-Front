@@ -18,7 +18,7 @@ test('navigates every Phase 1 POS destination from the sidebar', async ({ page }
   const screens = [
     ['주문 관리', '주문 목록'],
     ['대기·조리', '입장 대기 관리'],
-    ['상품·메뉴 준비', '상품·메뉴 관리'],
+    ['상품·메뉴', '상품·메뉴 관리'],
     ['테이블', '테이블 관리'],
     ['매출·마감 준비', '매출·마감'],
     ['매장·직원 설정 준비', '매장 설정'],
@@ -36,13 +36,15 @@ test('navigates every Phase 1 POS destination from the sidebar', async ({ page }
   }
 })
 
-test('keeps management filters and action drawer usable at tablet width', async ({ page }) => {
+test('keeps the implemented Catalog editor usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
+  await page.route('**/api/v1/catalog/categories', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[{"categoryId":"11111111-1111-4111-8111-111111111111","name":"커피","displayOrder":1,"active":true,"version":0}]' }))
+  await page.route('**/api/v1/catalog/products', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
   await page.goto('/pos/catalog')
 
   await expect(page.getByRole('heading', { name: '상품·메뉴 관리' })).toBeVisible()
   await expect(page.locator('body')).toHaveCSS('overflow-x', 'visible')
-  await page.getByRole('button', { name: '메뉴 등록' }).click()
-  await expect(page.getByRole('complementary', { name: '새 상품 등록' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '저장' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Category 생성' }).click()
+  await expect(page.getByRole('heading', { name: 'Category 생성' })).toBeVisible()
+  await expect(page.getByLabel('이름')).toBeVisible()
 })

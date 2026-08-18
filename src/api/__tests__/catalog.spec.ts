@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSalesMenu } from '@/api/catalog'
+import { changeProductSoldOut, createCategory, createProduct, getManagedCategories, getManagedProducts, getSalesMenu, updateCategory, updateProduct } from '@/api/catalog'
 
 const menu = {
   currency: 'KRW',
@@ -43,5 +43,24 @@ describe('catalog API', () => {
       status: 503,
       code: 'DEPENDENCY_UNAVAILABLE',
     })
+  })
+
+  it('keeps managed Category and Product wires separate from the sales menu', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }))
+    await getManagedCategories(); await createCategory({ name: '커피', displayOrder: 1, active: true })
+    await updateCategory('category/id', { active: false }, 3)
+    await getManagedProducts(); await createProduct({ categoryId: 'category-1', name: '라테', description: '', price: 5000, displayOrder: 2, active: true })
+    await updateProduct('product/id', { price: 5500 }, 4)
+    await changeProductSoldOut('product/id', true, 5)
+    const calls = fetchMock.mock.calls.map(([url, options]) => ({ url, method: options?.method, body: options?.body && JSON.parse(String(options.body)), match: new Headers(options?.headers).get('If-Match') }))
+    expect(calls).toEqual([
+      { url: '/api/v1/catalog/categories', method: 'GET', body: undefined, match: null },
+      { url: '/api/v1/catalog/categories', method: 'POST', body: { name: '커피', displayOrder: 1, active: true }, match: null },
+      { url: '/api/v1/catalog/categories/category%2Fid', method: 'PATCH', body: { active: false }, match: '"3"' },
+      { url: '/api/v1/catalog/products', method: 'GET', body: undefined, match: null },
+      { url: '/api/v1/catalog/products', method: 'POST', body: { categoryId: 'category-1', name: '라테', description: '', price: 5000, displayOrder: 2, active: true }, match: null },
+      { url: '/api/v1/catalog/products/product%2Fid', method: 'PATCH', body: { price: 5500 }, match: '"4"' },
+      { url: '/api/v1/catalog/products/product%2Fid/sold-out', method: 'PATCH', body: { soldOut: true }, match: '"5"' },
+    ])
   })
 })

@@ -36,33 +36,6 @@ const allEmployees: EmployeeRole[] = ['OWNER', 'MANAGER', 'STAFF']
 const managers: EmployeeRole[] = ['OWNER', 'MANAGER']
 
 export const workspaceDefinitions = {
-  catalog: {
-    eyebrow: '상품 운영', title: '상품·메뉴 관리',
-    description: '카테고리와 판매 상품의 가격, 노출 순서, 판매·품절 상태를 관리합니다.',
-    tabs: ['상품', '카테고리'],
-    filters: [
-      { label: '카테고리', placeholder: '전체 카테고리', type: 'select', options: ['전체 카테고리'] },
-      { label: '판매 상태', placeholder: '전체 상태', type: 'select', options: ['전체', option('ACTIVE', '판매 중'), option('INACTIVE', '판매 중지'), option('SOLD_OUT', '품절')] },
-      { label: '상품명', placeholder: '상품명 검색' },
-    ],
-    columns: ['상품', '카테고리', '가격', '판매 상태', '품절', '표시 순서', '관리'],
-    statuses: [{ label: '판매 중', tone: 'success' }, { label: '품절', tone: 'warning' }, { label: '비활성', tone: 'neutral' }],
-    workflowTitle: '상품 운영 순서',
-    workflow: ['카테고리 정렬', '상품 정보·가격', '판매 상태', '품절 즉시 반영'],
-    emptyTitle: '등록된 상품이 없습니다',
-    emptyDescription: '카테고리를 만든 뒤 첫 상품을 등록해 보세요.',
-    primaryAction: {
-      label: '메뉴 등록', roles: managers, title: '새 상품 등록',
-      description: '가격과 판매 상태를 확인한 뒤 상품을 등록하세요.',
-      fields: [
-        { label: '카테고리', placeholder: '카테고리 선택', type: 'select', options: ['카테고리 연결 대기'] },
-        { label: '상품명', placeholder: '상품명' }, { label: '설명', placeholder: '상품 설명' },
-        { label: '가격', placeholder: 'KRW' }, { label: '표시 순서', placeholder: '0' },
-      ],
-    },
-    accessRoles: allEmployees,
-    contractNote: '직원은 품절 상태만 변경할 수 있으며, 상품 정보와 가격은 관리자만 수정할 수 있습니다.',
-  },
   sales: {
     eyebrow: '매출 운영', title: '매출·마감',
     description: '영업일별 승인·취소 금액과 완료 주문을 확인하고 마감 상태를 관리합니다.',

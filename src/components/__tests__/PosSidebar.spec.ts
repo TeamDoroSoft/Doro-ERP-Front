@@ -35,7 +35,7 @@ describe('PosSidebar', () => {
     const wrapper = await mountSidebar('OWNER')
     const plannedItems = wrapper.findAll('.planned')
 
-    expect(plannedItems).toHaveLength(3)
+    expect(plannedItems).toHaveLength(2)
     expect(wrapper.text()).not.toContain('대시보드')
     expect(wrapper.text()).not.toContain('재고')
     expect(wrapper.text()).not.toContain('예약')
