@@ -35,6 +35,31 @@ describe('audit API', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include')
   })
 
+  it('keeps int64 metadata values exact without changing other metadata types', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '{"id":"audit-1","sourceService":"commerce","eventId":"22222222-2222-4222-8222-222222222222",' +
+          '"action":"ORDER_CREATED","actor":{"type":"EMPLOYEE","id":"employee-1","role":"STAFF"},' +
+          '"target":{"type":"ORDER","id":"order-1"},"result":"SUCCESS","reasonCode":null,' +
+          '"metadata":{"totalAmount":9007199254740993,"version":9007199254740993,"currency":"KRW",' +
+          '"displayNumber":7,"soldOut":false,"previousSoldOut":null},' +
+          '"traceId":"trace-1","occurredAt":"2026-08-18T00:00:00Z"}',
+        { status: 200 },
+      ),
+    )
+
+    const detail = await getAudit('audit-1')
+
+    expect(detail.metadata.totalAmount).toBe('9007199254740993')
+    expect(String(detail.metadata.totalAmount)).toBe('9007199254740993')
+    expect(detail.metadata.version).toBe('9007199254740993')
+    expect(detail.metadata.currency).toBe('KRW')
+    expect(detail.metadata.soldOut).toBe(false)
+    expect(detail.metadata.previousSoldOut).toBeNull()
+    expect(detail.reasonCode).toBeNull()
+    expect(detail.actor).toEqual({ type: 'EMPLOYEE', id: 'employee-1', role: 'STAFF' })
+  })
+
   it('treats a detail id as opaque and safely encodes it', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify(record()), { status: 200 }))
     await getAudit('legacy/id')

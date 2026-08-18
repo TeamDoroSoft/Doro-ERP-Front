@@ -1,5 +1,5 @@
-import { apiResponse } from './http'
-import { parseJsonWithInt64, type Int64String } from './int64'
+import { apiRequestExact } from './http'
+import type { Int64String } from './int64'
 
 export type OrderChannel = 'POS' | 'KIOSK'
 export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
@@ -74,6 +74,6 @@ export function completeOrder(orderId: string): Promise<OrderResponse> {
   })
 }
 
-async function exactOrderRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  return parseJsonWithInt64<T>(await (await apiResponse(path, options)).text(), ['totalAmount'])
+function exactOrderRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+  return apiRequestExact<T>(path, options, { fields: ['totalAmount'] })
 }

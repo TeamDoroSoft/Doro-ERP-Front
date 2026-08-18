@@ -9,6 +9,32 @@ describe('queue API', () => {
     vi.stubGlobal('fetch', fetchMock)
   })
 
+  it('keeps int64 entry and fulfillment versions exact', async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          '[{"entryId":"entry-1","businessDate":"2026-08-18","queueNumber":1,"partySize":2,' +
+            '"status":"WAITING","version":9007199254740993}]',
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          '[{"fulfillmentId":"fulfillment-1","orderId":"order-1","displayNumber":7,' +
+            '"status":"PREPARING","version":9007199254740993}]',
+          { status: 200 },
+        ),
+      )
+
+    const [entry] = await getEntries('2026-08-18')
+    const [fulfillment] = await getFulfillments()
+
+    expect(entry?.version).toBe('9007199254740993')
+    expect(entry?.queueNumber).toBe(1)
+    expect(fulfillment?.version).toBe('9007199254740993')
+    expect(fulfillment?.displayNumber).toBe(7)
+  })
+
   it('uses the exact entry registration and list contract', async () => {
     fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 })).mockResolvedValueOnce(new Response('[]'))
     await registerEntry({ businessDate: '2026-08-18', partySize: 3 }, 'entry-key')

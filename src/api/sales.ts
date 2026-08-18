@@ -1,5 +1,5 @@
-import { apiResponse } from './http'
-import { formatKrw, parseJsonWithInt64 } from './int64'
+import { apiRequestExact } from './http'
+import { formatKrw } from './int64'
 export interface DailySales {
   businessDate: string
   approvedAmount: string
@@ -15,33 +15,36 @@ export interface DailyClosing extends Omit<DailySales, 'closed'> {
   calculatedAt: string
   closedAt: string
 }
-export async function getDailySales(businessDate: string) {
-  return parse<DailySales>(
-    await (await apiResponse(`/sales/daily?${new URLSearchParams({ businessDate })}`)).text(),
-  )
-}
-export async function closeDailySales(businessDate: string) {
-  return parse<DailyClosing>(
-    await (
-      await apiResponse(`/sales/daily/${encodeURIComponent(businessDate)}/close`, {
-        method: 'POST',
-      })
-    ).text(),
-  )
-}
-export async function getDailyClosing(businessDate: string) {
-  return parse<DailyClosing>(
-    await (await apiResponse(`/sales/closings/${encodeURIComponent(businessDate)}`)).text(),
-  )
-}
-function parse<T>(text: string): T {
-  return parseJsonWithInt64<T>(text, [
+const SALES_INT64 = {
+  fields: [
     'approvedAmount',
     'cancelledAmount',
     'netSales',
     'completedOrderCount',
     'cancelledOrderCount',
-  ])
+  ],
+} as const
+
+export function getDailySales(businessDate: string) {
+  return apiRequestExact<DailySales>(
+    `/sales/daily?${new URLSearchParams({ businessDate })}`,
+    {},
+    SALES_INT64,
+  )
+}
+export function closeDailySales(businessDate: string) {
+  return apiRequestExact<DailyClosing>(
+    `/sales/daily/${encodeURIComponent(businessDate)}/close`,
+    { method: 'POST' },
+    SALES_INT64,
+  )
+}
+export function getDailyClosing(businessDate: string) {
+  return apiRequestExact<DailyClosing>(
+    `/sales/closings/${encodeURIComponent(businessDate)}`,
+    {},
+    SALES_INT64,
+  )
 }
 export function formatExactKrw(value: string) {
   return formatKrw(value)

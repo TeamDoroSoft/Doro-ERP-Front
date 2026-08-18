@@ -2,45 +2,124 @@ export type Int64String = string
 
 const INTEGER = /^-?\d+$/
 
+/** Selects which wire values must survive `JSON.parse` as exact decimal strings. */
+export interface Int64JsonOptions {
+  /** Object keys whose integer value is an int64: `["totalAmount"]`. Matched at any depth. */
+  fields?: readonly string[]
+  /**
+   * Object keys holding a free-form map whose value types are not known from the contract, such as
+   * an Audit `metadata`. Every integer literal inside is preserved; strings, booleans, `null`,
+   * fractional numbers and the surrounding structure are left exactly as the service sent them.
+   */
+  maps?: readonly string[]
+}
+
 /**
- * Parses selected JSON integer fields as decimal strings before JSON.parse can round them.
- * The scanner understands JSON string boundaries, so matching text inside string values is untouched.
+ * Parses JSON while keeping the selected integer values as exact decimal strings.
+ *
+ * The rewriter walks the document with a real JSON reader rather than a text replacement, so digits
+ * inside string values, keys, and unrelated numbers are never touched. Nothing is converted after
+ * the fact: the literals are quoted before `JSON.parse` ever sees them, which is the only point at
+ * which an int64 could silently lose precision.
  */
+export function parseJsonPreservingInt64<T>(text: string, options: Int64JsonOptions = {}): T {
+  return JSON.parse(
+    new Int64JsonRewriter(text, new Set(options.fields ?? []), new Set(options.maps ?? [])).run(),
+  ) as T
+}
+
+/** Convenience form of {@link parseJsonPreservingInt64} for the common "known int64 keys" case. */
 export function parseJsonWithInt64<T>(text: string, fields: readonly string[]): T {
-  const exactFields = new Set(fields)
-  let output = ''
-  let index = 0
+  return parseJsonPreservingInt64<T>(text, { fields })
+}
 
-  while (index < text.length) {
-    if (text[index] !== '"') {
-      output += text[index++]
-      continue
-    }
+class Int64JsonRewriter {
+  private index = 0
+  private output = ''
 
-    const stringEnd = findStringEnd(text, index)
-    const literal = text.slice(index, stringEnd + 1)
-    output += literal
+  constructor(
+    private readonly text: string,
+    private readonly fields: ReadonlySet<string>,
+    private readonly maps: ReadonlySet<string>,
+  ) {}
 
-    const key = JSON.parse(literal) as unknown
-    let cursor = skipWhitespace(text, stringEnd + 1)
-    if (typeof key !== 'string' || text[cursor] !== ':' || !exactFields.has(key)) {
-      index = stringEnd + 1
-      continue
-    }
-
-    cursor = skipWhitespace(text, cursor + 1)
-    const integer = /^-?\d+/.exec(text.slice(cursor))?.[0]
-    if (!integer || !isJsonValueBoundary(text[cursor + integer.length])) {
-      index = stringEnd + 1
-      continue
-    }
-
-    output += text.slice(stringEnd + 1, cursor)
-    output += JSON.stringify(integer)
-    index = cursor + integer.length
+  run(): string {
+    this.whitespace()
+    this.value(false, false)
+    this.output += this.text.slice(this.index)
+    return this.output
   }
 
-  return JSON.parse(output) as T
+  private value(preserve: boolean, insideMap: boolean) {
+    const character = this.text[this.index]
+    if (character === '{') this.object(insideMap)
+    else if (character === '[') this.array(preserve, insideMap)
+    else if (character === '"') this.string()
+    else this.primitive(preserve || insideMap)
+  }
+
+  private object(insideMap: boolean) {
+    this.take(1)
+    this.whitespace()
+    if (this.text[this.index] === '}') {
+      this.take(1)
+      return
+    }
+    for (;;) {
+      this.whitespace()
+      const key = this.string()
+      this.whitespace()
+      this.take(1) // ':'
+      this.whitespace()
+      this.value(this.fields.has(key), insideMap || this.maps.has(key))
+      this.whitespace()
+      const separator = this.text[this.index]
+      this.take(1) // ',' or '}'
+      if (separator !== ',') return
+    }
+  }
+
+  private array(preserve: boolean, insideMap: boolean) {
+    this.take(1)
+    this.whitespace()
+    if (this.text[this.index] === ']') {
+      this.take(1)
+      return
+    }
+    for (;;) {
+      this.whitespace()
+      this.value(preserve, insideMap)
+      this.whitespace()
+      const separator = this.text[this.index]
+      this.take(1) // ',' or ']'
+      if (separator !== ',') return
+    }
+  }
+
+  private string(): string {
+    const end = findStringEnd(this.text, this.index)
+    const literal = this.text.slice(this.index, end + 1)
+    this.take(literal.length)
+    return JSON.parse(literal) as string
+  }
+
+  private primitive(preserve: boolean) {
+    const start = this.index
+    while (!isJsonValueBoundary(this.text[this.index])) this.index += 1
+    const raw = this.text.slice(start, this.index)
+    this.output += preserve && INTEGER.test(raw) ? JSON.stringify(raw) : raw
+  }
+
+  private whitespace() {
+    const start = this.index
+    while (/\s/.test(this.text[this.index] ?? '')) this.index += 1
+    this.output += this.text.slice(start, this.index)
+  }
+
+  private take(length: number) {
+    this.output += this.text.slice(this.index, this.index + length)
+    this.index += length
+  }
 }
 
 /** Returns the value unchanged when it is an exact decimal int64 literal, otherwise throws. */
@@ -54,14 +133,14 @@ export function assertInt64(value: Int64String): Int64String {
  * The literal digits are emitted directly, so no value ever passes through a JavaScript number.
  */
 export function stringifyWithInt64(
-  body: Record<string, string | number | boolean | null>,
-  int64Fields: Readonly<Record<string, Int64String>>,
+  body: Record<string, string | number | boolean | null | undefined>,
+  int64Fields: Readonly<Record<string, Int64String | undefined>>,
 ): string {
-  const parts = Object.entries(body).map(
-    ([key, value]) => `${JSON.stringify(key)}:${JSON.stringify(value)}`,
-  )
+  const parts = Object.entries(body)
+    .filter(([, value]) => value !== undefined)
+    .map(([key, value]) => `${JSON.stringify(key)}:${JSON.stringify(value)}`)
   for (const [key, value] of Object.entries(int64Fields)) {
-    parts.push(`${JSON.stringify(key)}:${assertInt64(value)}`)
+    if (value !== undefined) parts.push(`${JSON.stringify(key)}:${assertInt64(value)}`)
   }
   return `{${parts.join(',')}}`
 }
@@ -140,12 +219,6 @@ function findStringEnd(text: string, start: number): number {
     else if (character === '"') return index
   }
   throw new SyntaxError('Unterminated JSON string')
-}
-
-function skipWhitespace(text: string, start: number): number {
-  let index = start
-  while (/\s/.test(text[index] ?? '')) index += 1
-  return index
 }
 
 function isJsonValueBoundary(character: string | undefined): boolean {

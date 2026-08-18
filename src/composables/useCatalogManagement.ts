@@ -1,6 +1,5 @@
 import { computed, reactive, ref } from 'vue'
 import { ApiError } from '@/api/http'
-import { toSafeInteger } from '@/api/int64'
 import * as catalogApi from '@/api/catalog'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 
@@ -61,7 +60,7 @@ export function useCatalogManagement(api = catalogApi) {
     }
     busyId.value = existing?.productId ?? 'new-product'; errorMessage.value = ''
     try {
-      const request = { ...productDraft, price: toSafeInteger(productDraft.price), name: productDraft.name.trim(), description: productDraft.description.trim() }
+      const request = { ...productDraft, name: productDraft.name.trim(), description: productDraft.description.trim() }
       if (existing) await api.updateProduct(existing.productId, request, existing.version)
       else await api.createProduct(request)
       notice.value = existing ? '상품을 수정했습니다.' : '상품을 생성했습니다.'

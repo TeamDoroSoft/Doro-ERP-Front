@@ -111,6 +111,21 @@ describe('AuditLogView', () => {
     expect(wrapper.text()).toContain('req-3f2b9c7a')
   })
 
+  it('renders an int64 metadata amount without rounding it', async () => {
+    auditApi.getAudit.mockResolvedValue({
+      ...item,
+      metadata: { totalAmount: '9007199254740993', currency: 'KRW', soldOut: false },
+    })
+    const wrapper = mountView('OWNER')
+    await flushPromises()
+    await wrapper.get('[aria-label="감사 기록 상세 보기"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('9007199254740993')
+    expect(wrapper.text()).not.toContain('9007199254740992')
+    expect(wrapper.text()).toContain('false')
+  })
+
   it('denies STAFF in the UX and does not call the API', () => {
     const wrapper = mountView('STAFF')
     expect(wrapper.text()).toContain('소유자와 관리자만 조회')

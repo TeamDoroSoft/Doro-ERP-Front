@@ -1,5 +1,5 @@
-import { apiRequest, apiResponse } from './http'
-import { parseJsonWithInt64, type Int64String } from './int64'
+import { apiRequest, apiRequestExact } from './http'
+import type { Int64String } from './int64'
 import type { PaymentStatus } from './payment'
 import type { OrderStatus, OrderServiceType } from './order'
 
@@ -26,7 +26,8 @@ export interface KioskTable {
   tableNumber: string
   displayName: string
   status: 'ACTIVE' | 'INACTIVE'
-  version: number
+  /** Store Access optimistic-lock counter (Java `long`). */
+  version: Int64String
 }
 export interface KioskCreatedOrder {
   orderId: string
@@ -57,10 +58,8 @@ export const activateKiosk = (tenantCode: string, deviceCode: string, secret: st
     { method: 'POST', body: JSON.stringify({ tenantCode, deviceCode, secret }) },
     { handleUnauthorized: false },
   )
-export const getKioskMenu = () =>
-  exactKioskRequest<KioskMenu>('/catalog/menu', {}, ['price'])
-export const getKioskTables = () =>
-  apiRequest<KioskTable[]>('/tables', {}, { handleUnauthorized: 'kiosk' })
+export const getKioskMenu = () => exactKioskRequest<KioskMenu>('/catalog/menu', {}, ['price'])
+export const getKioskTables = () => exactKioskRequest<KioskTable[]>('/tables', {}, ['version'])
 export const createKioskOrder = (body: KioskOrderRequest, key: string) =>
   exactKioskRequest<KioskCreatedOrder>(
     '/orders',
@@ -74,11 +73,10 @@ export const getKioskOrder = (id: string, token: string) =>
     { handleUnauthorized: 'kiosk' },
   )
 
-async function exactKioskRequest<T>(
+function exactKioskRequest<T>(
   path: string,
   options: RequestInit,
   fields: readonly string[],
 ): Promise<T> {
-  const response = await apiResponse(path, options, { handleUnauthorized: 'kiosk' })
-  return parseJsonWithInt64<T>(await response.text(), fields)
+  return apiRequestExact<T>(path, options, { fields }, { handleUnauthorized: 'kiosk' })
 }

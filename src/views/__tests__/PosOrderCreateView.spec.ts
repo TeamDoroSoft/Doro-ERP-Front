@@ -40,7 +40,7 @@ const table = {
   tableNumber: 'A-1',
   displayName: '창가',
   status: 'ACTIVE' as const,
-  version: 0,
+  version: '0',
 }
 const createdOrder = {
   orderId: 'order-1',

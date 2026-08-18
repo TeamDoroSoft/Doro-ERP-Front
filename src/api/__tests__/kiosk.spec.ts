@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { activateKiosk, createKioskOrder, getKioskMenu, getKioskOrder } from '@/api/kiosk'
+import {
+  activateKiosk,
+  createKioskOrder,
+  getKioskMenu,
+  getKioskOrder,
+  getKioskTables,
+} from '@/api/kiosk'
 describe('kiosk api', () => {
   beforeEach(() => vi.restoreAllMocks())
   it('activates with the exact credential body and no persistence', async () => {
@@ -70,6 +76,23 @@ describe('kiosk api', () => {
 
     expect(menu.categories[0]?.products[0]?.price).toBe('9007199254740993')
     expect(order.totalAmount).toBe('9007199254740993')
+  })
+  it('keeps an int64 kiosk table version exact', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            '[{"id":"t1","tableNumber":"1","displayName":"창가","status":"ACTIVE",' +
+              '"version":9007199254740993}]',
+            { status: 200 },
+          ),
+      ),
+    )
+
+    const [table] = await getKioskTables()
+
+    expect(table?.version).toBe('9007199254740993')
   })
   it('uses a short-lived header rather than a query for restricted order lookup', async () => {
     vi.stubGlobal(

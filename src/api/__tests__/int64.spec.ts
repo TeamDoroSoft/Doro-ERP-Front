@@ -8,6 +8,7 @@ import {
   formatKrw,
   isPositiveInt64,
   multiplyInt64,
+  parseJsonPreservingInt64,
   parseJsonWithInt64,
   stringifyWithInt64,
   sumInt64,
@@ -87,6 +88,56 @@ describe('int64 wire values', () => {
       '{"paymentKey":"key","amount":9007199254740993}',
     )
     expect(() => stringifyWithInt64({}, { amount: '12000.5' })).toThrow(InvalidInt64Error)
+  })
+
+  it('preserves every integer inside a free-form map without changing other value types', () => {
+    const text =
+      '{"id":"audit-1","metadata":{"totalAmount":9007199254740993,"version":9007199254740993,' +
+      '"currency":"KRW","displayNumber":7,"ratio":1.5,"replayed":true,"reasonCode":null,' +
+      '"note":"amount 9007199254740993"},"traceId":"trace-1"}'
+
+    const parsed = parseJsonPreservingInt64<{
+      id: string
+      metadata: Record<string, unknown>
+      traceId: string
+    }>(text, { maps: ['metadata'] })
+
+    expect(parsed.metadata).toEqual({
+      totalAmount: '9007199254740993',
+      version: '9007199254740993',
+      currency: 'KRW',
+      displayNumber: '7',
+      ratio: 1.5,
+      replayed: true,
+      reasonCode: null,
+      note: 'amount 9007199254740993',
+    })
+    expect(parsed.id).toBe('audit-1')
+    expect(parsed.traceId).toBe('trace-1')
+  })
+
+  it('leaves integers outside the named map alone', () => {
+    const parsed = parseJsonPreservingInt64<{
+      size: number
+      items: { metadata: { amount: string } }[]
+    }>('{"size":20,"items":[{"metadata":{"amount":9007199254740993}}]}', { maps: ['metadata'] })
+
+    expect(parsed.size).toBe(20)
+    expect(parsed.items[0]?.metadata.amount).toBe('9007199254740993')
+  })
+
+  it('keeps arrays, nesting and escaped strings intact while rewriting', () => {
+    const text = '{"items":[{"version":9007199254740993,"name":"a \\"b\\" c"},{"version":1}],"next":null}'
+    const parsed = parseJsonPreservingInt64<{
+      items: { version: string; name?: string }[]
+      next: null
+    }>(text, { fields: ['version'] })
+
+    expect(parsed.items).toEqual([
+      { version: '9007199254740993', name: 'a "b" c' },
+      { version: '1' },
+    ])
+    expect(parsed.next).toBeNull()
   })
 
   it('validates positive and well-formed values', () => {

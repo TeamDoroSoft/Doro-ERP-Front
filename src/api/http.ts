@@ -1,3 +1,5 @@
+import { parseJsonPreservingInt64, type Int64JsonOptions } from './int64'
+
 export interface ProblemFieldError {
   field: string
   code: string
@@ -61,7 +63,7 @@ export function registerKioskUnauthorizedHandler(handler: () => void) {
   kioskUnauthorizedHandler = handler
 }
 
-type UnauthorizedBehavior = { handleUnauthorized?: boolean | 'kiosk' }
+export type UnauthorizedBehavior = { handleUnauthorized?: boolean | 'kiosk' }
 
 function readCookie(name: string): string | undefined {
   if (typeof document === 'undefined') return undefined
@@ -89,6 +91,23 @@ export async function apiRequest<T>(
   if (response.status === 204) return undefined as T
 
   return (await response.json()) as T
+}
+
+/**
+ * `apiRequest` for resources carrying int64 wire values. The body is read as text and parsed with
+ * the listed values preserved, because `response.json()` would already have rounded them.
+ */
+export async function apiRequestExact<T>(
+  path: string,
+  options: RequestInit = {},
+  int64: Int64JsonOptions = {},
+  behavior: UnauthorizedBehavior = {},
+): Promise<T> {
+  const response = await apiResponse(path, options, behavior)
+
+  if (response.status === 204) return undefined as T
+
+  return parseJsonPreservingInt64<T>(await response.text(), int64)
 }
 
 export async function apiResponse(

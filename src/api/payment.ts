@@ -1,5 +1,5 @@
-import { ApiError, apiResponse } from './http'
-import { parseJsonWithInt64, stringifyWithInt64, type Int64String } from './int64'
+import { ApiError, apiRequestExact } from './http'
+import { stringifyWithInt64, type Int64String } from './int64'
 
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REVIEW_REQUIRED' | 'CANCELLED'
 
@@ -77,15 +77,14 @@ export function cancelPayment(
   )
 }
 
-async function exactPaymentRequest<T>(
+function exactPaymentRequest<T>(
   path: string,
   options: RequestInit,
   context: PaymentRequestContext,
 ): Promise<T> {
-  const response = await apiResponse(path, options, {
+  return apiRequestExact<T>(path, options, { fields: ['amount'] }, {
     handleUnauthorized: context === 'employee' ? true : 'kiosk',
   })
-  return parseJsonWithInt64<T>(await response.text(), ['amount'])
 }
 
 /** `body` is already-serialised JSON so int64 command amounts keep their exact wire literal. */

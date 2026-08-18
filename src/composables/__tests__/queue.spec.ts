@@ -6,8 +6,8 @@ import { useBoundedPolling } from '@/composables/useBoundedPolling'
 import { useEntryQueue, type EntryQueueApi } from '@/composables/useEntryQueue'
 import { useFulfillmentQueue, type FulfillmentQueueApi } from '@/composables/useFulfillmentQueue'
 
-const waiting: EntryQueueView = { entryId: 'entry-1', businessDate: '2026-08-18', queueNumber: 1, partySize: 2, status: 'WAITING', version: 0 }
-const preparing: FulfillmentQueueView = { fulfillmentId: 'fulfillment-1', orderId: 'order-1', displayNumber: 7, status: 'PREPARING', version: 0 }
+const waiting: EntryQueueView = { entryId: 'entry-1', businessDate: '2026-08-18', queueNumber: 1, partySize: 2, status: 'WAITING', version: '0' }
+const preparing: FulfillmentQueueView = { fulfillmentId: 'fulfillment-1', orderId: 'order-1', displayNumber: 7, status: 'PREPARING', version: '0' }
 
 describe('queue composables', () => {
   afterEach(() => vi.useRealTimers())
