@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import router from '@/router'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import { useKioskSessionStore } from '@/stores/kioskSession'
 
 describe('POS authentication & role guard', () => {
   beforeEach(async () => {
@@ -120,5 +121,60 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/pos/orders')
     expect(router.currentRoute.value.query).toEqual({ reason: 'not-found' })
     expect(router.currentRoute.value.hash).toBe('')
+  })
+  it('blocks STAFF from the owner/manager security history screen', async () => {
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'employee-1', role: 'STAFF', passwordChangeRequired: false },
+      'doro',
+    )
+
+    await router.push('/pos/history')
+
+    expect(router.currentRoute.value.path).toBe('/pos/orders')
+    expect(router.currentRoute.value.query.reason).toBe('forbidden')
+  })
+
+  it('never accepts a kiosk device session as employee authentication', async () => {
+    useKioskSessionStore().markAuthenticated()
+
+    for (const path of ['/pos/orders', '/pos/history', '/pos/settings']) {
+      await router.push(path)
+      expect(router.currentRoute.value.path).toBe('/pos/login')
+      expect(router.currentRoute.value.query.redirect).toBe(path)
+    }
+  })
+
+  it('never activates the kiosk device from an employee session or its stored hint', async () => {
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'owner', role: 'OWNER', passwordChangeRequired: false },
+      'doro',
+    )
+    const kiosk = useKioskSessionStore()
+    expect(kiosk.deviceState).toBe('UNREGISTERED')
+    expect(kiosk.canAccessProtected).toBe(false)
+
+    await router.push('/kiosk/cart')
+    expect(router.currentRoute.value.path).toBe('/kiosk/activate')
+
+    // A stale UX hint alone must not survive a rejected device authentication.
+    kiosk.markAuthenticated()
+    kiosk.markAuthenticationFailed()
+    await router.push('/kiosk/cart')
+    expect(router.currentRoute.value.path).toBe('/kiosk/activate')
+  })
+
+  it('keeps kiosk guards independent from employee authentication', async () => {
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'owner', role: 'OWNER', passwordChangeRequired: false },
+      'doro',
+    )
+    await router.push('/kiosk')
+    expect(router.currentRoute.value.path).toBe('/kiosk/activate')
+    useKioskSessionStore().deviceState = 'ACTIVE'
+    await router.push('/kiosk')
+    expect(router.currentRoute.value.name).toBe('kiosk-menu')
+    useOperatorSessionStore().clearSession()
+    await router.push('/kiosk/cart')
+    expect(router.currentRoute.value.path).toBe('/kiosk/cart')
   })
 })

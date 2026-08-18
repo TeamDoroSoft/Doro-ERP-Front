@@ -1,8 +1,9 @@
 import { ANONYMOUS, loadTossPayments } from '@tosspayments/tosspayments-sdk'
+import { toSafeInteger, type Int64String } from '@/api/int64'
 
 export interface TossPaymentRequest {
   clientKey: string
-  amount: number
+  amount: Int64String
   currency: 'KRW'
   providerOrderId: string
   orderName: string
@@ -15,12 +16,15 @@ export async function requestTossPayment(request: TossPaymentRequest): Promise<v
   if (!/^test_gck_[A-Za-z0-9_-]+$/.test(clientKey)) {
     throw new TossPaymentConfigurationError()
   }
+  // The provider SDK only accepts a JavaScript number, so the server amount is converted at this
+  // boundary only, and only after proving it survives the conversion exactly. It is never rounded.
+  const amount = tossSafeAmount(request.amount)
 
   const tossPayments = await loadTossPayments(clientKey)
   const widgets = tossPayments.widgets({ customerKey: ANONYMOUS })
   await widgets.setAmount({
     currency: request.currency,
-    value: request.amount,
+    value: amount,
   })
   const paymentWindow = await widgets.renderPaymentWindow()
   paymentWindow.on('paymentRequest', async () => {
@@ -40,8 +44,26 @@ export class TossPaymentConfigurationError extends Error {
   }
 }
 
+function tossSafeAmount(value: Int64String): number {
+  let amount: number
+  try {
+    amount = toSafeInteger(value)
+  } catch {
+    throw new TossPaymentAmountError()
+  }
+  if (amount <= 0) throw new TossPaymentAmountError()
+  return amount
+}
+
+export class TossPaymentAmountError extends Error {
+  constructor() {
+    super('결제 가능한 금액 범위를 확인해 주세요.')
+    this.name = 'TossPaymentAmountError'
+  }
+}
+
 export function tossPaymentErrorMessage(error: unknown): string {
-  if (error instanceof TossPaymentConfigurationError) {
+  if (error instanceof TossPaymentConfigurationError || error instanceof TossPaymentAmountError) {
     return error.message
   }
 

@@ -20,7 +20,7 @@ const activeTable = {
   tableNumber: 'A-1',
   displayName: '창가',
   status: 'ACTIVE' as const,
-  version: 0,
+  version: '0',
 }
 
 describe('TableManagementView', () => {
@@ -183,6 +183,18 @@ describe('TableManagementView', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('테이블 정보를 찾을 수 없습니다.')
     expect(wrapper.text()).not.toContain('tenant detail')
+    expect(tableApi.getTables).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['TABLE_HAS_ACTIVE_ORDER', '진행 중인 주문이 있어'],
+    ['TABLE_ORDER_VALIDATION_UNAVAILABLE', '진행 주문을 확인할 수 없어'],
+  ])('does not claim deactivation for %s and reloads the active list', async (code, message) => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    tableApi.changeTableStatus.mockRejectedValue(problem(code === 'TABLE_HAS_ACTIVE_ORDER' ? 409 : 503, code, 'raw'))
+    const wrapper = mountView('MANAGER'); await flushPromises(); await findButton(wrapper, '비활성화').trigger('click'); await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain(message)
+    expect(wrapper.text()).toContain('A-1')
     expect(tableApi.getTables).toHaveBeenCalledTimes(2)
   })
 

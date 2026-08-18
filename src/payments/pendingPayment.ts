@@ -1,3 +1,4 @@
+import { isPositiveInt64 } from '@/api/int64'
 import type { PaymentResponse } from '@/api/payment'
 
 const STORAGE_PREFIX = 'doro.payment-flow.'
@@ -76,9 +77,8 @@ function isPendingPayment(value: unknown): value is PendingPayment {
     UUID_PATTERN.test(payment.orderId) &&
     typeof payment.providerOrderId === 'string' &&
     /^[A-Za-z0-9_-]{6,64}$/.test(payment.providerOrderId) &&
-    typeof payment.amount === 'number' &&
-    Number.isSafeInteger(payment.amount) &&
-    payment.amount > 0 &&
+    typeof payment.amount === 'string' &&
+    isPositiveInt64(payment.amount) &&
     payment.currency === 'KRW' &&
     payment.status === 'PENDING'
   )

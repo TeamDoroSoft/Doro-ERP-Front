@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatKrw } from '@/api/int64'
 import type { OrderDraftLine } from '@/composables/useOrderDraft'
 defineProps<{ lines: OrderDraftLine[]; estimatedTotal: string; disabled?: boolean }>()
 defineEmits<{
@@ -14,7 +15,7 @@ defineEmits<{
     <ul v-else>
       <li v-for="line in lines" :key="line.productId">
         <span>{{ line.name }}</span
-        ><span>{{ line.price.toLocaleString('ko-KR') }}원</span>
+        ><span>{{ formatKrw(line.price) }}</span>
         <div>
           <button
             type="button"

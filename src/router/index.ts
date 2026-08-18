@@ -4,15 +4,24 @@ import TableManagementView from '@/views/TableManagementView.vue'
 import PaymentResultView from '@/views/PaymentResultView.vue'
 import LoginView from '@/views/LoginView.vue'
 import ChangePasswordView from '@/views/ChangePasswordView.vue'
-import AuditLogView from '@/views/AuditLogView.vue'
+import HistoryView from '@/views/HistoryView.vue'
 import PosOrdersView from '@/views/PosOrdersView.vue'
 import PosOrderCreateView from '@/views/PosOrderCreateView.vue'
 import PosOrderDetailView from '@/views/PosOrderDetailView.vue'
 import CatalogManagementView from '@/views/CatalogManagementView.vue'
-import QueueOperationsView from '@/views/QueueOperationsView.vue'
+import EntryQueueView from '@/views/EntryQueueView.vue'
+import FulfillmentQueueView from '@/views/FulfillmentQueueView.vue'
 import SalesClosingView from '@/views/SalesClosingView.vue'
 import StoreSettingsView from '@/views/StoreSettingsView.vue'
+import KioskLayout from '@/layouts/KioskLayout.vue'
+import KioskActivationView from '@/views/kiosk/KioskActivationView.vue'
+import KioskMenuView from '@/views/kiosk/KioskMenuView.vue'
+import KioskCartView from '@/views/kiosk/KioskCartView.vue'
+import KioskCheckoutView from '@/views/kiosk/KioskCheckoutView.vue'
+import KioskPaymentView from '@/views/kiosk/KioskPaymentView.vue'
+import KioskOrderStatusView from '@/views/kiosk/KioskOrderStatusView.vue'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
+import { useKioskSessionStore } from '@/stores/kioskSession'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -20,6 +29,8 @@ declare module 'vue-router' {
     guestOnly?: boolean
     passwordChangeRoute?: boolean
     roles?: EmployeeRole[]
+    kiosk?: boolean
+    kioskActivation?: boolean
   }
 }
 
@@ -140,13 +151,13 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'queues/entry',
         name: 'pos-queues-entry',
-        component: QueueOperationsView,
+        component: EntryQueueView,
         meta: { roles: ['OWNER', 'MANAGER', 'STAFF'] },
       },
       {
         path: 'queues/fulfillment',
         name: 'pos-queues-fulfillment',
-        component: QueueOperationsView,
+        component: FulfillmentQueueView,
         meta: { roles: ['OWNER', 'MANAGER', 'STAFF'] },
       },
       {
@@ -176,7 +187,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'history',
         name: 'pos-history',
-        component: AuditLogView,
+        component: HistoryView,
         meta: { roles: ['OWNER', 'MANAGER'] },
       },
     ],
@@ -194,6 +205,24 @@ const routes: RouteRecordRaw[] = [
     name: 'payment-toss-fail',
     component: PaymentResultView,
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/kiosk',
+    component: KioskLayout,
+    meta: { kiosk: true },
+    children: [
+      {
+        path: 'activate',
+        name: 'kiosk-activate',
+        component: KioskActivationView,
+        meta: { kioskActivation: true },
+      },
+      { path: '', name: 'kiosk-menu', component: KioskMenuView },
+      { path: 'cart', name: 'kiosk-cart', component: KioskCartView },
+      { path: 'checkout', name: 'kiosk-checkout', component: KioskCheckoutView },
+      { path: 'payments/:paymentId', name: 'kiosk-payment', component: KioskPaymentView },
+      { path: 'orders/:orderId', name: 'kiosk-order', component: KioskOrderStatusView },
+    ],
   },
   {
     path: '/:pathMatch(.*)*',
@@ -214,6 +243,14 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const session = useOperatorSessionStore()
+  const kioskSession = useKioskSessionStore()
+  const kioskRoute = to.matched.some((record) => record.meta.kiosk)
+  const kioskActivation = to.matched.some((record) => record.meta.kioskActivation)
+  if (kioskRoute) {
+    if (!kioskSession.canAccessProtected && !kioskActivation) return '/kiosk/activate'
+    if (kioskSession.canAccessProtected && kioskActivation) return '/kiosk'
+    return true
+  }
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const passwordChangeRoute = to.matched.some((record) => record.meta.passwordChangeRoute)
 

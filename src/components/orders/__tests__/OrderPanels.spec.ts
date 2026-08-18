@@ -29,7 +29,7 @@ describe('order query and detail panels', () => {
     })
 
     expect(wrapper.text()).toContain('주문 요약')
-    expect(wrapper.text()).toContain('품목과 테이블 정보는 연동 준비 중입니다.')
+    expect(wrapper.text()).toContain('품목과 테이블 상세는 응답에 포함되지 않습니다.')
     expect(wrapper.text()).not.toContain('테이블:')
     expect(wrapper.text()).not.toContain('준비 완료')
   })

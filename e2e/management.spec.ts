@@ -14,19 +14,21 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('navigates every Phase 1 POS destination from the sidebar', async ({ page }) => {
+test('[mock-ui] navigates every Phase 1 POS destination from the sidebar', async ({ page, browserName }) => {
   const screens = [
     ['주문 관리', '주문 목록'],
-    ['대기·조리', '대기·조리'],
+    ['대기·조리', '입장 대기 관리'],
     ['상품·메뉴', '상품·메뉴 관리'],
     ['테이블', '테이블 관리'],
-    ['매출·마감', '매출·마감'],
-    ['매장·직원 설정', '매장 설정'],
+    ['매출·마감', '일별 매출과 마감'],
+    ['매장·직원 설정', '매장·직원 설정'],
     ['감사·보안 이력', '감사 이력'],
   ] as const
 
   await page.route('**/api/v1/tables', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
   await page.route('**/api/v1/audits?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[],"nextCursor":null}' }))
+  await page.route('**/api/v1/sales/daily?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"businessDate":"2026-08-18","grossSales":184500,"netSales":172500,"refundAmount":12000,"orderCount":37,"closed":false}' }))
+  await page.route('**/api/v1/sales/closings/*', (route) => route.fulfill({ status: 404, contentType: 'application/problem+json', body: '{"code":"CLOSING_NOT_FOUND"}' }))
   await page.goto('/pos/orders')
 
   for (const [menu, heading] of screens) {
@@ -36,10 +38,16 @@ test('navigates every Phase 1 POS destination from the sidebar', async ({ page }
     await menuLink.click()
     await expect(page.getByRole('heading', { name: heading, exact: true })).toBeVisible()
     await expect(menuLink).toHaveAttribute('aria-current', 'page')
+    if (browserName === 'chromium' && menu === '매출·마감') {
+      await page.screenshot({
+        path: 'docs/screenshots/phase08/pos-owner-sales-desktop.png',
+        fullPage: true,
+      })
+    }
   }
 })
 
-test('hides manager-only menu items and redirects STAFF away from a direct URL', async ({
+test('[mock-ui] hides manager-only menu items and redirects STAFF away from a direct URL', async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -58,9 +66,9 @@ test('hides manager-only menu items and redirects STAFF away from a direct URL',
   )
   await page.goto('/pos/orders')
 
-  await expect(page.getByRole('link', { name: '테이블', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: '매장·직원 설정', exact: true })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: '감사·보안 이력', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^테이블/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^매장·직원 설정/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^감사·보안 이력/ })).toHaveCount(0)
 
   await page.goto('/pos/tables')
 
@@ -70,13 +78,15 @@ test('hides manager-only menu items and redirects STAFF away from a direct URL',
   ).toBeVisible()
 })
 
-test('keeps management filters and action drawer usable at tablet width', async ({ page }) => {
+test('[mock-ui] keeps the implemented Catalog editor usable at tablet width', async ({ page }) => {
   await page.setViewportSize({ width: 768, height: 900 })
+  await page.route('**/api/v1/catalog/categories', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[{"categoryId":"11111111-1111-4111-8111-111111111111","name":"커피","displayOrder":1,"active":true,"version":0}]' }))
+  await page.route('**/api/v1/catalog/products', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
   await page.goto('/pos/catalog')
 
   await expect(page.getByRole('heading', { name: '상품·메뉴 관리' })).toBeVisible()
   await expect(page.locator('body')).toHaveCSS('overflow-x', 'visible')
-  await page.getByRole('button', { name: '메뉴 등록' }).click()
-  await expect(page.getByRole('complementary', { name: '새 상품 등록' })).toBeVisible()
-  await expect(page.getByRole('button', { name: '저장' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Category 생성' }).click()
+  await expect(page.getByRole('heading', { name: 'Category 생성' })).toBeVisible()
+  await expect(page.getByLabel('이름')).toBeVisible()
 })

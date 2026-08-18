@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { getOrders, type OrderResponse, type OrderStatus } from '@/api/order'
 import OrderListPanel from '@/components/orders/OrderListPanel.vue'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
@@ -96,7 +96,7 @@ function openOrder(orderId: string) {
     <LoadingState v-if="loading" />
     <ApiErrorNotice
       v-else-if="error"
-      :message="error.message"
+      :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="loadOrders"

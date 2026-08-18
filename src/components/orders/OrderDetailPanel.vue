@@ -2,11 +2,12 @@
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { displayLabel } from '@/ui/displayLabels'
 import type { OrderStatus } from '@/api/order'
+import { formatInt64, type Int64String } from '@/api/int64'
 
 export interface OrderDetail {
   orderId: string
   displayNumber: number
-  totalAmount: string | number
+  totalAmount: Int64String
   currency: string
   status: OrderStatus
   businessDate: string
@@ -15,16 +16,9 @@ export interface OrderDetail {
 defineProps<{ order: OrderDetail; cancelling: boolean; completing: boolean }>()
 defineEmits<{ cancel: []; complete: [] }>()
 
-function formatAmount(amount: string | number, currency: string): string {
-  if (typeof amount === 'number')
-    return Number.isSafeInteger(amount)
-      ? `${amount.toLocaleString('ko-KR')} ${currency}`
-      : `금액 확인 필요 ${currency}`
-  try {
-    return `${BigInt(amount).toLocaleString('ko-KR')} ${currency}`
-  } catch {
-    return `금액 확인 필요 ${currency}`
-  }
+function formatAmount(amount: Int64String, currency: string): string {
+  const formatted = formatInt64(amount)
+  return `${formatted} ${currency}`
 }
 
 function tone(status: OrderStatus) {
@@ -54,8 +48,8 @@ function tone(status: OrderStatus) {
     <section class="contract-notice" aria-label="주문 상세 정보 안내">
       <h2>주문 요약</h2>
       <p>
-        현재는 주문 번호, 영업일, 금액과 상태만 확인할 수 있습니다. 품목과 테이블 정보는 연동
-        준비 중입니다.
+        현재 주문 조회 계약은 주문 번호, 영업일, 금액과 상태만 제공합니다. 품목과 테이블 상세는
+        응답에 포함되지 않습니다.
       </p>
     </section>
     <div class="actions">

@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { formatKrw, type Int64String } from '@/api/int64'
 export interface SalesMenuProduct {
   productId: string
   name: string
   description: string
-  price: number
+  price: Int64String
 }
 export interface SalesMenuCategory {
   categoryId: string
@@ -23,7 +24,7 @@ defineEmits<{ add: [product: SalesMenuProduct] }>()
             <strong>{{ product.name }}</strong>
             <p v-if="product.description">{{ product.description }}</p>
           </div>
-          <span>{{ product.price.toLocaleString('ko-KR') }}원</span
+          <span>{{ formatKrw(product.price) }}</span
           ><button type="button" :disabled="disabled" @click="$emit('add', product)">담기</button>
         </li>
       </ul>

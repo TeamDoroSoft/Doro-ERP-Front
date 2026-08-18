@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { cancelOrder, completeOrder, getOrder, type OrderResponse } from '@/api/order'
 import OrderDetailPanel from '@/components/orders/OrderDetailPanel.vue'
 import OrderPaymentPanel from '@/components/payments/OrderPaymentPanel.vue'
@@ -29,20 +29,19 @@ function orderId(): string {
   return String(route.params.orderId)
 }
 
-async function loadOrder(clearOperationError = true) {
-  // `clearOperationError` doubles as "this is a foreground (re)load" — the initial mount,
-  // an orderId route change, or an explicit user retry. Those must show the full-page loading
-  // state and drop any stale order so a different order's Cancel/Complete buttons can't be
-  // clicked mid-navigation. A background sync after a payment status change passes `false` and
-  // must not flip `loading`, or the `v-else-if="order"` branch below unmounts OrderPaymentPanel;
-  // remounting it re-triggers its initial payment fetch, which re-emits `payment-updated` and
-  // calls loadOrder again — an infinite loop.
-  if (clearOperationError) {
+async function loadOrder(clearOperationError = true, showLoading = true) {
+  // `showLoading`은 이 호출이 Foreground 재조회인지 나타낸다: 최초 mount, orderId Route 변경,
+  // 사용자의 명시적 재시도. Foreground에서만 이전 주문을 비워서, 다른 주문으로 이동하는 중에
+  // 이전 주문의 취소·완료 Button을 누를 수 없게 한다.
+  // 결제 상태 변경 후의 Background 동기화는 `false`를 넘겨 `loading`을 건드리지 않는다. 건드리면
+  // 아래 `v-else-if="order"` 분기가 OrderPaymentPanel을 unmount하고, 다시 mount되면서 최초 결제
+  // 조회가 다시 실행되어 `payment-updated`를 재발행하고 loadOrder를 또 호출하는 무한 Loop가 된다.
+  if (showLoading) {
     order.value = null
     loading.value = true
-    operationError.value = ''
   }
   error.value = null
+  if (clearOperationError) operationError.value = ''
   try {
     const fetched = await getOrder(orderId())
     order.value = fetched
@@ -50,13 +49,18 @@ async function loadOrder(clearOperationError = true) {
   } catch (caught) {
     error.value = queryError(caught)
   } finally {
-    loading.value = false
+    if (showLoading) loading.value = false
   }
 }
 
-function handlePaymentUpdated(paymentId: string, status: string) {
+function handlePaymentUpdated(paymentId: string, status: string, previousStatus: string) {
   recentPaymentId.value = paymentId
-  if (status === 'PAID' || status === 'CANCELLED') void loadOrder(false)
+  if (
+    status !== previousStatus &&
+    (status === 'PAID' || (previousStatus === 'PAID' && status === 'CANCELLED'))
+  ) {
+    void loadOrder(false, false)
+  }
 }
 
 async function cancel() {
@@ -66,7 +70,7 @@ async function cancel() {
   try {
     order.value = await cancelOrder(order.value.orderId)
   } catch (caught) {
-    if (isConflict(caught)) await loadOrder(false)
+    if (isConflict(caught)) await loadOrder(false, false)
     operationError.value = mutationMessage(caught, '주문을 취소하지 못했습니다.')
   } finally {
     cancelling.value = false
@@ -80,7 +84,7 @@ async function complete() {
   try {
     order.value = await completeOrder(order.value.orderId)
   } catch (caught) {
-    if (isConflict(caught)) await loadOrder(false)
+    if (isConflict(caught)) await loadOrder(false, false)
     operationError.value = isConflict(caught)
       ? '준비 완료 상태가 아니거나 주문 상태가 바뀌었습니다. 최신 주문 정보를 다시 확인했습니다.'
       : mutationMessage(caught, '주문 완료를 처리하지 못했습니다.')
@@ -137,7 +141,7 @@ function queryError(caught: unknown): ApiError {
     <LoadingState v-if="loading" />
     <ApiErrorNotice
       v-else-if="error"
-      :message="error.message"
+      :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="loadOrder"

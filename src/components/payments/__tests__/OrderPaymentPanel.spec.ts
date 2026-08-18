@@ -45,7 +45,7 @@ import OrderPaymentPanel from '@/components/payments/OrderPaymentPanel.vue'
 const order: OrderResponse = {
   orderId: 'order-1',
   displayNumber: 42,
-  totalAmount: 1,
+  totalAmount: '1',
   currency: 'KRW',
   status: 'CREATED',
   businessDate: '2026-08-17',
@@ -55,7 +55,7 @@ const payment: PaymentResponse = {
   id: 'payment-1',
   orderId: order.orderId,
   providerOrderId: 'server-order-1',
-  amount: 12000,
+  amount: '12000',
   currency: 'KRW',
   status: 'PENDING',
 }
@@ -94,7 +94,33 @@ describe('OrderPaymentPanel', () => {
       expect.objectContaining({ confirmIdempotencyKey: 'confirm-key' }),
     )
     expect(requestTossPayment).toHaveBeenCalledWith(
-      expect.objectContaining({ amount: 12000, providerOrderId: 'server-order-1' }),
+      expect.objectContaining({ amount: '12000', providerOrderId: 'server-order-1' }),
     )
+  })
+
+  it('does not report an initial or repeated PAID snapshot as a status transition', async () => {
+    const paid = { ...payment, status: 'PAID' as const }
+    const cancelled = { ...payment, status: 'CANCELLED' as const }
+    getPayment.mockResolvedValue(paid)
+    cancelPayment.mockResolvedValue(cancelled)
+
+    const wrapper = mount(OrderPaymentPanel, {
+      props: { order: { ...order, status: 'ACCEPTED' }, recentPaymentId: payment.id },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('결제 완료')
+    expect(wrapper.findAll('button').some((button) => button.text() === '전액 취소')).toBe(true)
+    expect(wrapper.emitted('payment-updated')).toBeUndefined()
+
+    await wrapper.get('.payment-panel__heading button').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('payment-updated')).toBeUndefined()
+
+    await wrapper.get('.payment-panel__actions button').trigger('click')
+    await flushPromises()
+    expect(wrapper.emitted('payment-updated')).toEqual([
+      [payment.id, 'CANCELLED', 'PAID'],
+    ])
   })
 })

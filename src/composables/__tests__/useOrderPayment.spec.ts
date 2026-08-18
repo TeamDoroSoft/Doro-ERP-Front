@@ -7,7 +7,7 @@ import { useOrderPayment, type OrderPaymentApi } from '@/composables/useOrderPay
 const order: OrderResponse = {
   orderId: 'order-1',
   displayNumber: 42,
-  totalAmount: 12000,
+  totalAmount: '12000',
   currency: 'KRW',
   status: 'CREATED',
   businessDate: '2026-08-17',
@@ -17,7 +17,7 @@ const pending: PaymentResponse = {
   id: 'payment-1',
   orderId: order.orderId,
   providerOrderId: 'provider-1',
-  amount: 12000,
+  amount: '12000',
   currency: 'KRW',
   status: 'PENDING',
 }
@@ -71,7 +71,7 @@ describe('useOrderPayment', () => {
       api: api({
         createPayment: vi
           .fn<OrderPaymentApi['createPayment']>()
-          .mockResolvedValue({ ...pending, amount: 0 }),
+          .mockResolvedValue({ ...pending, amount: '0' }),
       }),
     })
     expect(await invalid.create()).toBeNull()

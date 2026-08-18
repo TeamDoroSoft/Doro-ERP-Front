@@ -1,4 +1,5 @@
-import { ApiError, apiRequest } from './http'
+import { ApiError, apiRequestExact } from './http'
+import { stringifyWithInt64, type Int64String } from './int64'
 
 export type PaymentStatus = 'PENDING' | 'PAID' | 'FAILED' | 'REVIEW_REQUIRED' | 'CANCELLED'
 
@@ -7,7 +8,7 @@ export interface PaymentView {
   id: string
   orderId: string
   providerOrderId: string
-  amount: number
+  amount: Int64String
   currency: string
   status: PaymentStatus
 }
@@ -28,23 +29,38 @@ export function createPaymentIdempotencyKey(): string {
   })
 }
 
-export function createPayment(orderId: string, idempotencyKey: string): Promise<PaymentView> {
-  return apiRequest<PaymentView>('/payments', commandOptions({ orderId }, idempotencyKey))
+export type PaymentRequestContext = 'employee' | 'kiosk'
+
+export function createPayment(
+  orderId: string,
+  idempotencyKey: string,
+  context: PaymentRequestContext = 'employee',
+): Promise<PaymentView> {
+  return exactPaymentRequest<PaymentView>(
+    '/payments',
+    commandOptions(JSON.stringify({ orderId }), idempotencyKey),
+    context,
+  )
 }
 
-export function getPayment(paymentId: string): Promise<PaymentView> {
-  return apiRequest<PaymentView>(`/payments/${encodeURIComponent(paymentId)}`)
+export function getPayment(
+  paymentId: string,
+  context: PaymentRequestContext = 'employee',
+): Promise<PaymentView> {
+  return exactPaymentRequest<PaymentView>(`/payments/${encodeURIComponent(paymentId)}`, {}, context)
 }
 
-export function confirmPayment(
+export async function confirmPayment(
   paymentId: string,
   paymentKey: string,
-  amount: number,
+  amount: Int64String,
   idempotencyKey: string,
+  context: PaymentRequestContext = 'employee',
 ): Promise<PaymentView> {
-  return apiRequest<PaymentView>(
+  return exactPaymentRequest<PaymentView>(
     `/payments/${encodeURIComponent(paymentId)}/confirm`,
-    commandOptions({ paymentKey, amount }, idempotencyKey),
+    commandOptions(stringifyWithInt64({ paymentKey }, { amount }), idempotencyKey),
+    context,
   )
 }
 
@@ -52,18 +68,31 @@ export function cancelPayment(
   paymentId: string,
   reasonCode: string,
   idempotencyKey: string,
+  context: PaymentRequestContext = 'employee',
 ): Promise<PaymentView> {
-  return apiRequest<PaymentView>(
+  return exactPaymentRequest<PaymentView>(
     `/payments/${encodeURIComponent(paymentId)}/cancel`,
-    commandOptions({ reasonCode }, idempotencyKey),
+    commandOptions(JSON.stringify({ reasonCode }), idempotencyKey),
+    context,
   )
 }
 
-function commandOptions(body: unknown, idempotencyKey: string): RequestInit {
+function exactPaymentRequest<T>(
+  path: string,
+  options: RequestInit,
+  context: PaymentRequestContext,
+): Promise<T> {
+  return apiRequestExact<T>(path, options, { fields: ['amount'] }, {
+    handleUnauthorized: context === 'employee' ? true : 'kiosk',
+  })
+}
+
+/** `body` is already-serialised JSON so int64 command amounts keep their exact wire literal. */
+function commandOptions(body: string, idempotencyKey: string): RequestInit {
   return {
     method: 'POST',
     headers: { 'Idempotency-Key': idempotencyKey },
-    body: JSON.stringify(body),
+    body,
   }
 }
 

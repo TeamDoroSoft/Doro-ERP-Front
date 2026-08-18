@@ -83,15 +83,29 @@ npm run test:e2e
 - 제거된 Legacy Route와 호환 Redirect 종료 조건 기록
 - 배포 설정을 임의 생성하지 않고 Infra 준비 상태를 정확히 기술
 
+### UI Screenshot 기록
+
+아래 이미지는 실제 Integration 증거가 아니라 Playwright `mock-ui` fixture로 생성한 UI·반응형 기록이다. 실제 개인정보, 운영 Tenant, Credential, Token, `paymentKey`, Authorization, Cookie는 포함하지 않는다.
+
+| 파일 | Role | Viewport | State |
+| --- | --- | --- | --- |
+| `screenshots/phase08/pos-owner-order-detail-desktop-paid.png` | OWNER | Desktop 1280px | 주문 접수·결제 완료 |
+| `screenshots/phase08/pos-manager-queue-tablet-waiting.png` | MANAGER | Tablet 1024px | 입장 대기 |
+| `screenshots/phase08/pos-owner-catalog-desktop.png` | OWNER | Desktop 1280px | 상품 활성·품절 혼합 |
+| `screenshots/phase08/pos-owner-sales-desktop.png` | OWNER | Desktop 1280px | 영업일 선택 전 Empty |
+| `screenshots/phase08/kiosk-menu-landscape.png` | Kiosk customer | Landscape 1366×768 | 메뉴 탐색 |
+| `screenshots/phase08/kiosk-checkout-portrait.png` | Kiosk customer | Portrait 768×1024 | 포장 선택 |
+| `screenshots/phase08/kiosk-order-status-portrait-ready.png` | Kiosk customer | Portrait 768×1024 | 결제 완료·준비 완료 |
+
 ## 최종 완료 체크
 
-- [ ] 모든 Phase의 완료 체크와 상태 기록
-- [ ] 공통 Feedback·접근성·반응형 검증
-- [ ] 핵심 POS E2E
-- [ ] 핵심 Kiosk E2E 또는 명확한 CTX-006-K Blocker
-- [ ] 전체 명령 통과 또는 미실행 사유 기록
-- [ ] API 직접 Service 호출·Production Fake·임시 Proxy 없음
-- [ ] 상태값·Role·Route가 정본과 일치
-- [ ] 변경 UI Screenshot과 작업 보고 완료
-- [ ] README와 Phase 상태표가 최종 코드와 일치
-- [ ] Mock·Edge·Provider 검증 결과가 구분되어 있음
+- [x] 모든 Phase의 완료 체크와 상태 기록
+- [x] 공통 Feedback·접근성·반응형 검증
+- [x] 핵심 POS Mock UI E2E
+- [x] 핵심 Kiosk Mock UI E2E와 명확한 CTX-006-K Blocker
+- [x] 전체 명령 통과
+- [x] API 직접 Service 호출·Production Fake·임시 Proxy 없음
+- [x] 상태값·Role·Route가 정본과 일치
+- [x] 변경 UI Screenshot과 작업 보고 완료
+- [x] README와 Phase 상태표가 최종 코드와 일치
+- [x] Mock·Edge·Provider 검증 결과가 구분되어 있음

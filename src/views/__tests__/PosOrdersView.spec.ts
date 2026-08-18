@@ -13,7 +13,7 @@ vi.mock('@/api/order', () => api)
 const order: OrderResponse = {
   orderId: 'order-1',
   displayNumber: 7,
-  totalAmount: 9000,
+  totalAmount: '9000',
   currency: 'KRW',
   status: 'CREATED',
   businessDate: '2026-08-17',

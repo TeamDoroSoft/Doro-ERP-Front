@@ -46,9 +46,23 @@ describe('LoginView', () => {
     expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/tables')
   })
 
+  it('returns to the destination preserved by a session-expired redirect', async () => {
+    vi.mocked(login).mockResolvedValue({ employeeId: 'employee-1', role: 'OWNER', passwordChangeRequired: false })
+    const wrapper = await mountLogin('/pos/login?reason=session-expired&redirect=/pos/settings')
+    await fillAndSubmit(wrapper)
+    await flushPromises()
+
+    expect(wrapper.vm.$router.currentRoute.value.path).toBe('/pos/settings')
+  })
+
   it.each([
     '//external.example/path',
+    'http://external.example/pos/orders',
+    'https://external.example/pos/orders',
+    'javascript:alert(1)',
     '/pos/orders?paymentKey=must-not-survive',
+    '/pos/orders#secret',
+    '/posx/orders',
     '/pos/missing',
     '/pos/login',
   ])('rejects an unsafe login redirect: %s', async (redirect) => {
@@ -85,6 +99,7 @@ async function mountLogin(location = '/pos/login') {
       { path: '/pos/login', name: 'pos-login', component: LoginView },
       { path: '/pos/orders', name: 'pos-orders', component: { template: '<div>orders</div>' } },
       { path: '/pos/tables', name: 'pos-tables', component: { template: '<div>tables</div>' } },
+      { path: '/pos/settings', name: 'pos-settings', component: { template: '<div>settings</div>' } },
       {
         path: '/pos/account/change-password',
         name: 'pos-change-password',

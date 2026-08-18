@@ -4,7 +4,7 @@ import { useOrderDraft } from '@/composables/useOrderDraft'
 const product = {
   productId: '11111111-1111-1111-1111-111111111111',
   name: '아메리카노',
-  price: 4500,
+  price: '4500',
 }
 
 describe('useOrderDraft', () => {
@@ -33,11 +33,19 @@ describe('useOrderDraft', () => {
     draft.addProduct(product)
     draft.addProduct(product)
     expect(draft.lines.value[0]?.quantity).toBe(2)
-    expect(draft.estimatedTotal.value).toBe(9000)
+    expect(draft.estimatedTotal.value).toBe('9000')
     draft.decrementProduct(product.productId)
     expect(draft.lines.value[0]?.quantity).toBe(1)
     draft.decrementProduct(product.productId)
     expect(draft.lines.value).toEqual([])
+  })
+
+  it('sums an int64 estimate beyond Number.MAX_SAFE_INTEGER without losing precision', () => {
+    const draft = useOrderDraft(() => 'key-1')
+    draft.addProduct({ ...product, price: '9007199254740993' })
+    expect(draft.estimatedTotal.value).toBe('9007199254740993')
+    draft.addProduct({ ...product, price: '9007199254740993' })
+    expect(draft.estimatedTotal.value).toBe('18014398509481986')
   })
 
   it('keeps the operation key for retry and replaces it only for a changed or new draft', () => {

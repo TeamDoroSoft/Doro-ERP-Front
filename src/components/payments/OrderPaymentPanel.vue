@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { formatCurrencyInt64, type Int64String } from '@/api/int64'
 import type { OrderResponse } from '@/api/order'
 import { createPaymentIdempotencyKey } from '@/api/payment'
 import { useOrderPayment } from '@/composables/useOrderPayment'
@@ -16,7 +17,9 @@ const props = withDefaults(
   }>(),
   { recentPaymentId: null, pollIntervalMs: 3_000, maxPollAttempts: 5 },
 )
-const emit = defineEmits<{ 'payment-updated': [paymentId: string, status: string] }>()
+const emit = defineEmits<{
+  'payment-updated': [paymentId: string, status: string, previousStatus: string]
+}>()
 
 const model = useOrderPayment(() => props.order, {
   recentPaymentId: () => props.recentPaymentId,
@@ -26,8 +29,15 @@ const model = useOrderPayment(() => props.order, {
 const tossError = computed(() => model.errorMessage.value)
 const orderName = computed(() => `주문 ${props.order.displayNumber}`.slice(0, 100))
 
-watch(model.payment, (payment) => {
-  if (payment) emit('payment-updated', payment.id, payment.status)
+watch(model.payment, (payment, previousPayment) => {
+  if (
+    payment &&
+    previousPayment &&
+    payment.id === previousPayment.id &&
+    payment.status !== previousPayment.status
+  ) {
+    emit('payment-updated', payment.id, payment.status, previousPayment.status)
+  }
 })
 async function startTossPayment() {
   const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY?.trim()
@@ -66,8 +76,8 @@ function redirectUrl(outcome: 'success' | 'fail', flowId: string): string {
   return url.toString()
 }
 
-function formatAmount(amount: number, currency: string) {
-  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency }).format(amount)
+function formatAmount(amount: Int64String, currency: string) {
+  return formatCurrencyInt64(amount, currency)
 }
 </script>
 

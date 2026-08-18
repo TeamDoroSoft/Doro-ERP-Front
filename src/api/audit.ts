@@ -1,4 +1,5 @@
-import { apiRequest } from './http'
+import { apiRequestExact } from './http'
+import type { Int64String } from './int64'
 
 export interface AuditActor {
   type: 'EMPLOYEE' | 'KIOSK_DEVICE' | 'SYSTEM'
@@ -20,7 +21,12 @@ export interface AuditRecord {
   target: AuditTarget
   result: 'SUCCESS' | 'FAILURE'
   reasonCode: string | null
-  metadata: Record<string, string | number | boolean | null>
+  /**
+   * Audit `metadata`는 Service의 `Map<String, Object>`이며 값 타입이 계약으로 고정되어 있지 않다.
+   * 실제로 `totalAmount`·`amount`·`version` 같은 Java `long`이 들어오므로 JSON 정수 리터럴은
+   * 모두 정확한 10진 문자열로 보존한다. 문자열·Boolean·`null`·소수는 원본 타입 그대로다.
+   */
+  metadata: Record<string, Int64String | string | number | boolean | null>
   traceId: string
   occurredAt: string
 }
@@ -47,9 +53,11 @@ export function getAudits(params: AuditListParams): Promise<AuditPage> {
   if (params.targetId) query.set('targetId', params.targetId)
   if (params.size !== undefined) query.set('size', String(params.size))
   if (params.cursor) query.set('cursor', params.cursor)
-  return apiRequest<AuditPage>(`/audits?${query.toString()}`)
+  return apiRequestExact<AuditPage>(`/audits?${query.toString()}`, {}, AUDIT_INT64)
 }
 
 export function getAudit(id: string): Promise<AuditRecord> {
-  return apiRequest<AuditRecord>(`/audits/${encodeURIComponent(id)}`)
+  return apiRequestExact<AuditRecord>(`/audits/${encodeURIComponent(id)}`, {}, AUDIT_INT64)
 }
+
+const AUDIT_INT64 = { maps: ['metadata'] } as const

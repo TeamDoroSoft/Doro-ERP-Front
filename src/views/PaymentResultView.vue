@@ -16,6 +16,7 @@ import {
   type PendingPayment,
 } from '@/payments/pendingPayment'
 import { displayLabel } from '@/ui/displayLabels'
+import { formatCurrencyInt64 } from '@/api/int64'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,7 +34,7 @@ const orderId = ref('')
 let pending: PendingPayment | null = null
 let paymentKey = ''
 let returnedProviderOrderId = ''
-let returnedAmount = 0
+let returnedAmount = ''
 
 onMounted(async () => {
   if (successRedirect.value) {
@@ -104,7 +105,7 @@ async function approvePayment() {
 function captureSuccessRedirect() {
   paymentKey = queryValue('paymentKey')
   returnedProviderOrderId = queryValue('orderId')
-  returnedAmount = Number(queryValue('amount'))
+  returnedAmount = queryValue('amount')
 }
 
 function captureOrderId() {
@@ -139,8 +140,8 @@ function validateRedirect(stored: PendingPayment | null): string {
   if (
     !paymentKey ||
     !returnedProviderOrderId ||
-    !Number.isSafeInteger(returnedAmount) ||
-    returnedAmount <= 0
+    !/^\d+$/.test(returnedAmount) ||
+    BigInt(returnedAmount) <= 0n
   ) {
     return '결제 결과에 필요한 정보가 없거나 형식이 올바르지 않습니다.'
   }
@@ -236,8 +237,8 @@ function queryValue(key: string): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
 }
 
-function formatAmount(amount: number, currency: string) {
-  return new Intl.NumberFormat('ko-KR', { style: 'currency', currency }).format(amount)
+function formatAmount(amount: string, currency: string) {
+  return formatCurrencyInt64(amount, currency)
 }
 
 class ConfirmContractError extends Error {

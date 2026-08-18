@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
       'doro-erp.operator-session',
       JSON.stringify({
         employeeId: '00000000-0000-4000-8000-000000000001',
-        role: 'STAFF',
+        role: 'OWNER',
         tenantCode: 'DORO-DEMO',
         passwordChangeRequired: false,
       }),
@@ -19,14 +19,18 @@ test.beforeEach(async ({ page }) => {
   })
 })
 
-test('starts from an order, confirms with a separate key, scrubs callback secrets, and returns', async ({
-  page,
+test('[mock-ui] starts from an order, confirms with a separate key, scrubs callback secrets, and returns', async ({
+  page, browserName,
 }) => {
   let confirmed = false
+  let orderRequests = 0
   let createKey = ''
   let confirmKey = ''
 
-  await mockOrder(page, () => (confirmed ? 'ACCEPTED' : 'CREATED'))
+  await mockOrder(page, () => {
+    orderRequests += 1
+    return confirmed ? 'ACCEPTED' : 'CREATED'
+  })
   await mockTossSdk(page, 'success')
   await page.route('**/api/v1/payments', async (route) => {
     if (route.request().method() !== 'POST') return route.fallback()
@@ -57,9 +61,16 @@ test('starts from an order, confirms with a separate key, scrubs callback secret
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
   await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
+  if (browserName === 'chromium') {
+    await page.screenshot({
+      path: 'docs/screenshots/phase08/pos-owner-order-detail-desktop-paid.png',
+      fullPage: true,
+    })
+  }
+  expect(orderRequests).toBe(2)
 })
 
-test('shows a non-retriable message when the payment provider rejects confirmation', async ({
+test('[mock-ui] shows a non-retriable message when the payment provider rejects confirmation', async ({
   page,
 }) => {
   await mockOrder(page, () => 'CREATED')
@@ -93,7 +104,7 @@ test('shows a non-retriable message when the payment provider rejects confirmati
   await expect(page.getByText('결제 대기', { exact: true })).toBeVisible()
 })
 
-test('offers a retry when the confirm request fails on the network', async ({ page }) => {
+test('[mock-ui] offers a retry when the confirm request fails on the network', async ({ page }) => {
   await mockOrder(page, () => 'CREATED')
   await mockTossSdk(page, 'success')
   await mockPaymentCreate(page)
@@ -119,7 +130,7 @@ test('offers a retry when the confirm request fails on the network', async ({ pa
   expect(confirmAttempts).toBe(1)
 })
 
-test('keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
+test('[mock-ui] keeps the created PENDING payment discoverable when Toss is cancelled', async ({ page }) => {
   let confirmRequests = 0
   await mockOrder(page, () => 'CREATED')
   await mockTossSdk(page, 'cancel')
@@ -142,7 +153,7 @@ test('keeps the created PENDING payment discoverable when Toss is cancelled', as
   await expect(page.getByRole('button', { name: '토스 결제 시작' })).toHaveCount(0)
 })
 
-test('does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
+test('[mock-ui] does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
   page,
 }) => {
   await mockOrder(page, () => 'CREATED')
@@ -164,15 +175,19 @@ test('does not infer REVIEW_REQUIRED and lets the employee recheck it from the o
   await expect(page.getByText('완료 또는 실패로 판단하지 않고', { exact: false })).toBeVisible()
 })
 
-test('cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
+test('[mock-ui] cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
   let cancelKey = ''
+  let orderRequests = 0
   await page.addInitScript(
     ({ storedOrderId, storedPaymentId }) => {
       sessionStorage.setItem(`doro.payment-order.${storedOrderId}`, storedPaymentId)
     },
     { storedOrderId: orderId, storedPaymentId: paymentId },
   )
-  await mockOrder(page, () => 'ACCEPTED')
+  await mockOrder(page, () => {
+    orderRequests += 1
+    return 'ACCEPTED'
+  })
   await page.route(`**/api/v1/payments/${paymentId}/cancel`, async (route) => {
     cancelKey = idempotencyKey(route)
     expect(route.request().postDataJSON()).toEqual({ reasonCode: 'CUSTOMER_REQUEST' })
@@ -183,12 +198,15 @@ test('cancels a PAID payment without optimistically cancelling the order', async
   })
 
   await page.goto(`/pos/orders/${orderId}`)
+  await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
+  expect(orderRequests).toBe(1)
   await page.getByRole('button', { name: '전액 취소' }).click()
 
   await expect(page.getByText('결제 취소 요청이 처리되었습니다', { exact: false })).toBeVisible()
   await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
   await expect(page.getByText('취소', { exact: true })).toBeVisible()
   expect(cancelKey).toMatch(/^[0-9a-f-]{36}$/)
+  expect(orderRequests).toBe(2)
 })
 
 async function mockOrder(page: Page, status: () => 'CREATED' | 'ACCEPTED') {

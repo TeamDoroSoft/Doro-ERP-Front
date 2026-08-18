@@ -3,22 +3,23 @@
 Doro ERP의 매장 직원 및 고객용 웹 인터페이스입니다. Vue 3의 Composition API와
 TypeScript를 사용하며, Vite를 개발 서버 및 프로덕션 빌드 도구로 사용합니다.
 
-현재 저장소는 Vue 프로젝트의 기본 개발 환경과 예제 화면이 구성된 초기 단계입니다.
-실제 ERP 업무 기능은 요구사항에 따라 순차적으로 구현합니다.
+직원 POS와 고객 Kiosk의 Phase 01~07 Front 구현이 완료되어 있으며, Browser Route Mock 기반
+회귀 테스트를 제공합니다. 실제 Edge·하위 Service·SQS·Toss Sandbox 종단 검증과 Mock UI 검증은
+서로 다른 상태로 관리합니다.
 
 ## 기술 스택
 
-| 구분 | 도구 | 용도 |
-| --- | --- | --- |
-| UI | Vue 3 | 컴포넌트 기반 사용자 인터페이스 |
-| 언어 | TypeScript | 정적 타입 검사 |
-| 빌드 | Vite | 개발 서버 및 프로덕션 번들 생성 |
-| 라우팅 | Vue Router | SPA 화면 이동 |
-| 상태 관리 | Pinia | 애플리케이션 상태 관리 |
-| 단위 테스트 | Vitest, Vue Test Utils | 컴포넌트 및 로직 테스트 |
-| E2E 테스트 | Playwright | 실제 브라우저 사용자 흐름 테스트 |
-| 코드 품질 | ESLint, Oxlint | 정적 분석 및 자동 수정 |
-| 포매팅 | Prettier | 코드 형식 통일 |
+| 구분        | 도구                   | 용도                             |
+| ----------- | ---------------------- | -------------------------------- |
+| UI          | Vue 3                  | 컴포넌트 기반 사용자 인터페이스  |
+| 언어        | TypeScript             | 정적 타입 검사                   |
+| 빌드        | Vite                   | 개발 서버 및 프로덕션 번들 생성  |
+| 라우팅      | Vue Router             | SPA 화면 이동                    |
+| 상태 관리   | Pinia                  | 애플리케이션 상태 관리           |
+| 단위 테스트 | Vitest, Vue Test Utils | 컴포넌트 및 로직 테스트          |
+| E2E 테스트  | Playwright             | 실제 브라우저 사용자 흐름 테스트 |
+| 코드 품질   | ESLint, Oxlint         | 정적 분석 및 자동 수정           |
+| 포매팅      | Prettier               | 코드 형식 통일                   |
 
 ## 사전 요구사항
 
@@ -46,20 +47,22 @@ npm install
 npm run dev
 ```
 
+Windows PowerShell에서는 동일 명령을 `npm.cmd run dev`처럼 실행할 수 있습니다.
+
 기본 개발 서버 주소는 `http://localhost:5173`입니다.
 
 ## 주요 명령어
 
-| 명령어 | 설명 |
-| --- | --- |
-| `npm run dev` | Vite 개발 서버 실행 |
-| `npm run build` | 타입 검사 후 프로덕션 빌드 생성 |
-| `npm run preview` | 생성된 프로덕션 빌드 미리보기 |
-| `npm run type-check` | Vue 및 TypeScript 타입 검사 |
-| `npm run lint` | Oxlint와 ESLint 검사 및 자동 수정 |
-| `npm run format` | `src/` 디렉터리를 Prettier로 포매팅 |
-| `npm run test:unit` | Vitest 단위 테스트 실행 |
-| `npm run test:e2e` | Playwright E2E 테스트 실행 |
+| 명령어               | 설명                                |
+| -------------------- | ----------------------------------- |
+| `npm run dev`        | Vite 개발 서버 실행                 |
+| `npm run build`      | 타입 검사 후 프로덕션 빌드 생성     |
+| `npm run preview`    | 생성된 프로덕션 빌드 미리보기       |
+| `npm run type-check` | Vue 및 TypeScript 타입 검사         |
+| `npm run lint`       | Oxlint와 ESLint 검사 및 자동 수정   |
+| `npm run format`     | `src/` 디렉터리를 Prettier로 포매팅 |
+| `npm run test:unit`  | Vitest 단위 테스트 실행             |
+| `npm run test:e2e`   | Playwright E2E 테스트 실행          |
 
 ## 테스트
 
@@ -133,6 +136,38 @@ Doro-ERP-Front/
 
 시크릿, 결제 키, 개인정보 또는 값이 채워진 환경 파일은 커밋하지 않습니다. 결제 승인과
 같이 인증정보가 필요한 API는 반드시 백엔드에서 호출합니다.
+
+| 변수                     | 용도                                                        |
+| ------------------------ | ----------------------------------------------------------- |
+| `VITE_API_BASE_URL`      | 명시적 Edge API Base URL. 비우면 same-origin `/api/v1` 사용 |
+| `VITE_EDGE_PROXY_TARGET` | 로컬 개발용 Vite `/api` Proxy 대상                          |
+| `VITE_TOSS_CLIENT_KEY`   | Browser 사용이 허용된 Toss 테스트 Client Key                |
+
+Toss Secret Key, Kiosk Secret·Credential, HMAC Key는 `VITE_*` 환경 변수에 넣지 않습니다.
+
+## 주요 Route
+
+- 직원 POS: `/pos/login`, `/pos/orders`, `/pos/queues/entry`, `/pos/queues/fulfillment`,
+  `/pos/catalog`, `/pos/tables`, `/pos/sales`, `/pos/settings`, `/pos/history`
+- 고객 Kiosk: `/kiosk`, `/kiosk/cart`, `/kiosk/checkout`,
+  `/kiosk/payments/:paymentId`, `/kiosk/orders/:orderId`
+- DEV Preview는 개발 빌드에서만 제공되며 Production 인증 우회 수단이 아닙니다.
+
+## 검증 경계와 현재 상태
+
+| 영역                                  | Front               | 실제 통합 상태        | 근거·Blocker                                                |
+| ------------------------------------- | ------------------- | --------------------- | ----------------------------------------------------------- |
+| POS Shell·Auth                        | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Mock UI 완료, 실제 Edge Session Runtime 미검증              |
+| Order·Catalog·Table·Queue·Sales·Admin | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge가 해당 외부 Route를 아직 개방하지 않음                 |
+| Payment                               | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 코드는 존재하나 실제 Runtime·Toss Sandbox 미검증 |
+| Audit                                 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 코드는 존재하나 실제 Runtime 미검증              |
+| Kiosk                                 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | CTX-006-K와 Kiosk Edge Route 미완료                         |
+
+Playwright 테스트는 Browser Route Mock 기반 `mock-ui` 검증입니다. 실제 Edge를 사용하는
+`edge-integration`이나 Toss Test Provider까지 사용하는 `provider-sandbox` 통과를 의미하지 않습니다.
+
+Legacy `/admin/**`, `/payments/test` 경로는 호환을 위해 Query와 Hash를 폐기한 뒤 안전한 POS Route로
+Redirect합니다. 외부 사용 종료가 확인되기 전까지 유지합니다.
 
 ## 권장 개발 도구
 

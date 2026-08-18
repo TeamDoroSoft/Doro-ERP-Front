@@ -2,13 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/http'
 import { changeTableStatus, createTable, getTables, updateTable } from '@/api/table'
 
-const table = {
+/** Wire shape exactly as Store Access serialises `TableResponse`: `version` is a JSON int64. */
+const tableWire = {
   id: 'table-1',
   tableNumber: 'A-1',
   displayName: '창가',
   status: 'ACTIVE' as const,
   version: 0,
 }
+
+const table = { ...tableWire, version: '0' }
 
 describe('table API', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -19,8 +22,20 @@ describe('table API', () => {
     document.cookie = 'XSRF-TOKEN=csrf%20token; path=/'
   })
 
+  it('keeps an int64 table version exact', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '[{"id":"table-1","tableNumber":"A-1","displayName":"창가","status":"ACTIVE",' +
+          '"version":9007199254740993}]',
+        { status: 200 },
+      ),
+    )
+
+    await expect(getTables()).resolves.toEqual([{ ...table, version: '9007199254740993' }])
+  })
+
   it('loads the authenticated session active-table list without tenant or store parameters', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify([table]), { status: 200 }))
+    fetchMock.mockResolvedValue(new Response(JSON.stringify([tableWire]), { status: 200 }))
 
     await expect(getTables()).resolves.toEqual([table])
 
@@ -33,7 +48,7 @@ describe('table API', () => {
   })
 
   it('uses the confirmed create, update, and status contracts with CSRF', async () => {
-    fetchMock.mockImplementation(async () => new Response(JSON.stringify(table), { status: 200 }))
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify(tableWire), { status: 200 }))
 
     await createTable({ tableNumber: 'A-1', displayName: '창가' })
     await updateTable('table/id', { tableNumber: 'A-2', displayName: '홀' })

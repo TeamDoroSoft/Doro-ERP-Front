@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 
 // See here how to get started:
 // https://playwright.dev/docs/intro
-test('shows the active table management screen', async ({ page }) => {
+test('[mock-ui] shows the active table management screen', async ({ page }) => {
   await page.addInitScript(() =>
     sessionStorage.setItem(
       'doro-erp.operator-session',
