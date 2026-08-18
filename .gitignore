@@ -14,9 +14,6 @@ dist-ssr
 coverage
 *.local
 
-# Local implementation hand-off documents
-/docs/
-
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
