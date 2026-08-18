@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import router from '@/router'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import { useKioskSessionStore } from '@/stores/kioskSession'
 
 describe('POS authentication & role guard', () => {
   beforeEach(async () => {
@@ -120,5 +121,19 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/pos/orders')
     expect(router.currentRoute.value.query).toEqual({ reason: 'not-found' })
     expect(router.currentRoute.value.hash).toBe('')
+  })
+  it('keeps kiosk guards independent from employee authentication', async () => {
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'owner', role: 'OWNER', passwordChangeRequired: false },
+      'doro',
+    )
+    await router.push('/kiosk')
+    expect(router.currentRoute.value.path).toBe('/kiosk/activate')
+    useKioskSessionStore().deviceState = 'ACTIVE'
+    await router.push('/kiosk')
+    expect(router.currentRoute.value.name).toBe('kiosk-menu')
+    useOperatorSessionStore().clearSession()
+    await router.push('/kiosk/cart')
+    expect(router.currentRoute.value.path).toBe('/kiosk/cart')
   })
 })

@@ -13,7 +13,15 @@ import EntryQueueView from '@/views/EntryQueueView.vue'
 import FulfillmentQueueView from '@/views/FulfillmentQueueView.vue'
 import SalesClosingView from '@/views/SalesClosingView.vue'
 import StoreSettingsView from '@/views/StoreSettingsView.vue'
+import KioskLayout from '@/layouts/KioskLayout.vue'
+import KioskActivationView from '@/views/kiosk/KioskActivationView.vue'
+import KioskMenuView from '@/views/kiosk/KioskMenuView.vue'
+import KioskCartView from '@/views/kiosk/KioskCartView.vue'
+import KioskCheckoutView from '@/views/kiosk/KioskCheckoutView.vue'
+import KioskPaymentView from '@/views/kiosk/KioskPaymentView.vue'
+import KioskOrderStatusView from '@/views/kiosk/KioskOrderStatusView.vue'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
+import { useKioskSessionStore } from '@/stores/kioskSession'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -21,6 +29,8 @@ declare module 'vue-router' {
     guestOnly?: boolean
     passwordChangeRoute?: boolean
     roles?: EmployeeRole[]
+    kiosk?: boolean
+    kioskActivation?: boolean
   }
 }
 
@@ -197,6 +207,24 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/kiosk',
+    component: KioskLayout,
+    meta: { kiosk: true },
+    children: [
+      {
+        path: 'activate',
+        name: 'kiosk-activate',
+        component: KioskActivationView,
+        meta: { kioskActivation: true },
+      },
+      { path: '', name: 'kiosk-menu', component: KioskMenuView },
+      { path: 'cart', name: 'kiosk-cart', component: KioskCartView },
+      { path: 'checkout', name: 'kiosk-checkout', component: KioskCheckoutView },
+      { path: 'payments/:paymentId', name: 'kiosk-payment', component: KioskPaymentView },
+      { path: 'orders/:orderId', name: 'kiosk-order', component: KioskOrderStatusView },
+    ],
+  },
+  {
     path: '/:pathMatch(.*)*',
     name: 'not-found',
     redirect: () => ({
@@ -215,6 +243,14 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   const session = useOperatorSessionStore()
+  const kioskSession = useKioskSessionStore()
+  const kioskRoute = to.matched.some((record) => record.meta.kiosk)
+  const kioskActivation = to.matched.some((record) => record.meta.kioskActivation)
+  if (kioskRoute) {
+    if (kioskSession.deviceState !== 'ACTIVE' && !kioskActivation) return '/kiosk/activate'
+    if (kioskSession.deviceState === 'ACTIVE' && kioskActivation) return '/kiosk'
+    return true
+  }
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const passwordChangeRoute = to.matched.some((record) => record.meta.passwordChangeRoute)
 
