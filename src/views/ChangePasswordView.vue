@@ -2,7 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { changeOwnPassword } from '@/api/auth'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 
@@ -22,10 +22,28 @@ async function submit() {
     session.clearSession()
     await router.push({ path: '/pos/login', query: { reason: 'password-changed' } })
   } catch (error) {
+    if (isSessionExpired(error)) {
+      session.clearSession()
+      await router.push({ path: '/pos/login', query: { reason: 'session-expired' } })
+      return
+    }
     errorMessage.value = passwordErrorMessage(error)
   } finally {
     busy.value = false
   }
+}
+
+/**
+ * `changeOwnPassword` opts out of the shared 401 boundary because Edge answers `401
+ * CURRENT_PASSWORD_INCORRECT` for a wrong current password. Only the session-scoped 401 codes
+ * mean the session itself is gone.
+ */
+function isSessionExpired(error: unknown) {
+  return (
+    error instanceof ApiError &&
+    error.status === 401 &&
+    (error.code === 'UNAUTHENTICATED' || error.code === 'SESSION_ABSOLUTE_EXPIRED')
+  )
 }
 
 function validate() {
@@ -35,11 +53,26 @@ function validate() {
   return ''
 }
 
+// Edge relays Store Access `400 VALIDATION_FAILED | WEAK_PASSWORD |
+// PASSWORD_REUSE_NOT_ALLOWED`, `401 CURRENT_PASSWORD_INCORRECT`, `403 ACCESS_DENIED` and `404
+// EMPLOYEE_NOT_FOUND` verbatim; every other upstream outcome becomes `503
+// PASSWORD_CHANGE_UNAVAILABLE`, and Edge itself adds `403 CSRF_VALIDATION_FAILED`.
 function passwordErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return '비밀번호를 변경하지 못했습니다.'
+  if (error.code === 'CURRENT_PASSWORD_INCORRECT') return '현재 비밀번호가 올바르지 않습니다.'
+  if (error.code === 'WEAK_PASSWORD')
+    return '새 비밀번호가 정책에 맞지 않습니다. 15자 이상으로, 계정 정보나 서비스 이름이 포함되지 않게 입력해 주세요.'
+  if (error.code === 'PASSWORD_REUSE_NOT_ALLOWED')
+    return '이전에 사용한 비밀번호는 다시 사용할 수 없습니다.'
+  if (error.code === 'VALIDATION_FAILED') return '입력한 비밀번호를 확인해 주세요.'
+  if (error.code === 'CSRF_VALIDATION_FAILED')
+    return '보안 토큰을 확인할 수 없습니다. 다시 로그인한 뒤 시도해 주세요.'
   if (error.status === 403 && error.code === 'ACCESS_DENIED') return '비밀번호 변경 권한을 확인할 수 없습니다.'
+  if (error.code === 'EMPLOYEE_NOT_FOUND') return '직원 계정을 찾을 수 없습니다.'
+  if (error.code === 'PASSWORD_CHANGE_UNAVAILABLE' || error.code === 'SESSION_VALIDATION_UNAVAILABLE')
+    return '비밀번호 변경 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
   if (error.code === 'NETWORK_ERROR') return '인증 서버에 연결할 수 없습니다.'
-  return error.message
+  return safeApiErrorMessage(error, '비밀번호를 변경하지 못했습니다.')
 }
 </script>
 

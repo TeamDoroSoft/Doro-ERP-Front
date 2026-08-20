@@ -2,7 +2,7 @@
 import { computed, defineAsyncComponent, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { login } from '@/api/auth'
-import { ApiError } from '@/api/http'
+import { ApiError, safeApiErrorMessage } from '@/api/http'
 import AppIcon from '@/components/ui/AppIcon.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 import { safePosReturnPath } from '@/router/safePosReturn'
@@ -19,6 +19,9 @@ const DevPosPreviewEntry = import.meta.env.DEV
   ? defineAsyncComponent(() => import('@/components/dev/DevPosPreviewEntry.vue'))
   : null
 const sessionExpired = computed(() => route.query.reason === 'session-expired')
+// A successful own-password change destroys every session server-side, so `ChangePasswordView`
+// redirects here with `reason=password-changed`.
+const passwordChanged = computed(() => route.query.reason === 'password-changed')
 
 async function submit() {
   errors.value = validate()
@@ -61,13 +64,18 @@ function validate() {
   return next
 }
 
+// Edge `POST /api/v1/auth/login` relays only `400 VALIDATION_FAILED`, `401
+// AUTHENTICATION_FAILED` and `429 AUTH_RATE_LIMITED` from Store Access; every other upstream
+// outcome collapses into `503 LOGIN_UNAVAILABLE`, and an unregistered Edge route answers `503`.
 function loginErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return '로그인 요청을 처리하지 못했습니다.'
   if (error.code === 'AUTHENTICATION_FAILED') return '업체 코드, 로그인 ID 또는 비밀번호를 확인해 주세요.'
   if (error.code === 'AUTH_RATE_LIMITED') return '로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
   if (error.code === 'NETWORK_ERROR') return '인증 서버에 연결할 수 없습니다.'
-  if (error.code === 'EDGE_ROUTE_NOT_REGISTERED') return '직원 로그인을 아직 사용할 수 없습니다.'
-  return error.message
+  if (error.code === 'LOGIN_UNAVAILABLE' || error.code === 'EDGE_ROUTE_NOT_REGISTERED')
+    return '직원 로그인 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+  if (error.code === 'VALIDATION_FAILED') return '입력한 로그인 정보를 확인해 주세요.'
+  return safeApiErrorMessage(error, '로그인 요청을 처리하지 못했습니다.')
 }
 </script>
 
@@ -85,6 +93,7 @@ function loginErrorMessage(error: unknown) {
         <h2>관리자 로그인</h2>
         <p class="intro">업체 코드와 직원 계정으로 로그인해 주세요.</p>
         <p v-if="sessionExpired" class="session-notice" role="status">로그인 시간이 만료되었습니다. 다시 로그인해 주세요.</p>
+        <p v-if="passwordChanged" class="session-notice" role="status">비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.</p>
         <p v-if="submitError" class="form-error" role="alert">{{ submitError }}</p>
         <form @submit.prevent="submit">
           <label>업체 코드<input v-model="form.tenantCode" name="tenantCode" autocomplete="organization" placeholder="예: doro-store" :aria-invalid="Boolean(errors.tenantCode)" /><small v-if="errors.tenantCode">{{ errors.tenantCode }}</small></label>

@@ -90,6 +90,22 @@ describe('LoginView', () => {
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain('업체 코드, 로그인 ID 또는 비밀번호')
   })
+
+  it('shows a safe unavailable message for the Edge login fail-closed problem', async () => {
+    vi.mocked(login).mockRejectedValue(
+      new ApiError(503, { status: 503, code: 'LOGIN_UNAVAILABLE', detail: 'store-access host unreachable' }),
+    )
+    const wrapper = await mountLogin()
+    await fillAndSubmit(wrapper)
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('일시적으로 사용할 수 없습니다')
+    expect(wrapper.text()).not.toContain('store-access host unreachable')
+  })
+
+  it('tells the operator to log in again after an own-password change', async () => {
+    const wrapper = await mountLogin('/pos/login?reason=password-changed')
+    expect(wrapper.get('[role="status"]').text()).toContain('비밀번호가 변경되었습니다')
+  })
 })
 
 async function mountLogin(location = '/pos/login') {

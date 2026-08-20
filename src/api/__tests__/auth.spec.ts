@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { changeOwnPassword, login, logout } from '@/api/auth'
+import { ApiError, registerUnauthorizedHandler } from '@/api/http'
 
 describe('auth API', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -37,6 +38,40 @@ describe('auth API', () => {
       expect(options?.credentials).toBe('include')
     }
     expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/v1/employees/me/password')
+  })
+
+  it('keeps the session on a wrong current password instead of running the 401 boundary', async () => {
+    const unauthorized = vi.fn()
+    registerUnauthorizedHandler(unauthorized)
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ status: 401, code: 'CURRENT_PASSWORD_INCORRECT', detail: '현재 비밀번호가 올바르지 않습니다.' }),
+        { status: 401, headers: { 'Content-Type': 'application/problem+json' } },
+      ),
+    )
+
+    await expect(
+      changeOwnPassword({ currentPassword: 'wrong', newPassword: 'new-password' }),
+    ).rejects.toMatchObject({ status: 401, code: 'CURRENT_PASSWORD_INCORRECT' })
+    expect(unauthorized).not.toHaveBeenCalled()
+  })
+
+  it('surfaces the session-scoped 401 codes without clearing the session in the API layer', async () => {
+    const unauthorized = vi.fn()
+    registerUnauthorizedHandler(unauthorized)
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ status: 401, code: 'SESSION_ABSOLUTE_EXPIRED' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/problem+json' },
+      }),
+    )
+
+    const caught = await changeOwnPassword({ currentPassword: 'old', newPassword: 'new-password' }).catch(
+      (error: unknown) => error,
+    )
+    expect(caught).toBeInstanceOf(ApiError)
+    expect((caught as ApiError).code).toBe('SESSION_ABSOLUTE_EXPIRED')
+    expect(unauthorized).not.toHaveBeenCalled()
   })
 
   it('returns the EmployeeResponse body that the Store Access controller answers with', async () => {
