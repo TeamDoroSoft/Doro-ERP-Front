@@ -52,6 +52,12 @@ export function safeApiErrorMessage(
 
 const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || '/api/v1').replace(/\/$/, '')
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
+const employeeSessionEndCodes = new Set([
+  'UNAUTHENTICATED',
+  'SESSION_ABSOLUTE_EXPIRED',
+  'SESSION_INVALIDATED',
+])
+const kioskSessionEndCodes = new Set(['KIOSK_AUTHENTICATION_FAILED'])
 let unauthorizedHandler: (() => void) | undefined
 let kioskUnauthorizedHandler: (() => void) | undefined
 
@@ -143,8 +149,18 @@ export async function apiResponse(
   if (!response.ok) {
     const error = new ApiError(response.status, await readProblem(response))
     if (error.status === 401) {
-      if (behavior.handleUnauthorized === 'kiosk') kioskUnauthorizedHandler?.()
-      else if (behavior.handleUnauthorized !== false) unauthorizedHandler?.()
+      if (
+        behavior.handleUnauthorized === 'kiosk' &&
+        kioskSessionEndCodes.has(error.code)
+      ) {
+        kioskUnauthorizedHandler?.()
+      } else if (
+        behavior.handleUnauthorized !== false &&
+        behavior.handleUnauthorized !== 'kiosk' &&
+        employeeSessionEndCodes.has(error.code)
+      ) {
+        unauthorizedHandler?.()
+      }
     }
     throw error
   }

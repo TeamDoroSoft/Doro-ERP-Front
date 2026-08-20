@@ -21,7 +21,7 @@ describe('401 boundaries for the two independent sessions', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     registerSessionBoundaries(router, pinia)
-    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => unauthorized()))
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(async () => unauthorized('UNAUTHENTICATED')))
     await router.push('/pos/login')
   })
 
@@ -71,6 +71,10 @@ describe('401 boundaries for the two independent sessions', () => {
     ['payment confirmation', () => confirmPayment('payment-1', 'toss-key', '12000', 'key-2', 'kiosk')],
     ['menu loading', () => getKioskMenu()],
   ])('isolates a kiosk %s 401 from the employee session', async (_label, call) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => unauthorized('KIOSK_AUTHENTICATION_FAILED')),
+    )
     await signIn('STAFF')
     const kiosk = useKioskSessionStore(pinia)
     kiosk.markAuthenticated()
@@ -96,6 +100,10 @@ describe('401 boundaries for the two independent sessions', () => {
   })
 
   it('shows a neutral re-authentication state instead of guessing REVOKED', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => unauthorized('KIOSK_AUTHENTICATION_FAILED')),
+    )
     const kiosk = useKioskSessionStore(pinia)
     kiosk.markAuthenticated()
     await router.push('/kiosk')
@@ -108,8 +116,8 @@ describe('401 boundaries for the two independent sessions', () => {
   })
 })
 
-function unauthorized() {
-  return new Response(JSON.stringify({ status: 401, code: 'KIOSK_AUTHENTICATION_FAILED' }), {
+function unauthorized(code: string) {
+  return new Response(JSON.stringify({ status: 401, code }), {
     status: 401,
     headers: { 'Content-Type': 'application/problem+json' },
   })
