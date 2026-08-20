@@ -54,6 +54,17 @@ function queryError(caught: unknown): ApiError {
       requestId,
       detail: '주문 목록을 불러올 수 없습니다.',
     })
+  // Anything else keeps its real Edge/Commerce status and `code` (400 VALIDATION_FAILED, 409
+  // INVALID_STATE, 401 ...) so the notice is accurate and the request id stays traceable; only
+  // the message is replaced with a safe one, because Problem Detail `detail` may carry
+  // upstream information.
+  if (caught instanceof ApiError && caught.status !== 0)
+    return new ApiError(caught.status, {
+      status: caught.status,
+      code: caught.code,
+      requestId,
+      detail: safeApiErrorMessage(caught, '주문 목록을 불러오지 못했습니다.'),
+    })
   return new ApiError(0, {
     code: 'NETWORK_ERROR',
     requestId,

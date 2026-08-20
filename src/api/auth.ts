@@ -38,11 +38,19 @@ export function logout(): Promise<void> {
   return apiRequest<void>('/auth/logout', { method: 'POST' })
 }
 
+/**
+ * Edge answers `401 CURRENT_PASSWORD_INCORRECT` when the submitted current password is wrong,
+ * which is a form error rather than an expired session. The shared 401 boundary would clear the
+ * session and bounce to the login screen, so this call opts out and `ChangePasswordView`
+ * distinguishes `CURRENT_PASSWORD_INCORRECT` from `UNAUTHENTICATED` /
+ * `SESSION_ABSOLUTE_EXPIRED` itself.
+ */
 export function changeOwnPassword(
   request: ChangeOwnPasswordRequest,
 ): Promise<ChangeOwnPasswordResponse> {
-  return apiRequest<ChangeOwnPasswordResponse>('/employees/me/password', {
-    method: 'PATCH',
-    body: JSON.stringify(request),
-  })
+  return apiRequest<ChangeOwnPasswordResponse>(
+    '/employees/me/password',
+    { method: 'PATCH', body: JSON.stringify(request) },
+    { handleUnauthorized: false },
+  )
 }

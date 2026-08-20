@@ -53,6 +53,20 @@ describe('PosOrdersView', () => {
     expect(failed.text()).toContain('다시 시도')
   })
 
+  it('reports a rejected query filter as a request problem, not a connectivity problem', async () => {
+    api.getOrders.mockRejectedValueOnce(
+      new ApiError(400, {
+        status: 400,
+        code: 'VALIDATION_FAILED',
+        detail: 'businessDate could not be parsed',
+      }),
+    )
+    const failed = await mountView()
+    expect(failed.get('[role="alert"]').text()).toContain('입력한 내용을 확인해 주세요.')
+    expect(failed.text()).not.toContain('businessDate could not be parsed')
+    expect(failed.text()).not.toContain('네트워크')
+  })
+
   async function mountView() {
     const router = createRouter({
       history: createWebHistory(),

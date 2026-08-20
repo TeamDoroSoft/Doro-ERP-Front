@@ -100,12 +100,17 @@ function isConflict(caught: unknown) {
   )
 }
 
+// Commerce order errors are `400 VALIDATION_FAILED`, `403 FORBIDDEN`, `404 ORDER_NOT_FOUND`,
+// `409 IDP_CONFLICT | INVALID_STATE` and `503 DEPENDENCY_UNAVAILABLE`; Edge adds `401
+// UNAUTHENTICATED | SESSION_ABSOLUTE_EXPIRED` and `503 ORDER_UNAVAILABLE`.
 function mutationMessage(caught: unknown, fallback: string) {
   if (!(caught instanceof ApiError)) return fallback
   if (caught.status === 403) return '이 주문을 변경할 권한이 없습니다.'
   if (caught.status === 404)
     return '주문을 찾을 수 없습니다. 목록으로 돌아가 최신 주문을 확인해 주세요.'
   if (caught.status === 503) return '주문 서비스를 일시적으로 사용할 수 없습니다.'
+  if (caught.status === 400 || caught.code === 'VALIDATION_FAILED')
+    return '주문 요청을 확인해 주세요.'
   return fallback
 }
 
@@ -124,6 +129,14 @@ function queryError(caught: unknown): ApiError {
       code: caught.code,
       requestId,
       detail: '주문 서비스를 일시적으로 사용할 수 없습니다.',
+    })
+  // See `PosOrdersView.queryError`: preserve the real status/code, replace only the message.
+  if (caught instanceof ApiError && caught.status !== 0)
+    return new ApiError(caught.status, {
+      status: caught.status,
+      code: caught.code,
+      requestId,
+      detail: safeApiErrorMessage(caught, '주문을 불러오지 못했습니다.'),
     })
   return new ApiError(0, {
     code: 'NETWORK_ERROR',
