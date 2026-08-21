@@ -56,7 +56,9 @@ Windows PowerShell에서는 동일 명령을 `npm.cmd run dev`처럼 실행할 �
 | 명령어               | 설명                                |
 | -------------------- | ----------------------------------- |
 | `npm run dev`        | Vite 개발 서버 실행                 |
+| `npm run dev:admin`  | Provider Admin 전용 개발 서버 실행  |
 | `npm run build`      | 타입 검사 후 프로덕션 빌드 생성     |
+| `npm run build:admin` | 타입 검사 후 Provider Admin 전용 Artifact 생성 |
 | `npm run preview`    | 생성된 프로덕션 빌드 미리보기       |
 | `npm run type-check` | Vue 및 TypeScript 타입 검사         |
 | `npm run lint`       | Oxlint와 ESLint 검사 및 자동 수정   |
@@ -144,6 +146,11 @@ Doro-ERP-Front/
 | `VITE_TOSS_CLIENT_KEY`   | Browser 사용이 허용된 Toss 테스트 Client Key                |
 
 Toss Secret Key, Kiosk Secret·Credential, HMAC Key는 `VITE_*` 환경 변수에 넣지 않습니다.
+
+Provider Admin은 Public POS·Kiosk Artifact와 분리된 Entry 및 `dist-admin/` Artifact로 빌드합니다.
+`npm run build`는 Admin Entry·Asset을 포함하지 않으며, `npm run build:admin`은 정적 Container
+배포용 Admin Artifact만 생성합니다. Admin 인증과 `/api/v1/provider/**` API 계약이 승인·구현되기
+전에는 이 Artifact가 업무 API를 호출하지 않습니다.
 
 ## 주요 Route
 
