@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiRequest, registerUnauthorizedHandler, safeApiErrorMessage } from '@/api/http'
+import {
+  ApiError,
+  apiRequest,
+  registerKioskUnauthorizedHandler,
+  registerUnauthorizedHandler,
+  safeApiErrorMessage,
+} from '@/api/http'
 
 describe('common authentication errors', () => {
   it('does not expose backend detail in the shared user message', () => {
@@ -14,16 +20,62 @@ describe('common authentication errors', () => {
   })
   afterEach(() => {
     registerUnauthorizedHandler(() => undefined)
+    registerKioskUnauthorizedHandler(() => undefined)
     vi.unstubAllGlobals()
   })
 
-  it('notifies the session boundary for a 401', async () => {
+  it.each(['UNAUTHENTICATED', 'SESSION_ABSOLUTE_EXPIRED', 'SESSION_INVALIDATED'])(
+    'notifies the employee session boundary for %s',
+    async (code) => {
+      const handler = vi.fn<() => void>()
+      registerUnauthorizedHandler(handler)
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(problem(401, code)))
+
+      await expect(apiRequest('/protected')).rejects.toMatchObject({ status: 401 })
+      expect(handler).toHaveBeenCalledOnce()
+    },
+  )
+
+  it.each([
+    'CURRENT_PASSWORD_INCORRECT',
+    'AUTHENTICATION_FAILED',
+    'AUTHENTICATION_REQUIRED',
+    'KIOSK_AUTHENTICATION_FAILED',
+  ])('keeps a non-session 401 on the current screen for %s', async (code) => {
     const handler = vi.fn<() => void>()
     registerUnauthorizedHandler(handler)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(problem(401, 'UNAUTHENTICATED')))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(problem(401, code)))
 
-    await expect(apiRequest('/protected')).rejects.toMatchObject({ status: 401 })
-    expect(handler).toHaveBeenCalledOnce()
+    await expect(apiRequest('/protected')).rejects.toMatchObject({ status: 401, code })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('notifies only the kiosk boundary for its authentication failure code', async () => {
+    const employeeHandler = vi.fn<() => void>()
+    const kioskHandler = vi.fn<() => void>()
+    registerUnauthorizedHandler(employeeHandler)
+    registerKioskUnauthorizedHandler(kioskHandler)
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(problem(401, 'KIOSK_AUTHENTICATION_FAILED')),
+    )
+
+    await expect(
+      apiRequest('/kiosk-protected', {}, { handleUnauthorized: 'kiosk' }),
+    ).rejects.toMatchObject({ status: 401, code: 'KIOSK_AUTHENTICATION_FAILED' })
+    expect(kioskHandler).toHaveBeenCalledOnce()
+    expect(employeeHandler).not.toHaveBeenCalled()
+  })
+
+  it('keeps unrelated 401 codes inside a kiosk flow', async () => {
+    const kioskHandler = vi.fn<() => void>()
+    registerKioskUnauthorizedHandler(kioskHandler)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(problem(401, 'AUTHENTICATION_REQUIRED')))
+
+    await expect(
+      apiRequest('/kiosk-protected', {}, { handleUnauthorized: 'kiosk' }),
+    ).rejects.toMatchObject({ status: 401, code: 'AUTHENTICATION_REQUIRED' })
+    expect(kioskHandler).not.toHaveBeenCalled()
   })
 
   it('keeps a 403 on the current screen for permission UX', async () => {
