@@ -10,7 +10,7 @@ const route = useRoute(),
   router = useRouter(),
   flow = useKioskFlowStore(),
   busy = ref(false),
-  message = ref('결제 버튼을 누르면 토스 테스트 결제창이 열립니다.'),
+  message = ref('결제 버튼을 누르면 결제 화면으로 이동합니다.'),
   review = ref(false),
   payment = computed(() =>
     flow.payment?.id === String(route.params.paymentId) ? flow.payment : null,
@@ -72,12 +72,12 @@ async function approve() {
       await router.replace(`/kiosk/orders/${flow.order?.orderId}`)
     } else if (result.status === 'REVIEW_REQUIRED') {
       review.value = true
-      message.value = '결제 확인이 필요합니다. 직원의 안내를 기다려주세요.'
+      message.value = '결제 확인이 필요합니다. 직원의 안내를 기다려 주세요.'
     } else message.value = '결제가 완료되지 않았습니다.'
   } catch (e) {
     message.value =
       e instanceof ApiError && e.status >= 500
-        ? '결제 결과가 확실하지 않습니다. 직원의 확인을 기다려주세요.'
+        ? '결제 결과를 바로 확인할 수 없습니다. 직원의 안내를 기다려 주세요.'
         : '결제를 완료하지 못했습니다.'
   } finally {
     flow.approving = false
@@ -91,62 +91,22 @@ function callback(outcome: string) {
 }
 </script>
 <template>
-  <section class="payment">
-    <div v-if="payment">
-      <p>주문 {{ flow.order?.displayNumber }}</p>
-      <h1>{{ review ? '결제 확인 필요' : '결제를 진행해주세요' }}</h1>
-      <span>{{ message }}</span
-      ><strong>{{ formatKrw(payment.amount) }}</strong
-      ><button v-if="!review" :disabled="busy" @click="start">
-        {{ busy ? '처리 중…' : '결제하기' }}
+  <section class="payment-page">
+    <div v-if="payment" class="payment-panel">
+      <p class="eyebrow">주문 {{ flow.order?.displayNumber }}</p>
+      <h1>{{ review ? '결제 확인이 필요합니다' : '결제를 진행해 주세요' }}</h1>
+      <span>{{ message }}</span>
+      <div class="amount"><small>결제 금액</small><strong>{{ formatKrw(payment.amount) }}</strong></div>
+      <button v-if="!review" :disabled="busy" @click="start">
+        {{ busy ? '결제 중…' : '결제하기' }}
       </button>
     </div>
-    <div v-else>
+    <div v-else class="payment-panel">
       <h1>결제 정보를 찾을 수 없어요</h1>
       <RouterLink to="/kiosk/cart">장바구니로 돌아가기</RouterLink>
     </div>
   </section>
 </template>
 <style scoped>
-.payment {
-  display: grid;
-  min-height: calc(100dvh - 190px);
-  place-items: center;
-}
-.payment > div {
-  display: grid;
-  width: min(620px, 100%);
-  place-items: center;
-  gap: 18px;
-  border-radius: 34px;
-  background: #fff;
-  padding: 55px;
-  text-align: center;
-}
-.payment p {
-  color: #126a5a;
-  font-weight: 900;
-}
-.payment h1 {
-  font-size: 38px;
-}
-.payment span {
-  color: #68766f;
-}
-.payment strong {
-  font-size: 36px;
-}
-.payment button,
-.payment a {
-  display: grid;
-  width: 100%;
-  min-height: 64px;
-  place-items: center;
-  border: 0;
-  border-radius: 20px;
-  background: #126a5a;
-  color: #fff;
-  font-size: 18px;
-  font-weight: 900;
-}
+.payment-page { display: grid; min-height: calc(100dvh - 190px); place-items: center; }.payment-panel { display: grid; width: min(580px, 100%); gap: 18px; border: 1px solid #cfd6d1; border-radius: 7px; background: #fff; padding: clamp(28px, 6vw, 52px); text-align: center; }.eyebrow { margin: 0; color: #087f5b; font-size: 14px; font-weight: 800; }.payment-panel h1 { margin: 0; font-size: 31px; letter-spacing: -1px; }.payment-panel > span { color: #687078; line-height: 1.6; }.amount { display: grid; gap: 7px; border-top: 1px solid #e6e9e7; border-bottom: 1px solid #e6e9e7; padding: 18px 0; }.amount small { color: #687078; }.amount strong { font-size: 31px; }.payment-panel button, .payment-panel a { display: grid; width: 100%; min-height: 60px; place-items: center; border: 0; border-radius: 4px; background: #087f5b; color: #fff; font-size: 17px; font-weight: 800; }
 </style>

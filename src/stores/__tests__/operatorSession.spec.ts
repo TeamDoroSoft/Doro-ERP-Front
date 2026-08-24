@@ -17,7 +17,7 @@ describe('operatorSession', () => {
 
     expect(store.authenticated).toBe(true)
     expect(store.role).toBe('MANAGER')
-    expect(store.roleLabel).toBe('관리자')
+    expect(store.roleLabel).toBe('매니저')
     expect(store.passwordChangeRequired).toBe(true)
     const persisted = JSON.parse(String(sessionStorage.getItem('doro-erp.operator-session')))
     expect(persisted).toEqual({

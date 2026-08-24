@@ -26,21 +26,21 @@ export function useCatalogManagement(api = catalogApi) {
       products.value = nextProducts
       if (!categories.value.some((item) => item.categoryId === selectedCategoryId.value)) selectedCategoryId.value = categories.value[0]?.categoryId ?? ''
       productDraft.categoryId = selectedCategoryId.value
-    } catch (error) { errorMessage.value = message(error, 'Catalog 목록을 불러오지 못했습니다.') }
+    } catch (error) { errorMessage.value = message(error, '상품 목록을 불러오지 못했습니다.') }
     finally { loading.value = false }
   }
 
   async function saveCategory(existing?: catalogApi.ManagedCategoryResponse) {
     if (!canManage.value || busyId.value) return
     if (!categoryDraft.name.trim() || !Number.isInteger(categoryDraft.displayOrder) || categoryDraft.displayOrder < 0 || categoryDraft.displayOrder > 9999) {
-      errorMessage.value = 'Category 이름과 0~9999의 표시 순서를 확인해 주세요.'; return
+      errorMessage.value = '메뉴 분류명과 0~9999 사이의 표시 순서를 확인해 주세요.'; return
     }
     busyId.value = existing?.categoryId ?? 'new-category'; errorMessage.value = ''
     try {
       const request = { name: categoryDraft.name.trim(), displayOrder: categoryDraft.displayOrder, active: categoryDraft.active }
       if (existing) await api.updateCategory(existing.categoryId, request, existing.version)
       else await api.createCategory(request)
-      notice.value = existing ? 'Category를 수정했습니다.' : 'Category를 생성했습니다.'
+      notice.value = existing ? '메뉴 분류를 수정했습니다.' : '메뉴 분류를 등록했습니다.'
       resetCategoryDraft(); await load()
     } catch (error) { await mutationFailure(error) } finally { busyId.value = '' }
   }
@@ -49,14 +49,14 @@ export function useCatalogManagement(api = catalogApi) {
   async function toggleCategory(item: catalogApi.ManagedCategoryResponse) {
     if (!canManage.value || busyId.value) return
     busyId.value = item.categoryId; errorMessage.value = ''
-    try { await api.updateCategory(item.categoryId, { active: !item.active }, item.version); notice.value = 'Category 상태를 변경했습니다.'; await load() }
+    try { await api.updateCategory(item.categoryId, { active: !item.active }, item.version); notice.value = '메뉴 분류 상태를 변경했습니다.'; await load() }
     catch (error) { await mutationFailure(error) } finally { busyId.value = '' }
   }
 
   async function saveProduct(existing?: catalogApi.ManagedProductResponse) {
     if (!canManage.value || busyId.value) return
     if (!productDraft.categoryId || !productDraft.name.trim() || !/^\d+$/.test(productDraft.price) || !Number.isInteger(productDraft.displayOrder) || productDraft.displayOrder < 0 || productDraft.displayOrder > 9999) {
-      errorMessage.value = '상품명, Category, 0원 이상의 정수 가격과 표시 순서를 확인해 주세요.'; return
+      errorMessage.value = '상품명, 메뉴 분류, 0원 이상의 가격과 표시 순서를 확인해 주세요.'; return
     }
     busyId.value = existing?.productId ?? 'new-product'; errorMessage.value = ''
     try {
@@ -78,13 +78,13 @@ export function useCatalogManagement(api = catalogApi) {
   async function toggleSoldOut(item: catalogApi.ManagedProductResponse) {
     if (!session.canToggleSoldOut || busyId.value) return
     busyId.value = item.productId; errorMessage.value = ''
-    try { await api.changeProductSoldOut(item.productId, !item.soldOut, item.version); notice.value = '품절 상태를 변경했습니다. 판매 메뉴 반영은 서버 재조회 결과를 따릅니다.'; await load() }
+    try { await api.changeProductSoldOut(item.productId, !item.soldOut, item.version); notice.value = '품절 상태를 변경했습니다.'; await load() }
     catch (error) { await mutationFailure(error) } finally { busyId.value = '' }
   }
 
   async function mutationFailure(error: unknown) {
     if (error instanceof ApiError && [404, 409, 412, 428].includes(error.status)) await load()
-    errorMessage.value = message(error, 'Catalog 요청을 처리하지 못했습니다.')
+    errorMessage.value = message(error, '상품 관리 요청을 처리하지 못했습니다.')
   }
   function resetCategoryDraft() { Object.assign(categoryDraft, { name: '', displayOrder: 0, active: true }) }
   function resetProductDraft() { Object.assign(productDraft, { categoryId: selectedCategoryId.value, name: '', description: '', price: '0', displayOrder: 0, active: true }) }
@@ -93,11 +93,11 @@ export function useCatalogManagement(api = catalogApi) {
 
 function message(error: unknown, fallback: string) {
   if (!(error instanceof ApiError)) return fallback
-  if (error.status === 401) return '직원 세션이 만료되었습니다.'
-  if (error.status === 403) return '현재 권한으로 Catalog를 변경할 수 없습니다.'
+  if (error.status === 401) return '로그인 시간이 만료되었습니다. 다시 로그인해 주세요.'
+  if (error.status === 403) return '현재 권한으로 상품 정보를 변경할 수 없습니다.'
   if (error.status === 404) return '항목을 찾을 수 없어 최신 목록을 다시 불러왔습니다.'
   if ([409, 412, 428].includes(error.status)) return '다른 변경과 충돌했습니다. 최신 목록을 다시 확인해 주세요.'
-  if (error.status === 503) return 'Catalog 서비스를 일시적으로 사용할 수 없습니다.'
+  if (error.status === 503) return '상품 관리 기능을 일시적으로 사용할 수 없습니다.'
   if (error.status === 0) return '네트워크 연결을 확인해 주세요.'
   return fallback
 }

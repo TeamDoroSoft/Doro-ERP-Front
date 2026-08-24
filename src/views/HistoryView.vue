@@ -7,14 +7,14 @@ const tab = ref<'audit' | 'security'>('audit')
 <template>
   <section class="history">
     <nav>
-      <button :class="{ active: tab === 'audit' }" @click="tab = 'audit'">감사 이력</button
-      ><button :class="{ active: tab === 'security' }" @click="tab = 'security'">보안 이력</button>
+      <button :class="{ active: tab === 'audit' }" @click="tab = 'audit'">운영 변경 내역</button
+      ><button :class="{ active: tab === 'security' }" @click="tab = 'security'">로그인·보안 기록</button>
     </nav>
     <AuditLogView v-if="tab === 'audit'" /><template v-else
       ><header>
-        <p>보안·인증 기록</p>
-        <h1>보안 이력</h1>
-        <span>로그인과 권한 관련 이벤트를 확인합니다.</span>
+        <p>운영·보안 기록</p>
+        <h1>로그인·보안 기록</h1>
+        <span>로그인과 계정 보안 관련 활동을 확인합니다.</span>
       </header>
       <SecurityHistoryView
     /></template>

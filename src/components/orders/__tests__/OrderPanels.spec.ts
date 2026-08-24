@@ -18,7 +18,7 @@ describe('order query and detail panels', () => {
 
     expect(wrapper.text()).toContain('#42')
     expect(wrapper.text()).toContain('12,000 KRW')
-    expect(wrapper.text()).toContain('주문 생성')
+    expect(wrapper.text()).toContain('결제 대기')
     await wrapper.get('button').trigger('click')
     expect(wrapper.emitted('select')).toEqual([['order-1']])
   })
@@ -29,7 +29,7 @@ describe('order query and detail panels', () => {
     })
 
     expect(wrapper.text()).toContain('주문 요약')
-    expect(wrapper.text()).toContain('품목과 테이블 상세는 응답에 포함되지 않습니다.')
+    expect(wrapper.text()).toContain('메뉴와 테이블 정보는 표시되지 않습니다.')
     expect(wrapper.text()).not.toContain('테이블:')
     expect(wrapper.text()).not.toContain('준비 완료')
   })
@@ -49,7 +49,7 @@ describe('order query and detail panels', () => {
     expect(created.text()).toContain('주문 취소')
     expect(created.text()).not.toContain('주문 완료')
     expect(accepted.text()).not.toContain('주문 취소')
-    expect(accepted.text()).toContain('결제 전액 취소로 처리해야 합니다.')
+    expect(accepted.text()).toContain('결제가 완료된 주문은 먼저 결제를 전액 취소해 주세요.')
     expect(accepted.text()).toContain('주문 완료')
   })
 
@@ -64,6 +64,6 @@ describe('order query and detail panels', () => {
 
     await wrapper.get('button.primary').trigger('click')
     expect(wrapper.emitted('complete')).toEqual([[]])
-    expect(wrapper.text()).toContain('주문 접수')
+    expect(wrapper.text()).toContain('주문 확정')
   })
 })

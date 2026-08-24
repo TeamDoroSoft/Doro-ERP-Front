@@ -24,6 +24,7 @@ import LoadingState from '@/components/ui/LoadingState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import { displayLabel } from '@/ui/displayLabels'
 const session = useOperatorSessionStore(),
   tab = ref<'store' | 'employees' | 'kiosk'>('store'),
   store = ref<StoreView | null>(null),
@@ -157,7 +158,7 @@ function addKiosk() {
       issued.value = await registerKiosk(deviceCode.value)
       deviceCode.value = ''
     },
-    '키오스크 장치가 등록되었습니다.',
+    '키오스크 기기가 등록되었습니다.',
     true,
   )
 }
@@ -167,7 +168,7 @@ function rotate() {
     async () => {
       issued.value = await rotateKiosk(issued.value!.kioskDeviceId)
     },
-    '자격 증명이 교체되었습니다.',
+    '기기 활성화 정보를 새로 발급했습니다.',
     true,
   )
 }
@@ -178,21 +179,21 @@ function revoke() {
       await revokeKiosk(issued.value!.kioskDeviceId)
       issued.value = null
     },
-    '키오스크 장치가 폐기되었습니다.',
+    '키오스크 기기 이용을 중지했습니다.',
     true,
   )
 }
 function asError(e: unknown) {
   return e instanceof ApiError
     ? e
-    : new ApiError(0, { code: 'NETWORK_ERROR', detail: '서버에 연결할 수 없습니다.' })
+    : new ApiError(0, { code: 'NETWORK_ERROR', detail: '연결 상태를 확인해 주세요.' })
 }
 </script>
 <template>
   <section class="page">
     <PageHeader
       title="매장·직원 설정"
-      description="매장 정보, 직원 계정, 키오스크 장치를 관리합니다."
+      description="매장 정보, 직원 계정, 키오스크 기기를 관리합니다."
       eyebrow="운영 설정"
     />
     <nav class="tabs">
@@ -200,7 +201,7 @@ function asError(e: unknown) {
         v-for="item in [
           ['store', '매장'],
           ['employees', '직원'],
-          ['kiosk', '키오스크 장치'],
+          ['kiosk', '키오스크 기기'],
         ]"
         :key="item[0]"
         :class="{ active: tab === item[0] }"
@@ -221,10 +222,10 @@ function asError(e: unknown) {
         <div class="panel-title">
           <div>
             <h2>매장 정보</h2>
-            <p>ID {{ store.id }} · 통화 {{ store.currency }}</p>
+            <p>결제 통화 {{ store.currency }}</p>
           </div>
           <StatusBadge
-            :label="store.status === 'ACTIVE' ? '운영 중' : '비활성'"
+            :label="store.status === 'ACTIVE' ? '운영 중' : '이용 중지'"
             :tone="store.status === 'ACTIVE' ? 'success' : 'neutral'"
           />
         </div>
@@ -236,7 +237,7 @@ function asError(e: unknown) {
           <div class="actions">
             <button :disabled="busy">정보 저장</button
             ><button type="button" class="secondary" :disabled="busy" @click="toggleStore">
-              {{ store.status === 'ACTIVE' ? '매장 비활성화' : '매장 활성화' }}
+              {{ store.status === 'ACTIVE' ? '매장 이용 중지' : '매장 이용 재개' }}
             </button>
           </div>
         </form>
@@ -248,7 +249,7 @@ function asError(e: unknown) {
             관리 작업 직전에 현재 비밀번호로 재인증합니다. 비밀번호는 저장하지 않습니다.
           </p>
           <form class="form grid" @submit.prevent="addEmployee">
-            <label>로그인 ID<input v-model.trim="employeeForm.loginId" required /></label
+            <label>로그인 아이디<input v-model.trim="employeeForm.loginId" required /></label
             ><label
               >임시 비밀번호<input
                 v-model="employeeForm.temporaryPassword"
@@ -256,9 +257,9 @@ function asError(e: unknown) {
                 required /></label
             ><label
               >역할<select v-model="employeeForm.role">
-                <option v-if="session.role === 'OWNER'" value="OWNER">OWNER</option>
-                <option v-if="session.role === 'OWNER'" value="MANAGER">MANAGER</option>
-                <option value="STAFF">STAFF</option>
+                <option v-if="session.role === 'OWNER'" value="OWNER">점주</option>
+                <option v-if="session.role === 'OWNER'" value="MANAGER">매니저</option>
+                <option value="STAFF">직원</option>
               </select></label
             ><label
               >현재 비밀번호<input
@@ -275,7 +276,7 @@ function asError(e: unknown) {
             <table>
               <thead>
                 <tr>
-                  <th>로그인 ID</th>
+                  <th>로그인 아이디</th>
                   <th>역할</th>
                   <th>상태</th>
                   <th>비밀번호 변경</th>
@@ -285,9 +286,9 @@ function asError(e: unknown) {
               <tbody>
                 <tr v-for="e in employees" :key="e.id">
                   <td>{{ e.loginId }}<small v-if="e.id === session.employeeId">내 계정</small></td>
-                  <td>{{ e.role }}</td>
-                  <td>{{ e.status }}</td>
-                  <td>{{ e.passwordChangeRequired ? '필요' : '완료' }}</td>
+                  <td>{{ displayLabel(e.role) }}</td>
+                  <td>{{ displayLabel(e.status) }}</td>
+                  <td>{{ e.passwordChangeRequired ? '변경 필요' : '변경 완료' }}</td>
                   <td>
                     <template v-if="canManage(e)"
                       ><select
@@ -295,15 +296,15 @@ function asError(e: unknown) {
                         :disabled="busy || protectedOwner(e)"
                         @change="setRole(e, ($event.target as HTMLSelectElement).value as Role)"
                       >
-                        <option v-if="session.role === 'OWNER'" value="OWNER">OWNER</option>
-                        <option v-if="session.role === 'OWNER'" value="MANAGER">MANAGER</option>
-                        <option value="STAFF">STAFF</option></select
+                        <option v-if="session.role === 'OWNER'" value="OWNER">점주</option>
+                        <option v-if="session.role === 'OWNER'" value="MANAGER">매니저</option>
+                        <option value="STAFF">직원</option></select
                       ><button
                         class="secondary"
                         :disabled="busy || protectedOwner(e)"
                         @click="toggleEmployee(e)"
                       >
-                        {{ e.status === 'ACTIVE' ? '비활성화' : '활성화' }}</button
+                        {{ e.status === 'ACTIVE' ? '이용 중지' : '이용 재개' }}</button
                       ><button class="secondary" @click="resetForm.employeeId = e.id">
                         비밀번호 재설정
                       </button></template
@@ -329,30 +330,29 @@ function asError(e: unknown) {
       >
       <template v-if="tab === 'kiosk'"
         ><section class="panel">
-          <h2>키오스크 장치 등록</h2>
+          <h2>키오스크 기기 등록</h2>
           <p class="help">
-            서버는 장치 목록을 제공하지 않습니다. 이 화면에서는 지금 발급한 장치만 관리할 수
-            있습니다.
+            이 화면에서는 새로 등록한 기기의 활성화 정보를 확인할 수 있습니다.
           </p>
           <form class="form grid" @submit.prevent="addKiosk">
-            <label>장치 코드<input v-model.trim="deviceCode" required /></label
+            <label>기기 코드<input v-model.trim="deviceCode" required /></label
             ><label>현재 비밀번호<input v-model="reauthPassword" type="password" required /></label
-            ><button :disabled="busy">장치 등록</button>
+            ><button :disabled="busy">기기 등록</button>
           </form>
         </section>
         <section v-if="issued" class="panel credential">
-          <h2>일회성 자격 증명</h2>
-          <p>이 창을 닫으면 다시 확인할 수 없습니다. 안전한 위치에 즉시 전달하세요.</p>
+          <h2>기기 활성화 정보</h2>
+          <p>이 창을 닫으면 다시 확인할 수 없습니다. 사용할 키오스크에 바로 입력해 주세요.</p>
           <code>{{ issued.credential }}</code
-          ><small>장치 ID {{ issued.kioskDeviceId }}</small>
+          ><small>기기 번호 {{ issued.kioskDeviceId }}</small>
           <div class="actions">
             <button @click="issued = null">확인 후 닫기</button
-            ><button class="secondary" :disabled="busy" @click="rotate">교체</button
-            ><button class="danger" :disabled="busy" @click="revoke">폐기</button>
+            ><button class="secondary" :disabled="busy" @click="rotate">새로 발급</button
+            ><button class="danger" :disabled="busy" @click="revoke">이용 중지</button>
           </div>
         </section>
         <section v-else class="panel">
-          <p class="help">현재 화면에서 관리 중인 발급 장치가 없습니다.</p>
+          <p class="help">현재 확인할 수 있는 기기 활성화 정보가 없습니다.</p>
         </section></template
       >
     </template>
@@ -498,4 +498,5 @@ button:disabled {
     flex-direction: column;
   }
 }
+.page{gap:14px}.tabs{gap:20px}.tabs button{padding:10px 0;font-size:12px;font-weight:650}.tabs .active{border-width:2px;color:#007f5b}.panel{border-radius:3px;padding:16px}.panel h2{font-size:15px}.form input,.form select,td select{min-height:34px;border-radius:3px}.form button,.actions button,td button{min-height:32px;border-radius:3px;background:#009b6b;font-size:12px}.secondary{border-radius:3px!important}.table-wrap{margin:0 -16px -16px}.notice{border-radius:0;border-left:3px solid #00a878;background:#fff;padding:10px 12px}
 </style>

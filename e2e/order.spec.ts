@@ -86,7 +86,7 @@ test('[mock-ui] creates a takeout order with one idempotent command and opens se
 
   await page.goto('/pos/orders/new')
   await page.getByRole('button', { name: '담기' }).click()
-  await page.getByRole('button', { name: '주문 생성', exact: true }).click()
+  await page.getByRole('button', { name: '주문 등록', exact: true }).click()
 
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   await expect(page.getByRole('heading', { name: '주문 상세' })).toBeVisible()
@@ -125,11 +125,12 @@ test('[mock-ui] opens a listed CREATED order and cancels it without an accept ac
   page.on('dialog', (dialog) => dialog.accept())
 
   await page.goto('/pos/orders')
-  await page.getByRole('button', { name: /#7/ }).click()
+  const listedOrder = page.getByRole('row').filter({ hasText: '#7' })
+  await listedOrder.getByRole('button', { name: '열기' }).click()
   await page.getByRole('button', { name: '주문 취소' }).click()
 
   await expect(page.getByText('취소', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '주문 접수' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '주문 완료' })).toHaveCount(0)
 })
 
 test('[mock-ui] creates a DINE_IN order with the selected active table id', async ({ page }) => {
@@ -185,12 +186,12 @@ test('[mock-ui] creates a DINE_IN order with the selected active table id', asyn
 
   await page.goto('/pos/orders/new')
   await page.getByLabel('매장 식사').check()
-  await expect(page.getByLabel('활성 테이블')).toBeVisible()
+  await expect(page.getByLabel('테이블')).toBeVisible()
   // Only ACTIVE tables are offered for selection.
-  await expect(page.getByLabel('활성 테이블').locator('option')).toHaveCount(2)
-  await page.getByLabel('활성 테이블').selectOption(tableId)
+  await expect(page.getByLabel('테이블').locator('option')).toHaveCount(2)
+  await page.getByLabel('테이블').selectOption(tableId)
   await page.getByRole('button', { name: '담기' }).click()
-  await page.getByRole('button', { name: '주문 생성', exact: true }).click()
+  await page.getByRole('button', { name: '주문 등록', exact: true }).click()
 
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   expect(tableRequests).toBeGreaterThan(0)
@@ -243,8 +244,8 @@ test('[mock-ui] keeps the idempotency key for a retry and rotates it for a chang
   await page.goto('/pos/orders/new')
   await page.getByRole('button', { name: '담기' }).click()
 
-  await page.getByRole('button', { name: '주문 생성', exact: true }).click()
-  await expect(page.getByText('주문 서비스를 지금 사용할 수 없습니다.')).toBeVisible()
+  await page.getByRole('button', { name: '주문 등록', exact: true }).click()
+  await expect(page.getByText('주문을 지금 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.')).toBeVisible()
 
   // Same draft payload retried: the operation keeps its key.
   await page.getByRole('button', { name: '같은 주문 다시 시도' }).click()
@@ -256,7 +257,7 @@ test('[mock-ui] keeps the idempotency key for a retry and rotates it for a chang
   await page.goto('/pos/orders/new')
   await page.getByRole('button', { name: '담기' }).click()
   await page.getByRole('button', { name: '수량 늘리기' }).click()
-  await page.getByRole('button', { name: '주문 생성', exact: true }).click()
+  await page.getByRole('button', { name: '주문 등록', exact: true }).click()
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
   expect(keys).toHaveLength(3)
   expect(keys[2]).not.toBe(keys[1])
@@ -292,15 +293,15 @@ test('[mock-ui] completes an ACCEPTED order only after the server answers', asyn
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await expect(page.getByText('주문 접수')).toBeVisible()
+  await expect(page.getByText('주문 확정')).toBeVisible()
   await page.getByRole('button', { name: '주문 완료' }).click()
 
   // Nothing is optimistically applied while the command is in flight.
   await expect(page.getByRole('button', { name: '완료 확인 중…' })).toBeVisible()
-  await expect(page.getByText('처리 완료', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('주문 완료', { exact: true })).toHaveCount(0)
 
   releaseComplete()
-  await expect(page.getByText('처리 완료', { exact: true })).toBeVisible()
+  await expect(page.getByText('주문 완료', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '주문 완료' })).toHaveCount(0)
   expect(completeRequests).toBe(1)
 })

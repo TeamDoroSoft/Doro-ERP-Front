@@ -18,17 +18,17 @@ onMounted(async () => {
 <template>
   <main class="queue-page">
     <header class="queue-header">
-      <div><p>주문 조리</p><h1>조리 현황</h1><span>주문 접수 이벤트로 생성된 준비 항목을 확인합니다.</span></div>
+      <div><p>주문 준비</p><h1>조리 목록</h1><span>접수된 주문의 준비 상태를 확인합니다.</span></div>
       <button type="button" @click="router.push('/pos/queues/entry')">입장 대기 보기</button>
     </header>
-    <p class="queue-lag">결제 승인 후 주문 접수 이벤트가 반영되기까지 잠시 걸릴 수 있습니다. 목록에 없으면 새로고침해 주세요.</p>
+    <p class="queue-lag">결제가 완료된 주문은 잠시 후 목록에 표시될 수 있습니다. 보이지 않으면 새로고침해 주세요.</p>
     <ApiErrorNotice v-if="queue.errorMessage.value" :message="queue.errorMessage.value" retryable @retry="() => queue.load()" />
     <section class="queue-card" aria-labelledby="fulfillment-list-title">
       <div class="queue-section-heading"><h2 id="fulfillment-list-title">조리 목록</h2><button type="button" :disabled="queue.loading.value" @click="() => queue.load()">새로고침</button></div>
       <LoadingState v-if="queue.loading.value" />
-      <p v-else-if="queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다. 이벤트 반영이 지연될 수 있습니다.</p>
+      <p v-else-if="queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다.</p>
       <div v-else class="queue-table-wrap">
-        <table><thead><tr><th>주문</th><th>상태</th><th>주문 상세</th><th>처리</th></tr></thead>
+        <table><thead><tr><th>주문</th><th>상태</th><th>주문 상세</th><th>작업</th></tr></thead>
           <tbody><tr v-for="item in queue.fulfillments.value" :key="item.fulfillmentId">
             <td><strong>#{{ item.displayNumber }}</strong></td><td>{{ displayLabel(item.status) }}</td>
             <td><RouterLink :to="`/pos/orders/${item.orderId}`">주문 보기</RouterLink></td>

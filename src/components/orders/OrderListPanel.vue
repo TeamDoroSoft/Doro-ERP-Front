@@ -26,65 +26,30 @@ function tone(status: OrderStatus) {
 </script>
 
 <template>
-  <ul class="order-list" aria-label="주문 목록">
-    <li v-for="order in orders" :key="order.orderId">
-      <button type="button" class="order-card" @click="$emit('select', order.orderId)">
-        <span class="number">#{{ order.displayNumber }}</span>
-        <span class="amount">{{ formatAmount(order.totalAmount, order.currency) }}</span>
-        <StatusBadge :label="displayLabel(order.status)" :tone="tone(order.status)" />
-        <span class="date">영업일 {{ order.businessDate }}</span>
-      </button>
-    </li>
-  </ul>
+  <div class="order-table-wrap"><table class="order-table" aria-label="주문 목록"><thead><tr><th>주문 번호</th><th>영업일</th><th>상태</th><th class="amount-head">결제 금액</th><th aria-label="상세" /></tr></thead><tbody><tr v-for="order in orders" :key="order.orderId" @click="$emit('select', order.orderId)"><td class="number">#{{ order.displayNumber }}</td><td class="date">{{ order.businessDate }}</td><td><StatusBadge :label="displayLabel(order.status)" :tone="tone(order.status)" /></td><td class="amount">{{ formatAmount(order.totalAmount, order.currency) }}</td><td><button type="button" class="open-order" @click.stop="$emit('select', order.orderId)">열기</button></td></tr></tbody></table></div>
 </template>
 
 <style scoped>
-.order-list {
-  display: grid;
-  gap: 0.75rem;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.order-card {
-  display: grid;
-  grid-template-columns: minmax(4rem, 0.6fr) minmax(8rem, 1fr) auto minmax(8rem, 0.8fr);
-  align-items: center;
-  width: 100%;
-  gap: 1rem;
-  border: 1px solid #dbe3ee;
-  border-radius: 12px;
-  background: white;
-  padding: 1rem;
-  text-align: left;
-  color: inherit;
-  cursor: pointer;
-}
-.order-card:hover,
-.order-card:focus-visible {
-  border-color: var(--color-primary);
-  outline: none;
-  box-shadow: 0 0 0 3px var(--color-primary-soft);
-}
+.order-table-wrap { overflow: hidden; border: 1px solid var(--color-border); border-radius: var(--radius-surface); background: var(--color-surface); }
+.order-table { width: 100%; border-collapse: collapse; }
+.order-table th, .order-table td { height: 48px; border-bottom: 1px solid var(--color-border); padding: 0 16px; text-align: left; font-size: 13px; }
+.order-table th { height: 36px; background: var(--color-surface-subtle); color: var(--color-muted); font-size: 11px; font-weight: 750; letter-spacing: .04em; }
+.order-table tbody tr { cursor: pointer; }.order-table tbody tr:hover { background: #fafafa; }.order-table tbody tr:last-child td { border-bottom: 0; }
 .number {
   color: var(--color-heading);
   font-weight: 800;
 }
 .amount {
   font-weight: 700;
+  text-align: right !important;
 }
+.amount-head { text-align: right !important; }.open-order { border: 0; background: transparent; color: var(--color-primary); font-size: 12px; font-weight: 700; }
 .date {
   color: var(--color-muted);
   font-size: 0.875rem;
   text-align: right;
 }
 @media (max-width: 640px) {
-  .order-card {
-    grid-template-columns: 1fr auto;
-  }
-  .date {
-    grid-column: 1 / -1;
-    text-align: left;
-  }
+  .order-table { min-width: 620px; }.order-table-wrap { overflow-x: auto; }
 }
 </style>

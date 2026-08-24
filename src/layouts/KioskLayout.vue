@@ -1,65 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { RouterLink, RouterView, useRoute } from 'vue-router'
-import { useKioskCartStore } from '@/stores/kioskCart'
-const route = useRoute(),
-  cart = useKioskCartStore(),
-  showCart = computed(() => route.name === 'kiosk-menu' && cart.itemCount > 0)
+import { RouterLink, RouterView } from 'vue-router'
 </script>
+
 <template>
-  <div class="layout">
-    <header>
-      <RouterLink to="/kiosk"><b>D</b><span>Doro 주문하기</span></RouterLink
-      ><RouterLink v-if="showCart" class="cart" to="/kiosk/cart"
-        >장바구니 {{ cart.itemCount }}</RouterLink
-      >
+  <div class="kiosk-shell">
+    <header class="kiosk-header">
+      <RouterLink class="brand" to="/kiosk" aria-label="Doro 메뉴로 이동"><b>D</b><strong>Doro</strong></RouterLink>
     </header>
     <main><RouterView /></main>
   </div>
 </template>
+
 <style scoped>
-.layout {
-  min-height: 100dvh;
-  background: #f7f5f0;
-  color: #17211d;
-}
-.layout > header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  min-height: 80px;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #e7e1d7;
-  background: #fffdf9;
-  padding: 12px clamp(18px, 4vw, 56px);
-}
-header a {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 20px;
-  font-weight: 900;
-}
-header b {
-  display: grid;
-  width: 48px;
-  height: 48px;
-  place-items: center;
-  border-radius: 15px;
-  background: #126a5a;
-  color: #fff;
-}
-.cart {
-  border-radius: 16px;
-  background: #17211d;
-  padding: 14px 18px;
-  color: #fff;
-}
-main {
-  width: min(100%, 1400px);
-  margin: auto;
-  padding: clamp(20px, 4vw, 52px);
-}
+.kiosk-shell { min-height: 100dvh; background: #f4f5f4; color: #171918; }
+.kiosk-header { display: flex; min-height: 64px; align-items: center; justify-content: space-between; border-bottom: 1px solid #d8dcda; background: #fff; padding: 10px clamp(20px, 3vw, 44px); }
+.brand { display: inline-flex; align-items: center; gap: 10px; color: #171918; }
+.brand b { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 4px; background: #087f5b; color: #fff; font-size: 17px; }
+.brand strong { font-size: 20px; letter-spacing: -.02em; }
+main { width: min(100%, 1600px); margin: auto; padding: 20px clamp(20px, 2.8vw, 44px) 28px; }
+@media (max-width: 640px) { .kiosk-header { min-height: 58px; padding: 8px 16px; }.brand b { width: 30px; height: 30px; }.brand strong { font-size: 18px; }main { padding: 14px 14px 20px; } }
 </style>

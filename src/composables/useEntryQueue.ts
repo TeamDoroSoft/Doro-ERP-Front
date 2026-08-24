@@ -86,14 +86,22 @@ function validate(date: string, partySize: number) {
   return ''
 }
 
-export function queueErrorMessage(error: unknown, fallback: string) {
+/**
+ * Shared Queue problem rendering. `unavailableMessage` lets each screen name the list it
+ * could not load, so the Fulfillment screen never reports the Entry queue's wording.
+ */
+export function queueErrorMessage(
+  error: unknown,
+  fallback: string,
+  unavailableMessage = '입장 대기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.',
+) {
   if (!(error instanceof ApiError)) return fallback
-  if (error.status === 401) return '직원 세션이 만료되었습니다.'
+  if (error.status === 401) return '로그인 시간이 만료되었습니다. 다시 로그인해 주세요.'
   if (error.status === 403) return '대기열을 관리할 권한이 없습니다.'
-  if (error.status === 404) return '대기열 항목을 찾을 수 없습니다. 최신 목록을 확인해 주세요.'
+  if (error.status === 404) return '입장 대기 정보를 찾을 수 없습니다. 최신 목록을 확인해 주세요.'
   if (error.status === 409) return '상태가 이미 변경되었습니다. 최신 목록을 다시 불러왔습니다.'
-  if (error.status === 503) return '대기열 서비스를 일시적으로 사용할 수 없습니다.'
-  if (error.status === 0) return '네트워크 연결을 확인한 뒤 다시 시도하세요.'
+  if (error.status === 503) return unavailableMessage
+  if (error.status === 0) return '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
   return fallback
 }
 

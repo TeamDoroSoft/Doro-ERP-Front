@@ -15,7 +15,7 @@ describe('Phase 06 management views', () => {
     const wrapper = mount(SalesClosingView)
     expect(wrapper.get('h1').text()).toBe('일별 매출과 마감')
     expect((wrapper.get('input[type=date]').element as HTMLInputElement).value).toBe('')
-    expect(wrapper.text()).toContain('조회할 영업일을 선택하세요')
+    expect(wrapper.text()).toContain('조회할 영업일을 선택해 주세요')
   })
   it('loads store and employees from their real endpoints', async () => {
     vi.stubGlobal(

@@ -32,7 +32,7 @@ test('[mock-ui] shows the active table management screen', async ({ page }) => {
 
   await page.goto('/')
   await expect(page).toHaveURL(/\/pos\/orders$/)
-  await expect(page.getByRole('heading', { name: '주문 목록' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '주문', exact: true })).toBeVisible()
 
   await page.goto('/tables')
   await expect(page).toHaveURL(/\/pos\/tables$/)

@@ -40,11 +40,11 @@ describe('AuditLogView', () => {
   it('renders and loads the audit table for an allowed role', async () => {
     const wrapper = mountView('MANAGER')
     await flushPromises()
-    expect(wrapper.get('h1').text()).toBe('감사 이력')
-    expect(wrapper.text()).toContain('ORDER_ACCEPTED')
-    expect(wrapper.text()).toContain('주문 접수')
+    expect(wrapper.get('h1').text()).toBe('운영 변경 내역')
+    expect(wrapper.text()).not.toContain('ORDER_ACCEPTED')
+    expect(wrapper.text()).toContain('주문 확정')
     expect(wrapper.text()).toContain('주문')
-    expect(wrapper.text()).toContain('관리자')
+    expect(wrapper.text()).toContain('매니저')
     expect(auditApi.getAudits).toHaveBeenCalledOnce()
   })
 
@@ -52,14 +52,14 @@ describe('AuditLogView', () => {
     auditApi.getAudits.mockReturnValue(new Promise(() => undefined))
     const wrapper = mountView('OWNER')
     await nextTick()
-    expect(wrapper.get('[role="status"]').text()).toContain('데이터를 불러오는 중')
+    expect(wrapper.get('[role="status"]').text()).toContain('불러오는 중')
   })
 
   it('shows the empty state', async () => {
     auditApi.getAudits.mockResolvedValue({ items: [], nextCursor: null })
     const wrapper = mountView('OWNER')
     await flushPromises()
-    expect(wrapper.text()).toContain('감사 이력이 없습니다')
+    expect(wrapper.text()).toContain('운영 변경 내역이 없습니다')
   })
 
   it('shows API and forbidden errors without redirecting', async () => {
@@ -67,7 +67,7 @@ describe('AuditLogView', () => {
     const wrapper = mountView('MANAGER')
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain('이 기능에 접근할 권한이 없습니다')
-    expect(wrapper.text()).toContain('req-1')
+    expect(wrapper.text()).not.toContain('req-1')
   })
 
   it('applies only supported filters and resets them', async () => {
@@ -103,12 +103,12 @@ describe('AuditLogView', () => {
   it('loads the selected record into a detail drawer', async () => {
     const wrapper = mountView('MANAGER')
     await flushPromises()
-    await wrapper.get('[aria-label="감사 기록 상세 보기"]').trigger('click')
+    await wrapper.get('[aria-label="변경 기록 상세 보기"]').trigger('click')
     await flushPromises()
     expect(auditApi.getAudit).toHaveBeenCalledWith(item.id)
-    expect(wrapper.get('#audit-detail-title').text()).toBe('감사 기록 상세')
-    expect(wrapper.text()).toContain('orderChannel')
-    expect(wrapper.text()).toContain('req-3f2b9c7a')
+    expect(wrapper.get('#audit-detail-title').text()).toBe('변경 기록 상세')
+    expect(wrapper.text()).not.toContain('orderChannel')
+    expect(wrapper.text()).not.toContain('req-3f2b9c7a')
   })
 
   it('renders an int64 metadata amount without rounding it', async () => {
@@ -118,17 +118,17 @@ describe('AuditLogView', () => {
     })
     const wrapper = mountView('OWNER')
     await flushPromises()
-    await wrapper.get('[aria-label="감사 기록 상세 보기"]').trigger('click')
+    await wrapper.get('[aria-label="변경 기록 상세 보기"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('9007199254740993')
-    expect(wrapper.text()).not.toContain('9007199254740992')
-    expect(wrapper.text()).toContain('false')
+    expect(wrapper.text()).not.toContain('9007199254740993')
+    expect(wrapper.text()).not.toContain('totalAmount')
+    expect(wrapper.text()).not.toContain('false')
   })
 
   it('denies STAFF in the UX and does not call the API', () => {
     const wrapper = mountView('STAFF')
-    expect(wrapper.text()).toContain('소유자와 관리자만 조회')
+    expect(wrapper.text()).toContain('점주와 매니저만 조회')
     expect(auditApi.getAudits).not.toHaveBeenCalled()
   })
 })

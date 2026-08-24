@@ -79,7 +79,7 @@ describe('OrderPaymentPanel', () => {
     await wrapper.get('.payment-panel__primary').trigger('click')
 
     expect(createPayment).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('테스트 결제 설정')
+    expect(wrapper.text()).toContain('결제를 시작할 수 없습니다')
   })
 
   it('uses only server-generated Toss identifiers and retains the recent payment lookup', async () => {

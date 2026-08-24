@@ -40,7 +40,7 @@ export function safeApiErrorMessage(
 ) {
   if (!(error instanceof ApiError)) return fallback
   if (error.status === 0) return '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
-  if (error.status === 401) return '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.'
+  if (error.status === 401) return '로그인 시간이 만료되었습니다. 다시 로그인해 주세요.'
   if (error.status === 403) return '이 작업을 수행할 권한이 없습니다.'
   if (error.status === 404) return '요청한 정보를 찾을 수 없습니다.'
   if (error.status === 409)

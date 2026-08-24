@@ -108,7 +108,7 @@ function mutationMessage(caught: unknown, fallback: string) {
   if (caught.status === 403) return '이 주문을 변경할 권한이 없습니다.'
   if (caught.status === 404)
     return '주문을 찾을 수 없습니다. 목록으로 돌아가 최신 주문을 확인해 주세요.'
-  if (caught.status === 503) return '주문 서비스를 일시적으로 사용할 수 없습니다.'
+  if (caught.status === 503) return '주문을 지금 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.'
   if (caught.status === 400 || caught.code === 'VALIDATION_FAILED')
     return '주문 요청을 확인해 주세요.'
   return fallback
@@ -128,7 +128,7 @@ function queryError(caught: unknown): ApiError {
     return new ApiError(503, {
       code: caught.code,
       requestId,
-      detail: '주문 서비스를 일시적으로 사용할 수 없습니다.',
+      detail: '주문을 지금 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.',
     })
   // See `PosOrdersView.queryError`: preserve the real status/code, replace only the message.
   if (caught instanceof ApiError && caught.status !== 0)
@@ -148,9 +148,7 @@ function queryError(caught: unknown): ApiError {
 
 <template>
   <main class="detail-page">
-    <button class="back" type="button" @click="router.push({ name: 'pos-orders' })">
-      주문 목록
-    </button>
+    <header class="detail-header"><button class="back" type="button" @click="router.push({ name: 'pos-orders' })">주문 목록</button><span>운영 / 주문 상세</span></header>
     <LoadingState v-if="loading" />
     <ApiErrorNotice
       v-else-if="error"
@@ -193,4 +191,5 @@ function queryError(caught: unknown): ApiError {
   font-weight: 700;
   cursor: pointer;
 }
+.detail-header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #dedfe3;padding-bottom:12px}.detail-header span{color:#6b7280;font-size:10px;font-weight:700;letter-spacing:.08em}
 </style>

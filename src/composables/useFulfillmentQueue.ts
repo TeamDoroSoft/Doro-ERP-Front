@@ -4,6 +4,8 @@ import { getFulfillments, markFulfillmentReady, type FulfillmentQueueView } from
 import { queueErrorMessage } from './useEntryQueue'
 import { useBoundedPolling } from './useBoundedPolling'
 
+const FULFILLMENT_UNAVAILABLE = '조리 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
+
 export interface FulfillmentQueueApi {
   list(): Promise<FulfillmentQueueView[]>
   ready(id: string): Promise<FulfillmentQueueView>
@@ -22,7 +24,7 @@ export function useFulfillmentQueue(api: FulfillmentQueueApi = defaultApi) {
     try {
       fulfillments.value = await api.list()
     } catch (error) {
-      errorMessage.value = queueErrorMessage(error, '조리 현황을 불러오지 못했습니다.')
+      errorMessage.value = queueErrorMessage(error, '조리 현황을 불러오지 못했습니다.', FULFILLMENT_UNAVAILABLE)
     } finally {
       if (showLoading) loading.value = false
     }
@@ -37,7 +39,7 @@ export function useFulfillmentQueue(api: FulfillmentQueueApi = defaultApi) {
       await load(false)
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) await load(false)
-      errorMessage.value = queueErrorMessage(error, '준비 완료를 처리하지 못했습니다.')
+      errorMessage.value = queueErrorMessage(error, '준비 완료를 처리하지 못했습니다.', FULFILLMENT_UNAVAILABLE)
     } finally {
       actingId.value = ''
     }

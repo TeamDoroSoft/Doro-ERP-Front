@@ -133,8 +133,8 @@ export function useOrderPayment(
       payment.value = cancelled
       cancellationNotice.value =
         cancelled.status === 'REVIEW_REQUIRED'
-          ? '결제 취소 결과를 확인해야 합니다. 성공이나 실패로 판단하지 말고 상태를 다시 확인하세요.'
-          : '결제 취소 요청이 처리되었습니다. 주문 상태 반영에는 잠시 시간이 걸릴 수 있으니 새로고침해 확인하세요.'
+          ? '결제 취소 결과를 확인해야 합니다. 성공이나 실패로 판단하지 말고 상태를 다시 확인해 주세요.'
+          : '결제 취소 요청이 처리되었습니다. 주문 상태 반영에는 잠시 시간이 걸릴 수 있으니 새로고침해 확인해 주세요.'
       if (cancelled.status === 'REVIEW_REQUIRED') startPolling()
       return cancelled
     } catch (error) {
@@ -233,7 +233,7 @@ function shouldPoll(status: string): boolean {
 
 function userMessage(error: unknown): string {
   if (error instanceof Error && error.message === 'PAYMENT_CONTRACT_ERROR') {
-    return '서버 결제 정보가 주문 또는 결제 요청 조건과 일치하지 않습니다.'
+    return '결제 정보가 주문 내용과 일치하지 않습니다. 결제 상태를 다시 확인해 주세요.'
   }
   return paymentProblemMessage(error)
 }
