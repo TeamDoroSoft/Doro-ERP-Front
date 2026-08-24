@@ -1,0 +1,123 @@
+name: Deploy Public front to S3
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: GitHub Environment containing the AWS deployment variables
+        required: true
+        default: production
+        type: environment
+
+concurrency:
+  group: public-front-${{ inputs.environment }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Deploy Public POS and Kiosk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.environment }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+      TARGET_ENVIRONMENT: ${{ inputs.environment }}
+
+    steps:
+      - name: Check required GitHub variables
+        env:
+          DEPLOY_ROLE_ARN: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
+          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PUBLIC_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Public deployment is restricted to the main branch." >&2
+            exit 1
+          fi
+
+          missing=0
+          for name in DEPLOY_ROLE_ARN S3_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
+            if [[ -z "${!name}" ]]; then
+              echo "GitHub Environment '${TARGET_ENVIRONMENT}' variable ${name} is required." >&2
+              missing=1
+            fi
+          done
+          if [[ ${missing} -ne 0 ]]; then
+            exit 1
+          fi
+          if [[ "${S3_BUCKET}" == s3://* || "${S3_BUCKET}" == */* ]]; then
+            echo "PUBLIC_S3_BUCKET must be a bucket name without s3:// or a path." >&2
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run unit tests once
+        run: npm run test:unit -- --run
+
+      - name: Build Public POS and Kiosk
+        env:
+          VITE_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
+          VITE_TOSS_CLIENT_KEY: ${{ vars.PUBLIC_TOSS_CLIENT_KEY }}
+        run: npm run build
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
+          role-session-name: doro-erp-front-${{ github.run_id }}
+
+      - name: Verify deployment bucket
+        env:
+          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+        run: aws s3api head-bucket --bucket "${S3_BUCKET}"
+
+      - name: Upload immutable Vite assets
+        env:
+          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+        run: |
+          aws s3 sync dist/assets "s3://${S3_BUCKET}/assets" \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Upload Public entry files
+        env:
+          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+        run: |
+          aws s3 sync dist "s3://${S3_BUCKET}" \
+            --delete \
+            --exclude "assets/*" \
+            --cache-control "no-cache"
+
+      - name: Invalidate CloudFront cache
+        env:
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PUBLIC_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Write deployment summary
+        env:
+          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PUBLIC_CLOUDFRONT_DISTRIBUTION_ID }}
+        run: |
+          echo "### Public front" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- Revision: \`${{ github.sha }}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- S3 bucket: \`${S3_BUCKET}\`" >> "${GITHUB_STEP_SUMMARY}"
+          echo "- CloudFront distribution: \`${CLOUDFRONT_DISTRIBUTION_ID}\`" >> "${GITHUB_STEP_SUMMARY}"

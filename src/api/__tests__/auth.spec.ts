@@ -41,7 +41,7 @@ describe('auth API', () => {
   })
 
   it('keeps the session on a wrong current password instead of running the 401 boundary', async () => {
-    const unauthorized = vi.fn()
+    const unauthorized = vi.fn<() => void>()
     registerUnauthorizedHandler(unauthorized)
     fetchMock.mockResolvedValue(
       new Response(
@@ -57,7 +57,7 @@ describe('auth API', () => {
   })
 
   it('surfaces the session-scoped 401 codes without clearing the session in the API layer', async () => {
-    const unauthorized = vi.fn()
+    const unauthorized = vi.fn<() => void>()
     registerUnauthorizedHandler(unauthorized)
     fetchMock.mockResolvedValue(
       new Response(JSON.stringify({ status: 401, code: 'SESSION_ABSOLUTE_EXPIRED' }), {

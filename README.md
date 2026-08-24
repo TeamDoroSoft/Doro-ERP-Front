@@ -53,18 +53,18 @@ Windows PowerShell에서는 동일 명령을 `npm.cmd run dev`처럼 실행할 �
 
 ## 주요 명령어
 
-| 명령어               | 설명                                |
-| -------------------- | ----------------------------------- |
-| `npm run dev`        | Vite 개발 서버 실행                 |
-| `npm run dev:admin`  | Provider Admin 전용 개발 서버 실행  |
-| `npm run build`      | 타입 검사 후 프로덕션 빌드 생성     |
+| 명령어                | 설명                                           |
+| --------------------- | ---------------------------------------------- |
+| `npm run dev`         | Vite 개발 서버 실행                            |
+| `npm run dev:admin`   | Provider Admin 전용 개발 서버 실행             |
+| `npm run build`       | 타입 검사 후 프로덕션 빌드 생성                |
 | `npm run build:admin` | 타입 검사 후 Provider Admin 전용 Artifact 생성 |
-| `npm run preview`    | 생성된 프로덕션 빌드 미리보기       |
-| `npm run type-check` | Vue 및 TypeScript 타입 검사         |
-| `npm run lint`       | Oxlint와 ESLint 검사 및 자동 수정   |
-| `npm run format`     | `src/` 디렉터리를 Prettier로 포매팅 |
-| `npm run test:unit`  | Vitest 단위 테스트 실행             |
-| `npm run test:e2e`   | Playwright E2E 테스트 실행          |
+| `npm run preview`     | 생성된 프로덕션 빌드 미리보기                  |
+| `npm run type-check`  | Vue 및 TypeScript 타입 검사                    |
+| `npm run lint`        | Oxlint와 ESLint 검사 및 자동 수정              |
+| `npm run format`      | `src/` 디렉터리를 Prettier로 포매팅            |
+| `npm run test:unit`   | Vitest 단위 테스트 실행                        |
+| `npm run test:e2e`    | Playwright E2E 테스트 실행                     |
 
 ## 테스트
 
@@ -100,9 +100,11 @@ npm run test:e2e
 
 ```text
 Doro-ERP-Front/
+├── admin.html            # Provider Admin 전용 HTML Entry
 ├── e2e/                 # Playwright E2E 테스트
 ├── public/              # 빌드 과정 없이 제공되는 정적 파일
 ├── src/
+│   ├── admin/           # Provider Admin Entry·실제 Edge API UI·Unit Test
 │   ├── assets/          # 스타일, 이미지 등의 소스 에셋
 │   ├── components/      # 재사용 가능한 Vue 컴포넌트
 │   │   └── __tests__/   # 컴포넌트 단위 테스트
@@ -113,11 +115,14 @@ Doro-ERP-Front/
 │   └── main.ts          # 애플리케이션 진입점
 ├── eslint.config.ts     # ESLint 설정
 ├── playwright.config.ts # Playwright 설정
+├── vite.admin.config.ts # Provider Admin 전용 dist-admin 빌드 설정
 ├── vite.config.ts       # Vite 설정
 └── vitest.config.ts     # Vitest 설정
 ```
 
 `@` 별칭은 `src/` 디렉터리를 가리킵니다.
+일반 `npm run build`는 `dist/`에 POS·Kiosk Artifact를 만들고, `npm run build:admin`은
+별도 Entry를 `dist-admin/`에 출력합니다. 생성된 두 디렉터리는 소스 구조가 아니라 빌드 산출물입니다.
 
 업무 기능이 추가되면 `identity`, `store`, `catalog`, `inventory`, `order`,
 `payment`, `notification` 경계를 유지하고 모듈 간 순환 의존성을 만들지 않습니다.
@@ -139,36 +144,71 @@ Doro-ERP-Front/
 시크릿, 결제 키, 개인정보 또는 값이 채워진 환경 파일은 커밋하지 않습니다. 결제 승인과
 같이 인증정보가 필요한 API는 반드시 백엔드에서 호출합니다.
 
-| 변수                     | 용도                                                        |
-| ------------------------ | ----------------------------------------------------------- |
-| `VITE_API_BASE_URL`      | 명시적 Edge API Base URL. 비우면 same-origin `/api/v1` 사용 |
-| `VITE_EDGE_PROXY_TARGET` | 로컬 개발용 Vite `/api` Proxy 대상                          |
-| `VITE_TOSS_CLIENT_KEY`   | Browser 사용이 허용된 Toss 테스트 Client Key                |
+| 변수                     | 용도                                                                                                               |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| `VITE_API_BASE_URL`      | Edge Origin 또는 `/api/v1` 포함 Base URL. Origin만 입력하면 `/api/v1` 자동 추가; 비우면 same-origin `/api/v1` 사용 |
+| `VITE_EDGE_PROXY_TARGET` | 로컬 개발용 Vite `/api` Proxy 대상                                                                                 |
+| `VITE_TOSS_CLIENT_KEY`   | Browser 사용이 허용된 Toss 테스트 Client Key                                                                       |
 
 Toss Secret Key, Kiosk Secret·Credential, HMAC Key는 `VITE_*` 환경 변수에 넣지 않습니다.
 
 Provider Admin은 Public POS·Kiosk Artifact와 분리된 Entry 및 `dist-admin/` Artifact로 빌드합니다.
 `npm run build`는 Admin Entry·Asset을 포함하지 않으며, `npm run build:admin`은 정적 Container
-배포용 Admin Artifact만 생성합니다. Admin 인증과 `/api/v1/provider/**` API 계약이 승인·구현되기
-전에는 이 Artifact가 업무 API를 호출하지 않습니다.
+배포용 Admin Artifact만 생성합니다. Admin Artifact는 `/api/v1/provider/**`를 호출하므로
+`VITE_API_BASE_URL` 또는 same-origin `/api`가 반드시 `admin` Profile로 실행한 Edge Runtime을
+가리켜야 합니다. Public Edge Profile에서는 Provider Admin Route가 `503`으로 차단됩니다.
+
+## GitHub Actions 배포
+
+두 View Layer는 Build와 배포 대상을 공유하지 않습니다.
+
+| Workflow | Trigger | 결과 |
+| -------- | ------- | ---- |
+| `verify-front.yml` | Pull Request, `main` Push | Lint·Unit Test·Public/Admin Build 및 Admin Container Build 검증 |
+| `deploy-public.yml` | 수동 승인 실행 | Public `dist/`를 S3에 동기화하고 CloudFront Cache 무효화 |
+| `publish-admin.yml` | 수동 승인 실행 | Provider Admin Container를 Git SHA Tag로 ECR에 게시하고 Digest 출력 |
+
+AWS 인증은 Access Key 대신 GitHub OIDC와 Environment별 최소 권한 IAM Role을 사용합니다.
+각 GitHub Environment에는 다음 Variable이 필요합니다.
+
+두 IAM Role과 대상 S3·CloudFront·ECR Resource는 Infra 저장소에서 먼저 생성해야 합니다.
+기존 Service Image 게시 Role을 Front가 공유한다고 가정하지 않습니다.
+
+| Variable | Workflow | 용도 |
+| -------- | -------- | ---- |
+| `AWS_REGION` | Public, Admin | AWS Region. 생략 시 `ap-northeast-2` |
+| `AWS_FRONTEND_DEPLOY_ROLE_ARN` | Public | Public 전용 S3·CloudFront 배포 Role |
+| `PUBLIC_S3_BUCKET` | Public | `dist/` 전용 S3 Bucket 이름 |
+| `PUBLIC_CLOUDFRONT_DISTRIBUTION_ID` | Public | 배포 후 무효화할 Distribution ID |
+| `PUBLIC_API_BASE_URL` | Public | Public Edge API Base URL. same-origin이면 비움 |
+| `PUBLIC_TOSS_CLIENT_KEY` | Public | Browser 공개가 허용된 Toss Client Key |
+| `AWS_ADMIN_ECR_PUSH_ROLE_ARN` | Admin | Admin 전용 ECR Push Role |
+| `ADMIN_ECR_REPOSITORY` | Admin | Provider Admin ECR Repository 이름 |
+
+Admin Workflow는 Private EKS API에 직접 접속하지 않습니다. 출력된 Image Digest를 Infra 저장소의
+승인된 Kustomize Overlay에 기록한 뒤 Infra 배포 절차로 Rollout합니다. Admin API Client와 OIDC
+Session UI는 구현됐지만 실제 Admin Edge Runtime·Browser E2E·배포 검증 완료를 의미하지 않습니다.
 
 ## 주요 Route
 
 - 직원 POS: `/pos/login`, `/pos/orders`, `/pos/queues/entry`, `/pos/queues/fulfillment`,
   `/pos/catalog`, `/pos/tables`, `/pos/sales`, `/pos/settings`, `/pos/history`
-- 고객 Kiosk: `/kiosk`, `/kiosk/cart`, `/kiosk/checkout`,
+- 고객 Kiosk: `/kiosk/activate`, `/kiosk`, `/kiosk/cart`, `/kiosk/checkout`,
   `/kiosk/payments/:paymentId`, `/kiosk/orders/:orderId`
 - DEV Preview는 개발 빌드에서만 제공되며 Production 인증 우회 수단이 아닙니다.
 
 ## 검증 경계와 현재 상태
 
-| 영역                                  | Front               | 실제 통합 상태        | 근거·Blocker                                                |
-| ------------------------------------- | ------------------- | --------------------- | ----------------------------------------------------------- |
-| POS Shell·Auth                        | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Mock UI 완료, 실제 Edge Session Runtime 미검증              |
-| Order·Catalog·Table·Queue·Sales·Admin | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge가 해당 외부 Route를 아직 개방하지 않음                 |
-| Payment                               | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 코드는 존재하나 실제 Runtime·Toss Sandbox 미검증 |
-| Audit                                 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 코드는 존재하나 실제 Runtime 미검증              |
-| Kiosk                                 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | CTX-006-K와 Kiosk Edge Route 미완료                         |
+| 영역                            | Front               | 실제 통합 상태        | 근거·Blocker                                                                                |
+| ------------------------------- | ------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
+| POS Shell·Auth                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Route 연결 완료, 실제 배포 Session Runtime 미검증                                 |
+| Order                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Order와 Table Route 연결 완료, 실제 Runtime·AWS 연동 미검증                       |
+| Catalog                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | 판매 메뉴와 Category·Product 관리 Edge Route 연결 완료, 실제 Runtime·AWS 연동 미검증         |
+| Table·Queue·Sales·POS 운영 화면 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front 호출과 Edge Route 계약 정합성 확인 완료, 실제 Runtime 종단 검증 미완료                 |
+| Provider Admin                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Admin API Client·OIDC Session UI·Unit Test 구현, 실제 Admin Runtime·Browser E2E·배포는 미검증 |
+| Payment                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime·Toss Sandbox 미검증                                       |
+| Audit                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime 미검증                                                    |
+| Kiosk                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Kiosk Route 연결 완료, 실제 기기 Credential 종단 검증 미완료                      |
 
 Playwright 테스트는 Browser Route Mock 기반 `mock-ui` 검증입니다. 실제 Edge를 사용하는
 `edge-integration`이나 Toss Test Provider까지 사용하는 `provider-sandbox` 통과를 의미하지 않습니다.
