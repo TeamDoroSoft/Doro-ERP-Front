@@ -61,8 +61,8 @@ export const useOperatorSessionStore = defineStore('operatorSession', () => {
   const canDoDailyClosing = computed(() => role.value === 'OWNER' || role.value === 'MANAGER')
   const canToggleSoldOut = computed(() => role.value === 'OWNER' || role.value === 'MANAGER' || role.value === 'STAFF')
   const roleLabel = computed(() => {
-    if (role.value === 'OWNER') return '최고 관리자'
-    if (role.value === 'MANAGER') return '관리자'
+    if (role.value === 'OWNER') return '점주'
+    if (role.value === 'MANAGER') return '매니저'
     if (role.value === 'STAFF') return '직원'
     return '권한 확인 전'
   })

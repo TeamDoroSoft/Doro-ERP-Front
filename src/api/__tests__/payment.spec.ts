@@ -85,7 +85,7 @@ describe('payment api client', () => {
     )
     expect(
       paymentProblemMessage(new PaymentApiError(422, { code: 'UNKNOWN', detail: 'database host' })),
-    ).toBe('결제 요청을 처리하지 못했습니다. 잠시 후 다시 시도하세요.')
+    ).toBe('결제를 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.')
   })
 
   it('keeps an int64 payment amount beyond Number.MAX_SAFE_INTEGER exact in both directions', async () => {

@@ -70,8 +70,8 @@ function passwordErrorMessage(error: unknown) {
   if (error.status === 403 && error.code === 'ACCESS_DENIED') return '비밀번호 변경 권한을 확인할 수 없습니다.'
   if (error.code === 'EMPLOYEE_NOT_FOUND') return '직원 계정을 찾을 수 없습니다.'
   if (error.code === 'PASSWORD_CHANGE_UNAVAILABLE' || error.code === 'SESSION_VALIDATION_UNAVAILABLE')
-    return '비밀번호 변경 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
-  if (error.code === 'NETWORK_ERROR') return '인증 서버에 연결할 수 없습니다.'
+    return '지금은 비밀번호를 변경할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+  if (error.code === 'NETWORK_ERROR') return '비밀번호를 변경할 수 없습니다. 연결 상태를 확인해 주세요.'
   return safeApiErrorMessage(error, '비밀번호를 변경하지 못했습니다.')
 }
 </script>
@@ -90,7 +90,7 @@ function passwordErrorMessage(error: unknown) {
         <label>새 비밀번호 확인<input v-model="form.confirmPassword" name="confirmPassword" type="password" autocomplete="new-password" /></label>
         <button type="submit" :disabled="busy">{{ busy ? '변경 중…' : '비밀번호 변경' }}</button>
       </form>
-      <button v-if="!required" class="back" type="button" @click="router.push('/pos/orders')">POS 화면으로 돌아가기</button>
+      <button v-if="!required" class="back" type="button" @click="router.push('/pos/orders')">주문 관리로 돌아가기</button>
     </section>
   </main>
 </template>

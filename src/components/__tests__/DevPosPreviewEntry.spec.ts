@@ -7,7 +7,7 @@ describe('DevPosPreviewEntry', () => {
     const wrapper = mount(DevPosPreviewEntry)
     const button = wrapper.get('button')
 
-    expect(button.text()).toBe('POS 화면 미리보기')
+    expect(button.text()).toBe('매장 운영 화면 둘러보기')
     await button.trigger('click')
     expect(wrapper.emitted('preview')).toHaveLength(1)
   })

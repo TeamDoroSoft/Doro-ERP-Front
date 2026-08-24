@@ -67,7 +67,7 @@ describe('PosOrderCreateView', () => {
     await flushPromises()
     await findButton(wrapper, '담기').trigger('click')
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.text()).toContain('활성 테이블을 선택해야 합니다.')
+    expect(wrapper.text()).toContain('매장에서 식사하는 주문은 테이블을 선택해 주세요.')
     await wrapper.get('#order-table').setValue('table-1')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
@@ -125,7 +125,7 @@ describe('PosOrderCreateView', () => {
     await findButton(wrapper, '담기').trigger('click')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
-    expect(wrapper.text()).toContain('같은 요청 키가 다른 주문에 사용되었습니다.')
+    expect(wrapper.text()).toContain('같은 주문 정보가 이미 사용되었습니다.')
     expect(wrapper.text()).not.toContain('raw tenant data')
   })
 

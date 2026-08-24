@@ -56,7 +56,7 @@ describe('TableManagementView', () => {
     const wrapper = mountView('STAFF')
     await flushPromises()
 
-    expect(wrapper.text()).toContain('등록된 활성 테이블이 없습니다.')
+    expect(wrapper.text()).toContain('이용 중인 테이블이 없습니다.')
   })
 
   it('shows a list failure and retry action', async () => {
@@ -66,7 +66,10 @@ describe('TableManagementView', () => {
     const wrapper = mountView('STAFF')
     await flushPromises()
 
-    expect(wrapper.get('[role="alert"]').text()).toContain('목록 조회 실패')
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      '테이블 목록을 불러오지 못했습니다. 다시 시도해 주세요.',
+    )
+    expect(wrapper.get('[role="alert"]').text()).not.toContain('목록 조회 실패')
     expect(wrapper.text()).toContain('다시 시도')
   })
 
@@ -78,7 +81,7 @@ describe('TableManagementView', () => {
 
       expect(wrapper.text()).toContain('테이블 등록')
       expect(wrapper.text()).toContain('수정')
-      expect(wrapper.text()).toContain('비활성화')
+      expect(wrapper.text()).toContain('이용 중지')
     },
   )
 
@@ -89,7 +92,7 @@ describe('TableManagementView', () => {
     expect(wrapper.text()).toContain('A-1')
     expect(wrapper.text()).not.toContain('테이블 등록')
     expect(wrapper.text()).not.toContain('수정')
-    expect(wrapper.text()).not.toContain('비활성화')
+    expect(wrapper.text()).not.toContain('이용 중지')
   })
 
   it('creates a table and refreshes the backend list', async () => {
@@ -126,12 +129,12 @@ describe('TableManagementView', () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const wrapper = mountView('OWNER')
     await flushPromises()
-    await findButton(wrapper, '비활성화').trigger('click')
+    await findButton(wrapper, '이용 중지').trigger('click')
     await flushPromises()
 
     expect(tableApi.changeTableStatus).toHaveBeenCalledWith('table-1', 'INACTIVE')
     expect(tableApi.getTables).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('테이블을 비활성화했습니다.')
+    expect(wrapper.text()).toContain('테이블 이용을 중지했습니다.')
   })
 
   it('connects a duplicate number problem to the table-number field', async () => {
@@ -178,7 +181,7 @@ describe('TableManagementView', () => {
     tableApi.changeTableStatus.mockRejectedValue(problem(404, 'TABLE_NOT_FOUND', 'tenant detail'))
     const wrapper = mountView('OWNER')
     await flushPromises()
-    await findButton(wrapper, '비활성화').trigger('click')
+    await findButton(wrapper, '이용 중지').trigger('click')
     await flushPromises()
 
     expect(wrapper.get('[role="alert"]').text()).toContain('테이블 정보를 찾을 수 없습니다.')
@@ -192,7 +195,7 @@ describe('TableManagementView', () => {
   ])('does not claim deactivation for %s and reloads the active list', async (code, message) => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     tableApi.changeTableStatus.mockRejectedValue(problem(code === 'TABLE_HAS_ACTIVE_ORDER' ? 409 : 503, code, 'raw'))
-    const wrapper = mountView('MANAGER'); await flushPromises(); await findButton(wrapper, '비활성화').trigger('click'); await flushPromises()
+    const wrapper = mountView('MANAGER'); await flushPromises(); await findButton(wrapper, '이용 중지').trigger('click'); await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain(message)
     expect(wrapper.text()).toContain('A-1')
     expect(tableApi.getTables).toHaveBeenCalledTimes(2)

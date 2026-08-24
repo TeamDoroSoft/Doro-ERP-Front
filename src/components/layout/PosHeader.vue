@@ -49,14 +49,14 @@ async function signOut() {
 
 <template>
   <header class="header">
-    <button class="menu-button" type="button" aria-label="POS 메뉴 열기" @click="$emit('toggle-menu')">
+    <button class="menu-button" type="button" aria-label="운영 메뉴 열기" @click="$emit('toggle-menu')">
       <AppIcon name="menu" :size="22" />
     </button>
     <div class="store-context">
       <span class="status-dot" aria-hidden="true" />
       <div>
         <strong>{{ session.tenantCode || '매장 미선택' }}</strong>
-        <span>현재 로그인한 업체 범위입니다.</span>
+        <span>현재 로그인한 업체입니다.</span>
       </div>
       <component :is="DevPreviewBadge" v-if="DevPreviewBadge && session.isPreview" />
     </div>
@@ -79,7 +79,7 @@ async function signOut() {
         <div v-if="menuOpen" class="profile-popover">
           <div class="identity-summary">
             <strong>{{ session.roleLabel }}</strong>
-            <span>직원 계정으로 로그인됨</span>
+            <span>직원 계정으로 로그인했습니다.</span>
           </div>
           <RouterLink to="/pos/account/change-password" @click="menuOpen = false">
             비밀번호 변경
@@ -95,20 +95,20 @@ async function signOut() {
 </template>
 
 <style scoped>
-.header { position: sticky; top: 0; z-index: 10; display: flex; min-height: 72px; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--color-border); background: rgb(255 255 255 / 94%); padding: 0 32px; backdrop-filter: blur(10px); }
+.header { position:sticky; top:0; z-index:10; display:flex; min-height:60px; align-items:center; justify-content:space-between; gap:20px; border-bottom:1px solid #e7eaf0; background:rgb(255 255 255 / 96%); padding:0 30px; backdrop-filter:blur(14px); }
 .menu-button { display: none; border: 0; background: transparent; color: var(--color-heading); font-size: 22px; }
 .store-context, .profile, .header-actions { display: flex; align-items: center; gap: 10px; }
 .store-context div, .profile div { display: grid; }
 .store-context strong, .profile strong { color: var(--color-heading); font-size: 13px; }
 .store-context span, .profile span { color: var(--color-muted); font-size: 11px; }
-.status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--color-warning); }
+.status-dot { width:7px; height:7px; border-radius:50%; background:#3b82f6; box-shadow:0 0 0 4px #eff6ff; }
 .notification { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--color-border); border-radius: 9px; background: white; color: var(--color-muted); }
 .avatar { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: var(--color-primary-soft); color: var(--color-primary) !important; font-weight: 800; }
 .profile-menu { position: relative; }
-.profile { border: 0; border-radius: 10px; background: transparent; padding: 5px 7px; text-align: left; }
+.profile { border: 0; border-radius: 6px; background: transparent; padding: 5px 7px; text-align: left; }
 .profile:hover { background: #f8fafc; }
 .chevron { margin-left: 4px; font-size: 14px !important; }
-.profile-popover { position: absolute; top: calc(100% + 10px); right: 0; display: grid; width: 220px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 12px; background: white; padding: 7px; box-shadow: 0 14px 35px rgb(15 23 42 / 12%); }
+.profile-popover { position: absolute; top: calc(100% + 8px); right: 0; display: grid; width: 220px; overflow: hidden; border: 1px solid var(--color-border); border-radius: 8px; background: white; padding: 6px; box-shadow: var(--shadow-float); }
 .identity-summary { display: grid; border-bottom: 1px solid var(--color-border); padding: 10px; }
 .identity-summary strong { color: var(--color-heading); }
 .identity-summary span { color: var(--color-muted); font-size: 11px; }

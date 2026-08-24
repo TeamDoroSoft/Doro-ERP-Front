@@ -97,7 +97,7 @@ describe('PaymentResultView', () => {
     await flushPromises()
 
     expect(confirmPayment).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('주문 ID 또는 금액')
+    expect(wrapper.text()).toContain('결제 정보가 일치하지 않습니다')
   })
 
   it('shows Toss cancellation and never calls backend confirm', async () => {
@@ -165,10 +165,10 @@ describe('PaymentResultView', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('결제 서비스를 확인할 수 없습니다')
-    expect(wrapper.text()).toContain('결제 서비스를 사용할 수 없습니다')
-    expect(wrapper.get('button').text()).toBe('승인 다시 시도')
-    await wrapper.get('button').trigger('click')
+    expect(wrapper.text()).toContain('결제 상태를 확인할 수 없습니다')
+    expect(wrapper.text()).toContain('잠시 후 다시 시도해 주세요')
+    const retry = wrapper.findAll('button').find((button) => button.text() === '다시 확인')!
+    await retry.trigger('click')
     await flushPromises()
     expect(confirmPayment).toHaveBeenLastCalledWith(
       payment.id,
@@ -193,7 +193,7 @@ describe('PaymentResultView', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('결제 제공자가 요청을 거절했습니다')
+    expect(wrapper.text()).toContain('결제가 승인되지 않았습니다')
     expect(wrapper.text()).not.toContain('untrusted provider decline detail')
     expect(wrapper.text()).not.toContain('승인 다시 시도')
   })

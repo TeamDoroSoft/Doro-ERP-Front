@@ -5,18 +5,15 @@ import { useKioskCartStore } from '@/stores/kioskCart'
 const cart = useKioskCartStore()
 </script>
 <template>
-  <section>
-    <header>
-      <p>장바구니</p>
-      <h1>주문할 메뉴를 확인해주세요</h1>
+  <section class="cart-page">
+    <header class="page-heading">
+      <div><p>주문 내역</p><h1>주문 확인</h1></div>
+      <RouterLink class="back" to="/kiosk">메뉴로 돌아가기</RouterLink>
     </header>
     <div v-if="cart.lines.length" class="content">
       <div class="lines">
         <article v-for="line in cart.lines" :key="line.productId">
-          <div>
-            <h2>{{ line.name }}</h2>
-            <strong>{{ formatKrw(multiplyInt64(line.unitPrice, line.quantity)) }}</strong>
-          </div>
+          <div class="line-name"><div><h2>{{ line.name }}</h2><small>{{ formatKrw(line.unitPrice) }} / 1개</small></div></div>
           <div class="controls">
             <button
               aria-label="수량 줄이기"
@@ -29,108 +26,59 @@ const cart = useKioskCartStore()
               @click="cart.setQuantity(line.productId, line.quantity + 1)"
             >
               +</button
-            ><button class="remove" @click="cart.removeItem(line.productId)">삭제</button>
+            ><strong>{{ formatKrw(multiplyInt64(line.unitPrice, line.quantity)) }}</strong><button class="remove" @click="cart.removeItem(line.productId)">삭제</button>
           </div>
         </article>
       </div>
-      <aside>
-        <p>총 {{ cart.itemCount }}개</p>
-        <strong>{{ formatKrw(cart.estimatedTotal) }}</strong
-        ><small>최종 금액은 주문 확인 시 확정됩니다.</small
-        ><RouterLink to="/kiosk/checkout">주문하기</RouterLink
-        ><RouterLink class="secondary" to="/kiosk">계속 주문</RouterLink
-        ><button @click="cart.clear">장바구니 비우기</button>
+      <aside class="summary">
+        <p>주문 내역 <span>총 {{ cart.itemCount }}개</span></p>
+        <div class="total"><span>총 결제금액</span><strong>{{ formatKrw(cart.estimatedTotal) }}</strong></div>
+        <small>다음 단계에서 매장에서 먹기 또는 포장하기를 선택합니다.</small>
+        <RouterLink to="/kiosk/checkout">이용 방법 선택</RouterLink>
+        <button @click="cart.clear">장바구니 비우기</button>
       </aside>
     </div>
-    <KioskStatePanel v-else title="장바구니가 비어 있어요" message="메뉴를 골라 담아주세요."
-      ><RouterLink class="empty-link" to="/kiosk">메뉴 보러 가기</RouterLink></KioskStatePanel
+    <KioskStatePanel v-else title="선택한 메뉴가 없습니다" message="메뉴 화면에서 주문할 상품을 선택해 주세요."
+      ><RouterLink class="empty-link" to="/kiosk">메뉴로 돌아가기</RouterLink></KioskStatePanel
     >
   </section>
 </template>
 <style scoped>
-header {
-  margin-bottom: 26px;
-}
-header p {
-  color: #126a5a;
-  font-weight: 900;
-}
-header h1 {
-  font-size: 40px;
-}
+.cart-page { max-width: 1120px; margin: 0 auto; }.page-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; margin-bottom: 26px; }.page-heading p { margin: 0 0 5px; color: #087f5b; font-size: 14px; font-weight: 800; }.page-heading h1 { margin: 0; font-size: 32px; letter-spacing: -1px; }.back { border: 1px solid #d1d7d3; border-radius: 4px; padding: 11px 14px; color: #38424a; font-size: 14px; font-weight: 700; }
 .content {
   display: grid;
-  grid-template-columns: 1fr 340px;
-  gap: 22px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 24px;
 }
 .lines {
-  display: grid;
-  gap: 12px;
+  border: 1px solid #d9ddda; border-radius: 6px; background: #fff;
 }
 .lines article {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-radius: 22px;
-  background: #fff;
-  padding: 22px;
+  gap: 18px; border-bottom: 1px solid #e9ecea; padding: 18px;
 }
+.lines article:last-child { border-bottom: 0; }.line-name { min-width: 0; }.line-name h2 { margin: 0 0 4px; font-size: 17px; }.line-name small { color: #70797f; font-size: 13px; }
 .controls {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px; white-space: nowrap;
 }
 .controls button {
-  min-width: 48px;
-  height: 48px;
-  border: 0;
-  border-radius: 14px;
-  background: #e8eee9;
-  font-size: 20px;
+  min-width: 38px; height: 38px; border: 1px solid #d7dcd9; border-radius: 4px; background: #fff; font-size: 19px;
 }
 .controls .remove {
-  font-size: 14px;
-  color: #b42318;
+  min-width: auto; border: 0; color: #a13b32; font-size: 13px;
 }
-aside {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  border-radius: 24px;
-  background: #17211d;
-  padding: 24px;
-  color: #fff;
-}
-aside > strong {
-  font-size: 32px;
-}
-aside small {
-  color: #bac4bf;
-}
-aside a,
-aside button,
+.summary { position: sticky; top: 24px; display: grid; align-content: start; gap: 15px; border: 1px solid #cfd6d1; border-radius: 6px; background: #fff; padding: 20px; }.summary > p { display: flex; justify-content: space-between; margin: 0; font-size: 16px; font-weight: 800; }.summary > p span { color: #087f5b; font-size: 13px; }.total { display: grid; gap: 5px; border-top: 1px solid #e7ebe8; padding-top: 15px; }.total span { color: #687078; font-size: 13px; }.total strong { font-size: 25px; }.summary small { color: #6b7280; line-height: 1.5; }
+.summary a, .summary button,
 .empty-link {
-  display: grid;
-  min-height: 56px;
-  place-items: center;
-  border: 0;
-  border-radius: 17px;
-  background: #f5bd43;
-  color: #17211d;
-  font-weight: 900;
+  display: grid; min-height: 54px; place-items: center; border: 0; border-radius: 4px; background: #087f5b; color: #fff; font-weight: 800;
 }
-.secondary,
-aside button {
-  background: #fff !important;
-}
+.summary button { min-height: auto; background: transparent; color: #687078; font-size: 13px; }
 @media (max-width: 800px) {
-  .content {
-    grid-template-columns: 1fr;
-  }
-  .lines article {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 16px;
-  }
+  .content { grid-template-columns: 1fr; }.summary { position: static; }.lines article { align-items: flex-start; flex-direction: column; gap: 13px; }.controls { width: 100%; justify-content: flex-end; }
 }
+@media (max-width: 560px) { .page-heading { align-items: start; flex-direction: column; }.controls strong { margin-right: auto; } }
 </style>

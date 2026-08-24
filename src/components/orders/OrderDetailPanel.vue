@@ -48,8 +48,8 @@ function tone(status: OrderStatus) {
     <section class="contract-notice" aria-label="주문 상세 정보 안내">
       <h2>주문 요약</h2>
       <p>
-        현재 주문 조회 계약은 주문 번호, 영업일, 금액과 상태만 제공합니다. 품목과 테이블 상세는
-        응답에 포함되지 않습니다.
+        이 화면에서는 주문 번호, 영업일, 금액과 상태를 확인할 수 있습니다. 메뉴와 테이블 정보는
+        표시되지 않습니다.
       </p>
     </section>
     <div class="actions">
@@ -63,7 +63,7 @@ function tone(status: OrderStatus) {
         {{ cancelling ? '취소 중…' : '주문 취소' }}
       </button>
       <p v-else-if="order.status === 'ACCEPTED'" class="payment-guidance">
-        결제 완료 주문은 결제 전액 취소로 처리해야 합니다.
+        결제가 완료된 주문은 먼저 결제를 전액 취소해 주세요.
       </p>
       <button
         v-if="order.status === 'ACCEPTED'"

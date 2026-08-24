@@ -54,7 +54,7 @@ describe('PosOrderDetailView', () => {
     expect(api.completeOrder).toHaveBeenCalledWith('order-1')
     expect(api.getOrder).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('최신 주문 정보를 다시 확인했습니다.')
-    expect(wrapper.text()).toContain('주문 접수')
+    expect(wrapper.text()).toContain('주문 확정')
   })
 
   it('does not expose raw unavailable-service detail', async () => {

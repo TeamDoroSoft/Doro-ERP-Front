@@ -14,9 +14,9 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
   await expect(page.locator('.sidebar')).toHaveCount(0)
   await page.getByLabel('업체 코드').fill('doro')
   await page.getByLabel('기기 코드').fill('K-1')
-  await page.getByLabel('일회성 Secret').fill('one-time')
-  await page.getByRole('button', { name: '기기 활성화' }).click()
-  await expect(page.getByRole('heading', { name: '무엇을 드릴까요?' })).toBeVisible()
+  await page.getByLabel('활성화 코드').fill('one-time')
+  await page.getByRole('button', { name: '기기 연결' }).click()
+  await expect(page.getByRole('heading', { name: '메뉴', exact: true })).toBeVisible()
   await page.setViewportSize({ width: 768, height: 1024 })
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
   await page.setViewportSize({ width: 1366, height: 768 })
@@ -34,14 +34,14 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
   await expect(page.getByRole('button', { name: /아메리카노/ })).toBeFocused()
   await page.getByRole('button', { name: /아메리카노/ }).click()
   await page.getByRole('button', { name: '수량 늘리기' }).click()
-  await page.getByRole('button', { name: /장바구니 담기/ }).click()
-  await page.getByRole('link', { name: /장바구니/ }).click()
+  await page.getByRole('button', { name: /담기/ }).click()
+  await page.getByRole('link', { name: '주문 확인' }).click()
   await expect(page.getByText('총 2개')).toBeVisible()
-  await page.getByRole('link', { name: '주문하기', exact: true }).click()
-  await page.getByText('매장 이용', { exact: true }).click()
+  await page.getByRole('link', { name: '이용 방법 선택' }).click()
+  await page.getByLabel('매장에서 먹기').check()
   await expect(page.getByText('창가 1번')).toBeVisible()
   await page.getByText('창가 1번').click()
-  await page.getByText('포장', { exact: true }).click()
+  await page.getByLabel('포장하기').check()
   if (browserName === 'chromium') {
     await page.setViewportSize({ width: 768, height: 1024 })
     await page.screenshot({
@@ -59,10 +59,10 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
   await expect(page.getByText('9,000원')).toBeVisible()
   await page.getByRole('button', { name: '결제하기' }).click()
   await expect(page).toHaveURL(new RegExp(`/kiosk/orders/${orderId}`))
-  await expect(page.getByText('주문 접수')).toBeVisible()
+  await expect(page.getByText('주문 확정')).toBeVisible()
   await expect(page.getByText('결제 완료')).toBeVisible()
   await expect(page.getByText('조리 중')).toBeVisible()
-  await page.getByRole('button', { name: '수동 새로고침' }).click()
+  await page.getByRole('button', { name: '상태 새로고침' }).click()
   await expect(page.getByText('준비 완료')).toBeVisible()
   await expect(page.getByText(/초 후 다음 고객 화면/)).toBeVisible()
   if (browserName === 'chromium') {
@@ -71,7 +71,7 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
       fullPage: true,
     })
   }
-  await page.getByRole('button', { name: '새 고객 시작' }).click()
+  await page.getByRole('button', { name: '새 주문 시작' }).click()
   await expect(page).toHaveURL(/\/kiosk$/)
 })
 
@@ -88,9 +88,9 @@ test('[mock-ui] blocks an invalid or revoked credential without revealing which 
   await page.goto('/kiosk/activate')
   await page.getByLabel('업체 코드').fill('doro')
   await page.getByLabel('기기 코드').fill('K-2')
-  await page.getByLabel('일회성 Secret').fill('secret')
-  await page.getByRole('button', { name: '기기 활성화' }).click()
-  await expect(page.getByText('기기 인증에 실패했습니다. 입력 내용을 확인해주세요.')).toBeVisible()
+  await page.getByLabel('활성화 코드').fill('secret')
+  await page.getByRole('button', { name: '기기 연결' }).click()
+  await expect(page.getByText('기기를 연결하지 못했습니다. 입력 내용을 확인해 주세요.')).toBeVisible()
   await expect(page.getByText('internal')).toHaveCount(0)
 })
 
@@ -120,9 +120,9 @@ test('[mock-ui] a kiosk payment 401 never touches the employee POS session', asy
 
   await page.goto('/kiosk')
   await page.getByRole('button', { name: /아메리카노/ }).click()
-  await page.getByRole('button', { name: /장바구니 담기/ }).click()
-  await page.getByRole('link', { name: /장바구니/ }).click()
-  await page.getByRole('link', { name: '주문하기', exact: true }).click()
+  await page.getByRole('button', { name: /담기/ }).click()
+  await page.getByRole('link', { name: '주문 확인' }).click()
+  await page.getByRole('link', { name: '이용 방법 선택' }).click()
   await page.getByRole('button', { name: '주문하고 결제하기' }).click()
 
   // The kiosk returns to its own activation screen, never to the employee login.

@@ -42,7 +42,7 @@ const estimatedTotal = computed(() => formatInt64(draft.estimatedTotal.value))
 const loadErrorMessage = computed(() => {
   if (!loadError.value) return ''
   if (loadError.value.status === 403) return '판매 메뉴를 조회할 권한이 없습니다.'
-  if (loadError.value.status === 503) return '판매 메뉴 서비스를 일시적으로 사용할 수 없습니다.'
+  if (loadError.value.status === 503) return '판매 메뉴를 지금 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.'
   return '판매 메뉴를 불러오지 못했습니다.'
 })
 
@@ -141,14 +141,14 @@ function createErrorMessage(error: unknown) {
   if (!(error instanceof ApiError))
     return '주문을 생성하지 못했습니다. 연결을 확인한 뒤 같은 주문으로 다시 시도해 주세요.'
   if (error.status === 0)
-    return '주문 서버에 연결할 수 없습니다. 같은 주문으로 다시 시도해 주세요.'
+    return '주문을 처리할 수 없습니다. 연결 상태를 확인한 뒤 다시 시도해 주세요.'
   if (error.status === 409)
     return error.code === 'IDP_CONFLICT'
-      ? '같은 요청 키가 다른 주문에 사용되었습니다. 주문 내용을 수정하거나 새 주문을 시작해 주세요.'
+      ? '같은 주문 정보가 이미 사용되었습니다. 주문 내용을 확인하거나 새 주문을 시작해 주세요.'
       : '주문이 이미 처리 중이거나 테이블 상태가 변경되었습니다. 잠시 후 주문 상태를 확인해 주세요.'
-  if (error.status === 403) return '주문 생성 권한이 없습니다.'
+  if (error.status === 403) return '주문을 등록할 권한이 없습니다.'
   if (error.status === 503)
-    return '주문 서비스를 지금 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+    return '주문을 지금 처리할 수 없습니다. 잠시 후 다시 시도해 주세요.'
   if (error.status === 400 || error.code === 'VALIDATION_FAILED')
     return '주문 내용을 확인해 주세요. 판매 상태나 수량이 변경되었을 수 있습니다.'
   return '주문을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.'
@@ -157,10 +157,10 @@ function createErrorMessage(error: unknown) {
 
 <template>
   <main class="order-create">
-    <header>
-      <p>POS 주문</p>
+    <header class="order-create-header">
+      <p>운영 / 주문</p>
       <h1>새 주문</h1>
-      <span>서버에서 판매 가능 여부와 최종 금액을 확인합니다.</span>
+      <span>주문할 때 판매 가능 여부와 최종 금액을 확인합니다.</span>
     </header>
     <LoadingState v-if="loading" />
     <ApiErrorNotice
@@ -181,7 +181,7 @@ function createErrorMessage(error: unknown) {
           @update:model-value="setServiceType"
         />
         <label v-if="draft.serviceType.value === 'DINE_IN'" for="order-table"
-          >활성 테이블<select
+          >테이블<select
             id="order-table"
             :value="draft.tableId.value"
             :disabled="creating || tableLoading"
@@ -201,7 +201,7 @@ function createErrorMessage(error: unknown) {
           class="field-error"
           role="alert"
         >
-          활성 테이블을 불러오지 못했습니다.
+          이용할 수 있는 테이블을 불러오지 못했습니다.
           <button type="button" @click="loadTables">다시 시도</button>
         </p>
         <p
@@ -213,7 +213,7 @@ function createErrorMessage(error: unknown) {
           class="field-error"
           role="status"
         >
-          선택할 수 있는 활성 테이블이 없습니다.
+          선택할 수 있는 테이블이 없습니다.
         </p>
       </section>
       <div class="order-grid">
@@ -241,7 +241,7 @@ function createErrorMessage(error: unknown) {
       <p v-if="createError" class="field-error" role="alert">{{ createError }}</p>
       <div class="actions">
         <button type="submit" class="primary" :disabled="creating">
-          {{ creating ? '주문 생성 중…' : submitted ? '같은 주문 다시 시도' : '주문 생성' }}</button
+          {{ creating ? '주문 등록 중…' : submitted ? '같은 주문 다시 시도' : '주문 등록' }}</button
         ><button type="button" :disabled="creating" @click="startNewDraft">
           새 주문
         </button>
@@ -312,6 +312,7 @@ function createErrorMessage(error: unknown) {
   background: var(--color-primary);
   color: white;
 }
+.order-create{max-width:none;margin:0;padding:0}.order-create-header{border-bottom:1px solid #dedfe3;padding:0 0 15px}.order-create-header p{color:#6b7280;font-size:10px;letter-spacing:.08em}.order-create h1{font-size:22px;letter-spacing:-.025em}.order-form{gap:14px;margin-top:16px}.order-settings{border-radius:3px;background:#fff;padding:14px}.order-grid{gap:14px}.actions{border-top:1px solid #dedfe3;padding-top:14px}.actions button{border-radius:3px}
 @media (max-width: 760px) {
   .order-grid {
     grid-template-columns: 1fr;
