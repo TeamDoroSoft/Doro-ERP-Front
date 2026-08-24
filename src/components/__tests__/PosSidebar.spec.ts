@@ -16,7 +16,7 @@ describe('PosSidebar', () => {
       const wrapper = await mountSidebar(role)
       expect(wrapper.text()).toContain('테이블')
       expect(wrapper.text()).toContain('매장·직원 설정')
-      expect(wrapper.text()).toContain('감사·보안 이력')
+      expect(wrapper.text()).toContain('운영·보안 기록')
     }
   })
 
@@ -28,7 +28,7 @@ describe('PosSidebar', () => {
     expect(wrapper.text()).toContain('매출·마감')
     expect(wrapper.text()).not.toContain('테이블')
     expect(wrapper.text()).not.toContain('매장·직원 설정')
-    expect(wrapper.text()).not.toContain('감사·보안 이력')
+    expect(wrapper.text()).not.toContain('운영·보안 기록')
   })
 
   it('marks only currently implemented destinations as ready', async () => {

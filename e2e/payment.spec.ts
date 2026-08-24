@@ -49,7 +49,7 @@ test('[mock-ui] starts from an order, confirms with a separate key, scrubs callb
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+  await page.getByRole('button', { name: '결제하기' }).click()
 
   await expect(page.getByRole('heading', { name: '결제가 완료되었습니다' })).toBeVisible()
   await expect(page).toHaveURL(/\/payments\/toss\/success\?flow=[^&]+$/)
@@ -59,8 +59,8 @@ test('[mock-ui] starts from an order, confirms with a separate key, scrubs callb
 
   await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
   await expect(page).toHaveURL(new RegExp(`/pos/orders/${orderId}$`))
-  await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
-  await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
+  await expect(paymentPanel(page).getByText('결제 완료', { exact: true })).toBeVisible()
+  await expect(page.getByText('주문 확정', { exact: true })).toBeVisible()
   if (browserName === 'chromium') {
     await page.screenshot({
       path: 'docs/screenshots/phase08/pos-owner-order-detail-desktop-paid.png',
@@ -94,14 +94,16 @@ test('[mock-ui] shows a non-retriable message when the payment provider rejects 
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+  await page.getByRole('button', { name: '결제하기' }).click()
 
-  await expect(page.getByRole('heading', { name: '결제 승인 실패' })).toBeVisible()
-  await expect(page.getByText('결제 제공자가 요청을 거절했습니다.', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '승인 다시 시도' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '결제를 완료하지 못했습니다' })).toBeVisible()
+  await expect(
+    page.getByText('결제가 승인되지 않았습니다. 다른 결제 수단을 이용해 주세요.', { exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 확인' })).toHaveCount(0)
 
   await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
-  await expect(page.getByText('결제 대기', { exact: true })).toBeVisible()
+  await expect(paymentPanel(page).getByText('결제 대기', { exact: true })).toBeVisible()
 })
 
 test('[mock-ui] offers a retry when the confirm request fails on the network', async ({ page }) => {
@@ -118,15 +120,15 @@ test('[mock-ui] offers a retry when the confirm request fails on the network', a
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+  await page.getByRole('button', { name: '결제하기' }).click()
 
-  await expect(page.getByRole('heading', { name: '결제 승인 실패' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '결제를 완료하지 못했습니다' })).toBeVisible()
   await expect(
-    page.getByText('결제 승인을 완료하지 못했습니다. 주문에서 결제 상태를 확인하세요.', {
+    page.getByText('결제 승인을 완료하지 못했습니다. 주문에서 결제 상태를 확인해 주세요.', {
       exact: true,
     }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: '승인 다시 시도' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '다시 확인' })).toBeVisible()
   expect(confirmAttempts).toBe(1)
 })
 
@@ -144,13 +146,13 @@ test('[mock-ui] keeps the created PENDING payment discoverable when Toss is canc
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+  await page.getByRole('button', { name: '결제하기' }).click()
   await expect(page.getByRole('heading', { name: '결제가 취소되었습니다' })).toBeVisible()
   expect(confirmRequests).toBe(0)
 
   await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
-  await expect(page.getByText('결제 대기', { exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: '토스 결제 시작' })).toHaveCount(0)
+  await expect(paymentPanel(page).getByText('결제 대기', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '결제하기' })).toHaveCount(0)
 })
 
 test('[mock-ui] does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
@@ -167,12 +169,18 @@ test('[mock-ui] does not infer REVIEW_REQUIRED and lets the employee recheck it 
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await page.getByRole('button', { name: '토스 결제 시작' }).click()
+  await page.getByRole('button', { name: '결제하기' }).click()
   await expect(page.getByRole('heading', { name: '결제 확인이 필요합니다' })).toBeVisible()
   await page.getByRole('button', { name: '주문으로 돌아가기' }).click()
 
   await expect(page.getByText('결제 확인 필요', { exact: true })).toBeVisible()
-  await expect(page.getByText('완료 또는 실패로 판단하지 않고', { exact: false })).toBeVisible()
+  await expect(
+    page.getByText('결제 결과를 바로 확인할 수 없습니다. 결제 상태를 다시 확인해 주세요.', {
+      exact: false,
+    }),
+  ).toBeVisible()
+  // The order screen still offers an explicit recheck instead of inferring an outcome.
+  await expect(page.getByRole('button', { name: /결제 상태 확인|상태 확인 중/ })).toBeVisible()
 })
 
 test('[mock-ui] cancels a PAID payment without optimistically cancelling the order', async ({ page }) => {
@@ -198,16 +206,20 @@ test('[mock-ui] cancels a PAID payment without optimistically cancelling the ord
   })
 
   await page.goto(`/pos/orders/${orderId}`)
-  await expect(page.getByText('결제 완료', { exact: true })).toBeVisible()
+  await expect(paymentPanel(page).getByText('결제 완료', { exact: true })).toBeVisible()
   expect(orderRequests).toBe(1)
   await page.getByRole('button', { name: '전액 취소' }).click()
 
   await expect(page.getByText('결제 취소 요청이 처리되었습니다', { exact: false })).toBeVisible()
-  await expect(page.getByText('주문 접수', { exact: true })).toBeVisible()
+  await expect(page.getByText('주문 확정', { exact: true })).toBeVisible()
   await expect(page.getByText('취소', { exact: true })).toBeVisible()
   expect(cancelKey).toMatch(/^[0-9a-f-]{36}$/)
   expect(orderRequests).toBe(2)
 })
+
+function paymentPanel(page: Page) {
+  return page.getByLabel('주문 결제')
+}
 
 async function mockOrder(page: Page, status: () => 'CREATED' | 'ACCEPTED') {
   await page.route(`**/api/v1/orders/${orderId}`, async (route) => {

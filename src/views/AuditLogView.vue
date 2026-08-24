@@ -116,7 +116,7 @@ function validateFilters() {
   const to = new Date(filters.to)
   if (from > to) return '조회 종료 시각은 시작 시각보다 빠를 수 없습니다.'
   if (to.getTime() - from.getTime() > 31 * 24 * 60 * 60 * 1000) return '조회 기간은 최대 31일입니다.'
-  if (Boolean(filters.targetType.trim()) !== Boolean(filters.targetId.trim())) return '대상 유형과 대상 ID를 함께 입력해 주세요.'
+  if (Boolean(filters.targetType.trim()) !== Boolean(filters.targetId.trim())) return '대상 유형과 대상 번호를 함께 입력해 주세요.'
   return ''
 }
 
@@ -136,15 +136,15 @@ function normalized(value: string) {
 }
 
 function asApiError(reason: unknown) {
-  return reason instanceof ApiError ? reason : new ApiError(0, { code: 'NETWORK_ERROR', detail: '서버에 연결할 수 없습니다.' })
+  return reason instanceof ApiError ? reason : new ApiError(0, { code: 'NETWORK_ERROR', detail: '연결 상태를 확인해 주세요.' })
 }
 
 function errorMessage(value: ApiError) {
   if (value.status === 403 || value.code === 'AUDIT_ROLE_NOT_ALLOWED') return '이 기능에 접근할 권한이 없습니다.'
-  if (value.code === 'AUDIT_RECORD_NOT_FOUND') return '감사 기록을 찾을 수 없습니다.'
+  if (value.code === 'AUDIT_RECORD_NOT_FOUND') return '변경 기록을 찾을 수 없습니다.'
   if (value.code === 'SESSION_VALIDATION_UNAVAILABLE') return '로그인 정보를 확인할 수 없습니다.'
-  if (value.code === 'DEPENDENCY_UNAVAILABLE') return '감사 조회 기능을 일시적으로 사용할 수 없습니다.'
-  return value.message
+  if (value.code === 'DEPENDENCY_UNAVAILABLE') return '운영 변경 내역을 일시적으로 확인할 수 없습니다.'
+  return '운영 변경 내역을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'
 }
 
 function formatDate(value: string) {
@@ -153,31 +153,36 @@ function formatDate(value: string) {
 
 function actorLabel(item: AuditRecord) {
   if (item.actor.type === 'EMPLOYEE') return item.actor.role ? displayLabel(item.actor.role) : '직원'
-  return displayLabel(item.actor.type)
+  return knownLabel(item.actor.type, '시스템')
+}
+
+function knownLabel(value: string, fallback: string) {
+  const label = displayLabel(value)
+  return label === value ? fallback : label
 }
 </script>
 
 <template>
   <section class="audit-page">
-    <PageHeader title="감사 이력" description="직원과 시스템의 주요 변경 내역을 확인합니다." eyebrow="운영 기록">
+    <PageHeader title="운영 변경 내역" description="직원과 시스템의 주요 변경 내역을 확인합니다." eyebrow="운영·보안 기록">
       <template #actions><StatusBadge label="최대 31일 조회" tone="neutral" /></template>
     </PageHeader>
 
     <section v-if="!canQuery" class="permission-panel">
       <div class="permission-icon"><AppIcon name="audit" :size="24" /></div>
       <h2>이 기능에 접근할 권한이 없습니다.</h2>
-      <p>감사 이력은 소유자와 관리자만 조회할 수 있습니다.</p>
+      <p>운영 변경 내역은 점주와 매니저만 조회할 수 있습니다.</p>
     </section>
 
     <template v-else>
-      <form class="filter-panel" aria-label="감사 이력 필터" @submit.prevent="applyFilters">
-        <div class="filter-heading"><div><h2>조회 조건</h2><p>조회 기간을 선택하고 필요한 조건을 입력하세요.</p></div><button class="reset-button" type="button" :disabled="loading" @click="resetFilters">초기화</button></div>
+      <form class="filter-panel" aria-label="운영 변경 내역 필터" @submit.prevent="applyFilters">
+        <div class="filter-heading"><div><h2>조회 조건</h2><p>조회 기간을 선택하고 필요한 조건을 입력해 주세요.</p></div><button class="reset-button" type="button" :disabled="loading" @click="resetFilters">초기화</button></div>
         <div class="filter-grid">
           <label>시작 시각<input v-model="filters.from" name="from" type="datetime-local" required /></label>
           <label>종료 시각<input v-model="filters.to" name="to" type="datetime-local" required /></label>
-          <label>작업 코드<input v-model.trim="filters.action" name="action" placeholder="예: ORDER_ACCEPTED" /></label>
-          <label>대상 유형<input v-model.trim="filters.targetType" name="targetType" placeholder="예: ORDER" /></label>
-          <label class="target-id">대상 ID<input v-model.trim="filters.targetId" name="targetId" placeholder="UUID" /></label>
+          <label>작업 유형<input v-model.trim="filters.action" name="action" placeholder="작업 유형 입력" /></label>
+          <label>대상 유형<input v-model.trim="filters.targetType" name="targetType" placeholder="대상 유형 입력" /></label>
+          <label class="target-id">대상 번호<input v-model.trim="filters.targetId" name="targetId" placeholder="대상 번호 입력" /></label>
           <button class="apply-button" type="submit" :disabled="loading">{{ loading ? '조회 중…' : '필터 적용' }}</button>
         </div>
         <p v-if="validationError" class="validation-error" role="alert">{{ validationError }}</p>
@@ -187,28 +192,27 @@ function actorLabel(item: AuditRecord) {
         <div class="list-heading"><div><h2 id="audit-list-title">조회 결과</h2><p>최신 발생 시각 순 · 페이지당 {{ pageSize }}개</p></div><StatusBadge :label="`${pageIndex + 1} 페이지`" tone="neutral" /></div>
         <LoadingState v-if="loading" />
         <ApiErrorNotice v-else-if="error" :message="errorMessage(error)" :request-id="error.requestId" :retryable="error.status !== 403" @retry="loadPage" />
-        <EmptyState v-else-if="items.length === 0" title="감사 이력이 없습니다" description="조회 기간이나 조건을 변경해 보세요." />
+        <EmptyState v-else-if="items.length === 0" title="운영 변경 내역이 없습니다" description="조회 기간이나 조건을 변경해 보세요." />
         <template v-else>
           <div class="table-scroll">
             <table>
               <thead><tr><th>발생 시각</th><th>수행자</th><th>작업</th><th>대상</th><th>결과</th><th><span class="sr-only">상세</span></th></tr></thead>
-              <tbody><tr v-for="item in items" :key="item.id" tabindex="0" @click="openDetail(item)" @keydown.enter="openDetail(item)"><td><time :datetime="item.occurredAt">{{ formatDate(item.occurredAt) }}</time><small>{{ item.sourceService }}</small></td><td><strong>{{ actorLabel(item) }}</strong></td><td><strong>{{ displayLabel(item.action) }}</strong><small>{{ item.action }}</small></td><td><strong>{{ displayLabel(item.target.type) }}</strong><small class="mono">{{ item.target.id }}</small></td><td><StatusBadge :label="item.result === 'SUCCESS' ? '성공' : '실패'" :tone="item.result === 'SUCCESS' ? 'success' : 'danger'" /></td><td><button type="button" aria-label="감사 기록 상세 보기" @click.stop="openDetail(item)">상세</button></td></tr></tbody>
+              <tbody><tr v-for="item in items" :key="item.id" tabindex="0" @click="openDetail(item)" @keydown.enter="openDetail(item)"><td><time :datetime="item.occurredAt">{{ formatDate(item.occurredAt) }}</time></td><td><strong>{{ actorLabel(item) }}</strong></td><td><strong>{{ knownLabel(item.action, '기타 작업') }}</strong></td><td><strong>{{ knownLabel(item.target.type, '기타 대상') }}</strong><small class="mono">{{ item.target.id }}</small></td><td><StatusBadge :label="item.result === 'SUCCESS' ? '성공' : '실패'" :tone="item.result === 'SUCCESS' ? 'success' : 'danger'" /></td><td><button type="button" aria-label="변경 기록 상세 보기" @click.stop="openDetail(item)">상세</button></td></tr></tbody>
             </table>
           </div>
-          <nav class="pagination" aria-label="감사 이력 페이지"><button type="button" :disabled="pageIndex === 0 || loading" @click="previousPage">이전</button><span>{{ pageIndex + 1 }} 페이지</span><button type="button" :disabled="!nextCursor || loading" @click="nextPage">다음</button></nav>
+          <nav class="pagination" aria-label="운영 변경 내역 페이지"><button type="button" :disabled="pageIndex === 0 || loading" @click="previousPage">이전</button><span>{{ pageIndex + 1 }} 페이지</span><button type="button" :disabled="!nextCursor || loading" @click="nextPage">다음</button></nav>
         </template>
       </section>
     </template>
 
     <div v-if="selected" class="drawer-backdrop" @click.self="closeDetail">
       <aside ref="drawer" class="detail-drawer" role="dialog" aria-modal="true" aria-labelledby="audit-detail-title" @keydown.esc.prevent="closeDetail">
-        <header><div><p>상세 정보</p><h2 id="audit-detail-title">감사 기록 상세</h2></div><button type="button" aria-label="상세 닫기" @click="closeDetail">×</button></header>
+        <header><div><p>상세 정보</p><h2 id="audit-detail-title">변경 기록 상세</h2></div><button type="button" aria-label="상세 닫기" @click="closeDetail">×</button></header>
         <LoadingState v-if="detailLoading" />
         <ApiErrorNotice v-else-if="detailError" :message="errorMessage(detailError)" :request-id="detailError.requestId" />
         <div v-else class="detail-content">
-          <div class="detail-hero"><StatusBadge :label="selected.result === 'SUCCESS' ? '성공' : '실패'" :tone="selected.result === 'SUCCESS' ? 'success' : 'danger'" /><h3>{{ displayLabel(selected.action) }}</h3><time>{{ formatDate(selected.occurredAt) }}</time></div>
-          <dl><div><dt>작업 코드</dt><dd class="mono">{{ selected.action }}</dd></div><div><dt>수행자</dt><dd>{{ actorLabel(selected) }}</dd></div><div><dt>수행자 ID</dt><dd class="mono">{{ selected.actor.id }}</dd></div><div><dt>대상</dt><dd>{{ displayLabel(selected.target.type) }}</dd></div><div><dt>대상 ID</dt><dd class="mono">{{ selected.target.id }}</dd></div><div><dt>발생 서비스</dt><dd>{{ selected.sourceService }}</dd></div><div><dt>감사 기록 ID</dt><dd class="mono">{{ selected.id }}</dd></div><div><dt>이벤트 ID</dt><dd class="mono">{{ selected.eventId }}</dd></div><div><dt>추적 ID</dt><dd class="mono">{{ selected.traceId }}</dd></div><div v-if="selected.reasonCode"><dt>사유 코드</dt><dd>{{ selected.reasonCode }}</dd></div></dl>
-          <section class="metadata"><h3>추가 정보</h3><p v-if="Object.keys(selected.metadata).length === 0">추가 정보가 없습니다.</p><dl v-else><div v-for="(value, key) in selected.metadata" :key="key"><dt>{{ key }}</dt><dd>{{ value === null ? '없음' : String(value) }}</dd></div></dl></section>
+          <div class="detail-hero"><StatusBadge :label="selected.result === 'SUCCESS' ? '성공' : '실패'" :tone="selected.result === 'SUCCESS' ? 'success' : 'danger'" /><h3>{{ knownLabel(selected.action, '기타 작업') }}</h3><time>{{ formatDate(selected.occurredAt) }}</time></div>
+          <dl><div><dt>작업</dt><dd>{{ knownLabel(selected.action, '기타 작업') }}</dd></div><div><dt>수행자</dt><dd>{{ actorLabel(selected) }}</dd></div><div><dt>직원 번호</dt><dd class="mono">{{ selected.actor.id }}</dd></div><div><dt>대상</dt><dd>{{ knownLabel(selected.target.type, '기타 대상') }}</dd></div><div><dt>대상 번호</dt><dd class="mono">{{ selected.target.id }}</dd></div><div><dt>기록 번호</dt><dd class="mono">{{ selected.id }}</dd></div><div v-if="selected.reasonCode"><dt>처리 사유</dt><dd>{{ knownLabel(selected.reasonCode, '확인 필요') }}</dd></div></dl>
         </div>
       </aside>
     </div>
@@ -220,4 +224,5 @@ function actorLabel(item: AuditRecord) {
 @media (max-width: 1200px) { .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.apply-button { width: 100%; } }
 @media (max-width: 760px) { .filter-panel, .list-panel { padding: 17px; }.filter-grid { grid-template-columns: 1fr 1fr; }.target-id { grid-column: 1 / -1; }.filter-heading, .list-heading { align-items: stretch; flex-direction: column; }.reset-button { align-self: flex-start; } }
 @media (max-width: 520px) { .filter-grid { grid-template-columns: 1fr; }.target-id { grid-column: auto; }.detail-drawer { width: 100%; } }
+.audit-page{gap:14px}.filter-panel,.list-panel,.permission-panel{border-radius:3px;padding:16px}.filter-heading,.list-heading{margin-bottom:12px}.filter-grid{gap:8px}.filter-grid input{min-height:34px;border-radius:3px}.apply-button,.reset-button,.pagination button,tbody button{min-height:32px;border-radius:3px;font-size:12px}.apply-button{background:#009b6b;border-color:#009b6b}.table-scroll{margin:0 -16px -16px}.table-scroll th{background:#f7f7f8;padding:9px 12px}.table-scroll td{padding:10px 12px}.detail-drawer{box-shadow:-10px 0 24px rgb(15 23 42 / 10%)}.detail-drawer>header{padding:16px}.detail-hero{border-radius:3px;background:#f7f7f8}.detail-content{padding:16px}
 </style>

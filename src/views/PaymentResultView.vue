@@ -25,8 +25,8 @@ const successRedirect = computed(() => route.name === 'payment-toss-success')
 
 const busy = ref(false)
 const result = ref<PaymentResponse | null>(null)
-const title = ref('결제 결과 확인 중')
-const message = ref('결제 승인 결과를 확인하고 있습니다.')
+const title = ref('결제 결과를 확인하고 있습니다')
+const message = ref('잠시만 기다려 주세요.')
 const errorCode = ref('')
 const canRetry = ref(false)
 const orderId = ref('')
@@ -59,7 +59,7 @@ async function approvePayment() {
   }
   const validationMessage = validateRedirect(pending)
   if (validationMessage) {
-    title.value = '결제 정보 검증 실패'
+    title.value = '결제 정보를 확인할 수 없습니다'
     message.value = validationMessage
     errorCode.value = 'PAYMENT_REDIRECT_MISMATCH'
     canRetry.value = false
@@ -68,8 +68,8 @@ async function approvePayment() {
   }
 
   busy.value = true
-  title.value = '결제 승인 중'
-  message.value = '토스 결제 인증을 승인하고 있습니다.'
+  title.value = '결제를 확인하고 있습니다'
+  message.value = '결제 결과를 확인하는 동안 잠시만 기다려 주세요.'
   errorCode.value = ''
   canRetry.value = false
   try {
@@ -90,7 +90,7 @@ async function approvePayment() {
     } else if (confirmed.status === 'REVIEW_REQUIRED') {
       title.value = '결제 확인이 필요합니다'
       message.value =
-        '결제 결과가 불명확합니다. 성공 또는 실패로 추측하지 말고 운영 확인을 진행하세요.'
+        '결제 결과를 바로 확인할 수 없습니다. 주문 화면에서 결제 상태를 다시 확인해 주세요.'
     } else {
       title.value = '결제가 완료되지 않았습니다'
       message.value = `결제 상태는 ${displayLabel(confirmed.status)}입니다.`
@@ -123,13 +123,13 @@ function showTossFailure() {
   const knownCodes = ['PAY_PROCESS_CANCELED', 'PAY_PROCESS_ABORTED', 'REJECT_CARD_COMPANY']
   const code = knownCodes.includes(returnedCode) ? returnedCode : 'TOSS_PAYMENT_FAILED'
   errorCode.value = code
-  title.value = code === 'PAY_PROCESS_CANCELED' ? '결제가 취소되었습니다' : '토스 결제 인증 실패'
+  title.value = code === 'PAY_PROCESS_CANCELED' ? '결제가 취소되었습니다' : '결제를 완료하지 못했습니다'
   const safeMessageByCode: Record<string, string> = {
-    PAY_PROCESS_CANCELED: '사용자가 결제를 취소했습니다. 결제 승인을 진행하지 않았습니다.',
-    PAY_PROCESS_ABORTED: '결제 인증이 중단되었습니다. 결제 정보를 확인한 뒤 다시 시도하세요.',
-    REJECT_CARD_COMPANY: '카드사에서 결제를 거절했습니다. 다른 결제수단을 확인하세요.',
+    PAY_PROCESS_CANCELED: '결제가 취소되었습니다. 주문에서 다시 결제할 수 있습니다.',
+    PAY_PROCESS_ABORTED: '결제가 중단되었습니다. 결제 정보를 확인한 뒤 다시 시도해 주세요.',
+    REJECT_CARD_COMPANY: '카드사에서 결제를 승인하지 않았습니다. 다른 결제 수단을 이용해 주세요.',
   }
-  message.value = safeMessageByCode[code] ?? '토스페이먼츠에서 결제 인증을 완료하지 못했습니다.'
+  message.value = safeMessageByCode[code] ?? '결제를 완료하지 못했습니다. 주문에서 다시 시도해 주세요.'
   clearPendingPayment(flowId)
 }
 
@@ -143,13 +143,13 @@ function validateRedirect(stored: PendingPayment | null): string {
     !/^\d+$/.test(returnedAmount) ||
     BigInt(returnedAmount) <= 0n
   ) {
-    return '결제 결과에 필요한 정보가 없거나 형식이 올바르지 않습니다.'
+    return '결제 정보를 확인할 수 없습니다. 주문에서 결제 상태를 확인해 주세요.'
   }
   if (
     returnedProviderOrderId !== stored.payment.providerOrderId ||
     returnedAmount !== stored.payment.amount
   ) {
-    return '토스 결제 정보의 주문 ID 또는 금액이 결제 생성 결과와 일치하지 않습니다.'
+    return '결제 정보가 일치하지 않습니다. 주문에서 결제 상태를 확인해 주세요.'
   }
   return ''
 }
@@ -169,7 +169,7 @@ function assertConfirmContract(confirmed: PaymentResponse, stored: PendingPaymen
 
 function handleConfirmError(error: unknown) {
   if (error instanceof ConfirmContractError) {
-    title.value = '결제 정보 확인 실패'
+    title.value = '결제 정보를 확인할 수 없습니다'
     message.value = error.message
     errorCode.value = 'PAYMENT_CONFIRM_CONTRACT_MISMATCH'
     canRetry.value = false
@@ -177,11 +177,11 @@ function handleConfirmError(error: unknown) {
     return
   }
   if (isAuthenticationPaymentError(error)) {
-    title.value = '직원 세션이 만료되었습니다'
+    title.value = '로그인 시간이 만료되었습니다'
   } else if (isDependencyPaymentError(error)) {
-    title.value = '결제 서비스를 확인할 수 없습니다'
+    title.value = '결제 상태를 확인할 수 없습니다'
   } else {
-    title.value = '결제 승인 실패'
+    title.value = '결제를 완료하지 못했습니다'
   }
   message.value = safeConfirmMessage(error)
   errorCode.value = error instanceof PaymentApiError ? error.code : 'NETWORK_ERROR'
@@ -197,7 +197,7 @@ function isRetriableConfirmError(error: unknown): boolean {
 
 function safeConfirmMessage(error: unknown): string {
   if (!(error instanceof PaymentApiError)) {
-    return '네트워크 상태를 확인한 뒤 다시 시도하세요.'
+    return '네트워크 상태를 확인한 뒤 다시 시도해 주세요.'
   }
   const safeCodes = new Set([
     'UNAUTHENTICATED',
@@ -217,7 +217,7 @@ function safeConfirmMessage(error: unknown): string {
   ])
   return safeCodes.has(error.code)
     ? paymentProblemMessage(error)
-    : '결제 승인을 완료하지 못했습니다. 주문에서 결제 상태를 확인하세요.'
+    : '결제 승인을 완료하지 못했습니다. 주문에서 결제 상태를 확인해 주세요.'
 }
 
 async function removeSensitiveQuery() {
@@ -250,22 +250,24 @@ class ConfirmContractError extends Error {
 </script>
 
 <template>
-  <main class="result-shell">
-    <section class="result-card" aria-labelledby="result-title">
-      <p class="result-eyebrow">결제 결과</p>
-      <h1 id="result-title">{{ title }}</h1>
-      <p :class="{ 'result-error': errorCode }" :role="errorCode ? 'alert' : 'status'">
-        {{ message }}
-      </p>
-      <p v-if="errorCode" class="result-code">참고 코드: {{ errorCode }}</p>
-
+  <main class="payment-page">
+    <header class="payment-heading">
+      <div><p class="result-eyebrow">결제 관리</p><h1 id="result-title">{{ title }}</h1></div>
+      <button type="button" class="result-button" @click="returnToOrder">주문으로 돌아가기</button>
+    </header>
+    <section class="payment-notice" :class="{ 'result-error': errorCode }" :role="errorCode ? 'alert' : 'status'">
+      <strong>{{ errorCode ? '결제 상태 확인 필요' : '결제 상태' }}</strong>
+      <span>{{ message }}</span>
+    </section>
+    <section class="payment-record">
+      <div class="record-heading"><h2>결제 상세</h2><span>결제 금액과 현재 상태를 확인합니다.</span></div>
       <dl v-if="result" class="result-facts">
         <div>
-          <dt>결제 ID</dt>
+          <dt>결제 번호</dt>
           <dd>{{ result.id }}</dd>
         </div>
         <div>
-          <dt>주문 ID</dt>
+          <dt>주문 번호</dt>
           <dd>{{ result.orderId }}</dd>
         </div>
         <div>
@@ -277,7 +279,7 @@ class ConfirmContractError extends Error {
           <dd>{{ displayLabel(result.status) }}</dd>
         </div>
       </dl>
-
+      <p v-else class="no-record">결제 승인 결과가 아직 없습니다. 주문에서 결제를 다시 확인해 주세요.</p>
       <div class="result-actions">
         <button
           v-if="canRetry"
@@ -286,10 +288,7 @@ class ConfirmContractError extends Error {
           :disabled="busy"
           @click="approvePayment"
         >
-          {{ busy ? '승인 확인 중…' : '승인 다시 시도' }}
-        </button>
-        <button type="button" class="result-button result-button--primary" @click="returnToOrder">
-          주문으로 돌아가기
+        {{ busy ? '결제 확인 중…' : '다시 확인' }}
         </button>
       </div>
     </section>
@@ -297,40 +296,21 @@ class ConfirmContractError extends Error {
 </template>
 
 <style scoped>
-.result-shell {
-  display: grid;
-  min-height: calc(100vh - 58px);
-  place-items: center;
-  padding: 2rem 1rem;
-}
-
-.result-card {
-  display: grid;
-  width: min(42rem, 100%);
-  gap: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: clamp(1.25rem, 4vw, 2rem);
-  background: var(--color-background-soft);
-  box-shadow: 0 20px 60px rgba(22, 33, 31, 0.08);
-}
-
-.result-card h1,
-.result-card p {
-  margin: 0;
-}
+.payment-page { display: grid; min-height: 100vh; gap: 18px; width: 100%; background: var(--color-background); padding: 30px max(24px, calc((100vw - 1160px) / 2)); }
+.payment-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; border-bottom:1px solid var(--color-border); padding-bottom:14px; }
+.payment-heading h1 { margin:3px 0 0; color:var(--color-heading); font-size:24px; letter-spacing:-.025em; }
+.payment-notice { display:grid; gap:3px; border-left:3px solid var(--color-primary); background:#fff; padding:12px 14px; color:var(--color-text); font-size:13px; }
+.payment-notice strong { color:var(--color-heading); font-size:12px; }.payment-notice small { color:var(--color-muted); font-family:ui-monospace, monospace; }
+.payment-record { border:1px solid var(--color-border); border-radius:4px; background:#fff; }.record-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; border-bottom:1px solid var(--color-border); padding:13px 16px; }.record-heading h2 { margin:0; color:var(--color-heading); font-size:14px; }.record-heading span { color:var(--color-muted); font-size:12px; }.no-record { margin:0; padding:34px 16px; color:var(--color-muted); font-size:13px; text-align:center; }
 
 .result-eyebrow {
-  color: #126a5a;
+  color: var(--color-muted);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
-.result-error,
-.result-code {
-  color: #b42318;
-}
+.result-error { border-left-color: #b42318; color: #8f2222; }
 
 .result-code {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
@@ -338,17 +318,14 @@ class ConfirmContractError extends Error {
 }
 
 .result-facts {
-  display: grid;
   margin: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
 }
 
 .result-facts div {
   display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr);
+  grid-template-columns: 180px minmax(0, 1fr);
   gap: 1rem;
-  padding: 0.7rem 1rem;
+  padding: 12px 16px;
 }
 
 .result-facts div + div {
@@ -366,11 +343,13 @@ class ConfirmContractError extends Error {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
+  border-top: 1px solid var(--color-border);
+  padding: 12px 16px;
 }
 
 .result-button {
-  border: 1px solid var(--color-border-hover);
-  border-radius: 7px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
   padding: 0.7rem 1rem;
   background: #ffffff;
   color: var(--color-heading);
@@ -380,8 +359,8 @@ class ConfirmContractError extends Error {
 }
 
 .result-button--primary {
-  border-color: #126a5a;
-  background: #126a5a;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
   color: #ffffff;
 }
 
@@ -389,4 +368,5 @@ class ConfirmContractError extends Error {
   cursor: not-allowed;
   opacity: 0.55;
 }
+@media (max-width:640px) { .payment-heading { align-items:stretch; flex-direction:column; }.record-heading { align-items:start; flex-direction:column; gap:4px; }.result-facts div { grid-template-columns:1fr; gap:3px; } }
 </style>

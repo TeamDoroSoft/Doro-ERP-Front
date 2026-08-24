@@ -42,7 +42,7 @@ watch(model.payment, (payment, previousPayment) => {
 async function startTossPayment() {
   const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY?.trim()
   if (!clientKey) {
-    model.errorMessage.value = '테스트 결제 설정을 확인해 주세요.'
+    model.errorMessage.value = '결제를 시작할 수 없습니다. 결제 설정을 확인해 주세요.'
     return
   }
   const created = await model.create()
@@ -117,7 +117,7 @@ function formatAmount(amount: Int64String, currency: string) {
     </dl>
 
     <p v-if="model.payment.value?.status === 'REVIEW_REQUIRED'" class="payment-panel__notice">
-      결제 확인이 필요합니다. 완료 또는 실패로 판단하지 않고 결제 상태를 다시 확인하세요.
+      결제 결과를 바로 확인할 수 없습니다. 결제 상태를 다시 확인해 주세요.
     </p>
     <p v-if="model.cancellationNotice.value" class="payment-panel__notice">
       {{ model.cancellationNotice.value }}
@@ -132,7 +132,7 @@ function formatAmount(amount: Int64String, currency: string) {
         :disabled="model.isBusy.value"
         @click="startTossPayment"
       >
-        {{ model.loading.value ? '결제 준비 중…' : '토스 결제 시작' }}
+        {{ model.loading.value ? '결제 준비 중…' : '결제하기' }}
       </button>
       <button
         v-if="model.canCancel.value"
@@ -152,7 +152,7 @@ function formatAmount(amount: Int64String, currency: string) {
         :disabled="model.isBusy.value"
         @click="model.startPolling()"
       >
-        {{ model.polling.value ? '상태 확인 중' : '상태 자동 확인' }}
+        {{ model.polling.value ? '상태 확인 중' : '결제 상태 확인' }}
       </button>
     </div>
   </section>

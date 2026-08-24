@@ -7,7 +7,6 @@ import OrderListPanel from '@/components/orders/OrderListPanel.vue'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
-import PageHeader from '@/components/ui/PageHeader.vue'
 
 const router = useRouter()
 const orders = ref<OrderResponse[]>([])
@@ -46,7 +45,7 @@ function queryError(caught: unknown): ApiError {
     return new ApiError(503, {
       code: caught.code,
       requestId,
-      detail: '주문 조회 서비스를 일시적으로 사용할 수 없습니다.',
+      detail: '주문 목록을 지금 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.',
     })
   if (caught instanceof ApiError && caught.status === 404)
     return new ApiError(404, {
@@ -79,87 +78,29 @@ function openOrder(orderId: string) {
 
 <template>
   <main class="orders-page">
-    <PageHeader
-      eyebrow="POS 주문"
-      title="주문 목록"
-      description="서버 영업일과 주문 상태로 조회합니다."
-    >
-      <template #actions
-        ><button class="primary" type="button" @click="router.push({ name: 'pos-orders-new' })">
-          새 주문
-        </button></template
-      >
-    </PageHeader>
-    <section class="filters" aria-label="주문 필터">
-      <label>영업일 <input v-model="businessDate" type="date" name="businessDate" /></label>
-      <label
-        >주문 상태
-        <select v-model="status" name="status">
-          <option value="">전체 상태</option>
-          <option value="CREATED">주문 생성</option>
-          <option value="ACCEPTED">주문 접수</option>
-          <option value="COMPLETED">처리 완료</option>
-          <option value="CANCELLED">취소</option>
-        </select></label
-      >
-      <button type="button" :disabled="loading" @click="loadOrders">새로고침</button>
+    <header class="orders-topbar">
+      <div class="title-block"><p>주문 관리</p><h1>주문</h1><span>매장 주문을 확인하고 처리합니다.</span></div>
+      <div class="top-actions"><button type="button" class="quiet-action" :disabled="loading" @click="loadOrders">새로고침</button><button class="primary order-create-action" type="button" @click="router.push({ name: 'pos-orders-new' })">주문 등록</button></div>
+    </header>
+    <section class="order-navigation" aria-label="주문 보기 설정">
+      <div class="status-tabs" role="tablist" aria-label="주문 상태 빠른 필터">
+        <button :class="{ active: status === '' }" type="button" @click="status = ''">모든 주문</button>
+        <button :class="{ active: status === 'CREATED' }" type="button" @click="status = 'CREATED'">결제 대기</button>
+        <button :class="{ active: status === 'ACCEPTED' }" type="button" @click="status = 'ACCEPTED'">주문 확정</button>
+        <button :class="{ active: status === 'COMPLETED' }" type="button" @click="status = 'COMPLETED'">주문 완료</button>
+      </div>
+      <div class="filter-actions"><label><span>영업일</span><input v-model="businessDate" type="date" name="businessDate" /></label><label><span>상태</span><select v-model="status" name="status"><option value="">전체</option><option value="CREATED">결제 대기</option><option value="ACCEPTED">주문 확정</option><option value="COMPLETED">주문 완료</option><option value="CANCELLED">취소</option></select></label></div>
     </section>
-    <LoadingState v-if="loading" />
-    <ApiErrorNotice
-      v-else-if="error"
-      :message="safeApiErrorMessage(error)"
-      :request-id="error.requestId"
-      retryable
-      @retry="loadOrders"
-    />
-    <EmptyState
-      v-else-if="orders.length === 0"
-      title="주문이 없습니다"
-      description="선택한 영업일과 상태에 해당하는 주문이 없습니다."
-    />
-    <OrderListPanel v-else :orders="orders" @select="openOrder" />
+    <section class="orders-list-area" aria-label="주문 목록">
+      <div class="list-caption"><strong>주문 목록</strong><span v-if="!loading">{{ orders.length }}건</span><span v-else>불러오는 중</span></div>
+      <LoadingState v-if="loading" />
+      <ApiErrorNotice v-else-if="error" :message="safeApiErrorMessage(error)" :request-id="error.requestId" retryable @retry="loadOrders" />
+      <EmptyState v-else-if="orders.length === 0" title="주문이 없습니다" description="선택한 조건에 해당하는 주문이 없습니다." />
+      <OrderListPanel v-else :orders="orders" @select="openOrder" />
+    </section>
   </main>
 </template>
 
 <style scoped>
-.orders-page {
-  width: 100%;
-}
-.filters {
-  display: flex;
-  align-items: end;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-  flex-wrap: wrap;
-}
-.filters label {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--color-muted);
-  font-size: 0.875rem;
-}
-.filters input,
-.filters select,
-.filters button,
-.primary {
-  min-height: 2.5rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  background: white;
-  padding: 0.4rem 0.65rem;
-  font: inherit;
-}
-.primary {
-  border: 0;
-  background: var(--color-primary);
-  color: white;
-  font-weight: 700;
-}
-button {
-  cursor: pointer;
-}
-button:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
+.orders-page{display:grid;gap:0;width:100%;background:transparent;border:0;overflow:visible;box-shadow:none}.orders-topbar{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:0 0 16px;border-bottom:0;background:transparent}.title-block p{margin:0 0 4px;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:.08em}.title-block h1{margin:0;color:#202124;font-size:20px;letter-spacing:-.025em}.title-block span{display:block;margin-top:4px;color:#6b7280;font-size:12px}.top-actions{display:flex;gap:8px}.quiet-action,.order-create-action{min-height:32px;border-radius:3px;padding:0 11px;font-size:12px;font-weight:650}.quiet-action{border:1px solid #d5d7dc;background:#fff;color:#394150}.order-create-action{border:1px solid #009b6b;background:#009b6b;color:#fff;box-shadow:none}.order-navigation{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:0 14px;border:1px solid #dedfe3;border-bottom:0;background:#fff}.status-tabs{display:flex;gap:24px;align-self:stretch}.status-tabs button{position:relative;min-height:38px;border:0;background:transparent;padding:0;color:#6c707a;font-size:12px;font-weight:600}.status-tabs button.active{color:#007f5b;font-weight:750}.status-tabs button.active::after{position:absolute;right:0;bottom:0;left:0;height:2px;background:#00a878;content:''}.filter-actions{display:flex;gap:7px}.filter-actions label{display:flex;align-items:center;gap:5px;color:#7a7d86;font-size:10px;font-weight:600}.filter-actions input,.filter-actions select{height:28px;border:1px solid #d8dade;border-radius:3px;background:#fff;padding:0 7px;color:#343740;font-size:11px}.orders-list-area{min-height:430px;padding:0;border:1px solid #dedfe3;background:#fff}.list-caption{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid #e9eaed;color:#6e737e;font-size:11px}.list-caption strong{color:#2b2e35;font-size:12px}.orders-list-area :deep(.order-table-wrap){border:0;border-radius:0}.orders-list-area :deep(.api-error){margin:0}@media(max-width:760px){.orders-topbar,.order-navigation{align-items:stretch;flex-direction:column}.order-navigation{padding:0 14px}.status-tabs{overflow:auto}.filter-actions{padding-bottom:10px}.top-actions{justify-content:flex-end}}
 </style>

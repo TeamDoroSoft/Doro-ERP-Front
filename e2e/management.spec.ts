@@ -16,13 +16,13 @@ test.beforeEach(async ({ page }) => {
 
 test('[mock-ui] navigates every Phase 1 POS destination from the sidebar', async ({ page, browserName }) => {
   const screens = [
-    ['주문 관리', '주문 목록'],
+    ['주문 관리', '주문'],
     ['대기·조리', '입장 대기 관리'],
     ['상품·메뉴', '상품·메뉴 관리'],
     ['테이블', '테이블 관리'],
     ['매출·마감', '일별 매출과 마감'],
     ['매장·직원 설정', '매장·직원 설정'],
-    ['감사·보안 이력', '감사 이력'],
+    ['운영·보안 기록', '운영 변경 내역'],
   ] as const
 
   await page.route('**/api/v1/tables', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
@@ -68,7 +68,7 @@ test('[mock-ui] hides manager-only menu items and redirects STAFF away from a di
 
   await expect(page.getByRole('link', { name: /^테이블/ })).toHaveCount(0)
   await expect(page.getByRole('link', { name: /^매장·직원 설정/ })).toHaveCount(0)
-  await expect(page.getByRole('link', { name: /^감사·보안 이력/ })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: /^운영·보안 기록/ })).toHaveCount(0)
 
   await page.goto('/pos/tables')
 
@@ -86,7 +86,7 @@ test('[mock-ui] keeps the implemented Catalog editor usable at tablet width', as
 
   await expect(page.getByRole('heading', { name: '상품·메뉴 관리' })).toBeVisible()
   await expect(page.locator('body')).toHaveCSS('overflow-x', 'visible')
-  await page.getByRole('button', { name: 'Category 생성' }).click()
-  await expect(page.getByRole('heading', { name: 'Category 생성' })).toBeVisible()
-  await expect(page.getByLabel('이름')).toBeVisible()
+  await page.getByRole('button', { name: '분류 등록' }).click()
+  await expect(page.getByRole('heading', { name: '메뉴 분류 등록' })).toBeVisible()
+  await expect(page.getByLabel('분류명')).toBeVisible()
 })

@@ -7,7 +7,7 @@ const session = useKioskSessionStore(),
   form = reactive({ tenantCode: '', deviceCode: '', secret: '' }),
   message = ref(
     session.deviceState === 'AUTH_FAILED'
-      ? '기기 인증을 다시 확인해 주세요.'
+      ? '기기 정보를 다시 확인해 주세요.'
       : '',
   )
 async function activate() {
@@ -20,28 +20,28 @@ async function activate() {
     form.secret = ''
     message.value =
       session.deviceState === 'REVOKED'
-        ? '폐기된 장치입니다. 관리자에게 문의해주세요.'
+        ? '사용할 수 없는 기기입니다. 직원에게 문의해 주세요.'
         : session.deviceState === 'INACTIVE'
-          ? '비활성 장치입니다. 관리자에게 문의해주세요.'
-          : '기기 인증에 실패했습니다. 입력 내용을 확인해주세요.'
+          ? '현재 사용할 수 없는 기기입니다. 직원에게 문의해 주세요.'
+          : '기기를 연결하지 못했습니다. 입력 내용을 확인해 주세요.'
   }
 }
 </script>
 <template>
   <section class="activate">
-    <div>
-      <p>Doro Kiosk</p>
-      <h1>키오스크 활성화</h1>
-      <span>관리자에게 발급받은 기기 정보는 최초 활성화에만 사용됩니다.</span>
+    <div class="activation-panel">
+      <p class="eyebrow">키오스크 연결</p>
+      <h1>키오스크 연결</h1>
+      <span>관리자에게 받은 기기 정보로 키오스크를 연결해 주세요.</span>
       <form @submit.prevent="activate">
         <label>업체 코드<input v-model.trim="form.tenantCode" required /></label
         ><label>기기 코드<input v-model.trim="form.deviceCode" required /></label
         ><label
-          >일회성 Secret<input v-model="form.secret" type="password" autocomplete="off" required
+          >활성화 코드<input v-model="form.secret" type="password" autocomplete="off" required
         /></label>
         <p v-if="message" role="alert">{{ message }}</p>
         <button :disabled="session.activating">
-          {{ session.activating ? '인증 중…' : '기기 활성화' }}
+          {{ session.activating ? '연결 중…' : '기기 연결' }}
         </button>
       </form>
     </div>
@@ -53,17 +53,16 @@ async function activate() {
   min-height: calc(100dvh - 190px);
   place-items: center;
 }
-.activate > div {
+.activation-panel {
   width: min(560px, 100%);
-  border-radius: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
   background: #fff;
-  padding: 44px;
+  padding: 36px;
 }
-.activate h1 {
-  font-size: 36px;
-}
+.activate h1 { margin: 0 0 8px; font-size:30px; letter-spacing: -1px; }.eyebrow { margin: 0 0 7px; color: #087f5b; font-size: 13px; font-weight: 800; }
 .activate span {
-  color: #68766f;
+  color: #6b7280;
 }
 .activate form {
   display: grid;
@@ -76,19 +75,19 @@ async function activate() {
   font-weight: 800;
 }
 .activate input {
-  min-height: 54px;
-  border: 2px solid #ddd6ca;
-  border-radius: 16px;
+  min-height: 44px;
+  border: 1px solid #cbd3ce;
+  border-radius: 4px;
   padding: 0 16px;
   font-size: 17px;
 }
 .activate button {
-  min-height: 62px;
+  min-height: 44px;
   border: 0;
-  border-radius: 18px;
-  background: #126a5a;
+  border-radius: 4px;
+  background: #087f5b;
   color: #fff;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 900;
 }
 .activate form p {

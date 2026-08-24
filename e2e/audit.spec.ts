@@ -48,16 +48,18 @@ test.beforeEach(async ({ page }) => {
 test('[mock-ui] shows the audit list and detail drawer', async ({ page }) => {
   await page.goto('/pos/history')
 
-  await expect(page.getByRole('heading', { name: '감사 이력', exact: true })).toBeVisible()
-  await expect(page.getByText('주문 접수')).toBeVisible()
-  await expect(page.getByText('commerce')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '운영 변경 내역', exact: true })).toBeVisible()
+  await expect(page.getByText('주문 확정')).toBeVisible()
+  await expect(page.getByText(auditRecord.target.id)).toBeVisible()
 
-  await page.getByRole('button', { name: '감사 기록 상세 보기' }).click()
+  await page.getByRole('button', { name: '변경 기록 상세 보기' }).click()
   // Scope the assertions to the drawer so a matching value in the table row cannot satisfy them.
-  const drawer = page.getByRole('dialog', { name: '감사 기록 상세' })
+  const drawer = page.getByRole('dialog', { name: '변경 기록 상세' })
   await expect(drawer).toBeVisible()
-  await expect(drawer.getByText('orderChannel')).toBeVisible()
-  await expect(drawer.getByText('POS', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('대상 번호', { exact: true })).toBeVisible()
+  await expect(drawer.getByText(auditRecord.target.id, { exact: true })).toBeVisible()
+  await expect(drawer.getByText('기록 번호', { exact: true })).toBeVisible()
+  await expect(drawer.getByText(auditRecord.id, { exact: true })).toBeVisible()
 })
 
 test('[mock-ui] shows a permission-denied notice when Edge rejects an allowed role with 403', async ({
@@ -89,8 +91,8 @@ test('[mock-ui] keeps the audit screen usable at tablet width', async ({ page })
   await page.setViewportSize({ width: 768, height: 900 })
   await page.goto('/pos/history')
 
-  await expect(page.getByRole('heading', { name: '감사 이력', exact: true })).toBeVisible()
-  await expect(page.getByRole('form', { name: '감사 이력 필터' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '운영 변경 내역', exact: true })).toBeVisible()
+  await expect(page.getByRole('form', { name: '운영 변경 내역 필터' })).toBeVisible()
   await expect(page.locator('.table-scroll')).toBeVisible()
   await expect(page.locator('body')).toHaveCSS('overflow-x', 'visible')
 })

@@ -21,7 +21,7 @@ describe('LoginView', () => {
 
   it('renders the employee login fields', async () => {
     const wrapper = await mountLogin()
-    expect(wrapper.get('h2').text()).toBe('관리자 로그인')
+    expect(wrapper.get('h2').text()).toBe('직원 로그인')
     expect(wrapper.find('input[name="tenantCode"]').exists()).toBe(true)
     expect(wrapper.find('input[name="loginId"]').exists()).toBe(true)
     expect(wrapper.find('input[name="password"]').attributes('type')).toBe('password')
@@ -88,7 +88,7 @@ describe('LoginView', () => {
     const wrapper = await mountLogin()
     await fillAndSubmit(wrapper)
     await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toContain('업체 코드, 로그인 ID 또는 비밀번호')
+    expect(wrapper.get('[role="alert"]').text()).toContain('업체 코드, 로그인 아이디 또는 비밀번호')
   })
 
   it('shows a safe unavailable message for the Edge login fail-closed problem', async () => {
@@ -98,7 +98,7 @@ describe('LoginView', () => {
     const wrapper = await mountLogin()
     await fillAndSubmit(wrapper)
     await flushPromises()
-    expect(wrapper.get('[role="alert"]').text()).toContain('일시적으로 사용할 수 없습니다')
+    expect(wrapper.get('[role="alert"]').text()).toContain('지금은 로그인할 수 없습니다')
     expect(wrapper.text()).not.toContain('store-access host unreachable')
   })
 

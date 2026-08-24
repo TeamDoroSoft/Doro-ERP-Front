@@ -10,7 +10,6 @@ import {
   type TableResponse,
 } from '@/api/table'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
-import { displayLabel } from '@/ui/displayLabels'
 
 type FormMode = 'create' | 'edit'
 
@@ -36,7 +35,7 @@ async function loadTables() {
   try {
     tables.value = await getTables()
   } catch (error) {
-    listError.value = messageFor(error, '테이블 목록을 불러오지 못했습니다.')
+    listError.value = '테이블 목록을 불러오지 못했습니다. 다시 시도해 주세요.'
   } finally {
     loading.value = false
   }
@@ -105,12 +104,12 @@ async function submitForm() {
 }
 
 async function deactivate(table: TableResponse) {
-  if (!window.confirm(`${table.displayName} 테이블을 비활성화할까요?`)) return
+  if (!window.confirm(`${table.displayName} 테이블 이용을 중지할까요?`)) return
 
   resetOperationMessages()
   try {
     await changeTableStatus(table.id, 'INACTIVE')
-    notice.value = '테이블을 비활성화했습니다.'
+    notice.value = '테이블 이용을 중지했습니다.'
     await loadTables()
   } catch (error) {
     await handleMutationError(error)
@@ -133,7 +132,7 @@ async function handleMutationError(error: unknown) {
       return
     }
     if (error.code === 'TABLE_HAS_ACTIVE_ORDER') {
-      operationError.value = '진행 중인 주문이 있어 테이블을 비활성화할 수 없습니다.'
+      operationError.value = '진행 중인 주문이 있어 테이블 이용을 중지할 수 없습니다.'
       await loadTables()
       return
     }
@@ -160,7 +159,7 @@ async function handleMutationError(error: unknown) {
   }
 
   if (Object.keys(formErrors.value).length === 0) {
-    operationError.value = messageFor(error, '요청을 처리하지 못했습니다.')
+    operationError.value = messageFor(error, '테이블 정보를 저장하지 못했습니다. 다시 시도해 주세요.')
   }
 }
 
@@ -175,23 +174,18 @@ function messageFor(error: unknown, fallback: string): string {
       <div>
         <p class="eyebrow">매장 운영</p>
         <h1>테이블 관리</h1>
-        <p>주문에 사용할 활성 테이블의 번호와 표시 이름을 관리합니다.</p>
+        <p>주문에 사용할 수 있는 테이블을 확인하고 관리합니다.</p>
       </div>
       <button v-if="canManage" class="primary" type="button" @click="openCreateForm">
         테이블 등록
       </button>
     </header>
 
-    <p v-if="session.role === null" class="role-note">
-      현재 계정의 권한을 확인할 수 없어 조회 전용으로 표시합니다.
-    </p>
-    <p v-else class="role-note">현재 권한: {{ displayLabel(session.role) }}</p>
-
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <p v-if="operationError" class="error-banner" role="alert">{{ operationError }}</p>
 
     <section v-if="formMode" class="editor" aria-labelledby="editor-title">
-      <div class="section-heading">
+      <div class="section-heading list-heading">
         <h2 id="editor-title">{{ formMode === 'create' ? '새 테이블 등록' : '테이블 수정' }}</h2>
         <button class="text-button" type="button" :disabled="saving" @click="closeForm">닫기</button>
       </div>
@@ -215,8 +209,8 @@ function messageFor(error: unknown, fallback: string): string {
     <section class="table-list" aria-labelledby="table-list-title" :aria-busy="loading">
       <div class="section-heading">
         <div>
-          <h2 id="table-list-title">활성 테이블</h2>
-          <p>현재 주문에서 선택할 수 있는 테이블입니다.</p>
+          <h2 id="table-list-title">이용 중인 테이블</h2>
+          <p>주문에 사용할 수 있는 테이블을 확인하고 관리합니다.</p>
         </div>
         <button class="text-button" type="button" :disabled="loading" @click="loadTables">새로고침</button>
       </div>
@@ -226,19 +220,8 @@ function messageFor(error: unknown, fallback: string): string {
         <p>{{ listError }}</p>
         <button type="button" @click="loadTables">다시 시도</button>
       </div>
-      <p v-else-if="tables.length === 0" class="state-message">등록된 활성 테이블이 없습니다.</p>
-      <ul v-else class="cards">
-        <li v-for="table in tables" :key="table.id" class="table-card">
-          <div>
-            <span class="table-number">{{ table.tableNumber }}</span>
-            <h3>{{ table.displayName }}</h3>
-          </div>
-          <div v-if="canManage" class="card-actions">
-            <button type="button" @click="openEditForm(table)">수정</button>
-            <button class="danger" type="button" @click="deactivate(table)">비활성화</button>
-          </div>
-        </li>
-      </ul>
+      <p v-else-if="tables.length === 0" class="state-message">이용 중인 테이블이 없습니다.</p>
+      <div v-else class="operations-table-wrap"><table class="operations-table"><thead><tr><th>테이블 번호</th><th>표시 이름</th><th>운영 상태</th><th v-if="canManage" aria-label="작업" /></tr></thead><tbody><tr v-for="table in tables" :key="table.id"><td class="table-number">{{ table.tableNumber }}</td><td><strong>{{ table.displayName }}</strong></td><td><span class="table-status">운영 중</span></td><td v-if="canManage" class="row-actions"><button type="button" @click="openEditForm(table)">수정</button><button class="danger" type="button" @click="deactivate(table)">이용 중지</button></td></tr></tbody></table></div>
     </section>
   </main>
 </template>
@@ -253,7 +236,6 @@ function messageFor(error: unknown, fallback: string): string {
 
 .page-heading,
 .section-heading,
-.table-card,
 .card-actions {
   display: flex;
   align-items: center;
@@ -263,7 +245,6 @@ function messageFor(error: unknown, fallback: string): string {
 
 .page-heading h1,
 .section-heading h2,
-.table-card h3,
 .page-heading p,
 .section-heading p {
   margin: 0;
@@ -277,20 +258,12 @@ function messageFor(error: unknown, fallback: string): string {
   text-transform: uppercase;
 }
 
-.role-note,
 .notice,
 .error-banner,
 .editor,
 .table-list {
-  border-radius: 14px;
+  border-radius: var(--radius-surface);
   padding: 1rem 1.25rem;
-}
-
-.role-note {
-  margin: 0;
-  border: 1px solid #c7d2fe;
-  background: var(--color-primary-soft);
-  color: #4338ca;
 }
 
 .notice {
@@ -332,15 +305,15 @@ label {
 
 input {
   min-height: 42px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   padding: 0.65rem 0.75rem;
   font: inherit;
 }
 
 input:focus-visible,
 button:focus-visible {
-  outline: 3px solid rgb(79 70 229 / 18%);
+  outline: 3px solid rgb(37 99 235 / 16%);
   outline-offset: 2px;
   border-color: var(--color-primary);
 }
@@ -351,8 +324,8 @@ button:focus-visible {
 
 button {
   min-height: 40px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   background: white;
   padding: 0.55rem 0.85rem;
   color: var(--color-text);
@@ -371,7 +344,7 @@ button:disabled {
   background: var(--color-primary);
   color: white;
 }
-.primary:hover:not(:disabled) { background: #4338ca; }
+.primary:hover:not(:disabled) { background: var(--color-primary-hover); }
 
 .text-button {
   border-color: transparent;
@@ -384,24 +357,17 @@ button:disabled {
 }
 
 .state-message {
-  padding: 2.5rem 1rem;
+  margin: 0;
+  padding: 1.25rem 1rem;
   text-align: center;
 }
 
-.cards {
-  display: grid;
-  gap: 0.75rem;
-  margin: 1rem 0 0;
-  padding: 0;
-  list-style: none;
-}
+.error-state { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.error-state p { margin: 0; }
+.error-state button { min-height: 32px; flex: 0 0 auto; padding-block: 0; white-space: nowrap; }
 
-.table-card {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 1rem;
-}
-.table-card:hover { border-color: #c7d2fe; background: #fafaff; }
+.operations-table-wrap { overflow-x: auto; margin: 12px -20px -16px; border-top: 1px solid var(--color-border); }
+.operations-table { width: 100%; min-width: 650px; border-collapse: collapse; }.operations-table th, .operations-table td { height: 46px; border-bottom: 1px solid var(--color-border); padding: 0 20px; text-align: left; font-size: 13px; }.operations-table th { height: 36px; background: var(--color-surface-subtle); color: var(--color-muted); font-size: 11px; font-weight: 750; letter-spacing: .04em; }.operations-table tr:last-child td { border-bottom: 0; }.operations-table tbody tr:hover { background: #fafafa; }.row-actions { display: flex; justify-content: flex-end; gap: 6px; min-width: 150px; white-space: nowrap; }.row-actions button { min-height: 30px; flex-shrink: 0; padding: 0 8px; font-size: 12px; white-space: nowrap; }.table-status { display: inline-flex; border-radius: 999px; background: #ecfdf5; padding: 3px 7px; color: #047857; font-size: 11px; font-weight: 700; }
 
 .table-number {
   color: var(--color-primary);
@@ -409,9 +375,14 @@ button:disabled {
   font-weight: 700;
 }
 
-@media (max-width: 680px) {
+/* Dense restaurant back-office treatment: metadata is a row, operations are a table. */
+.notice, .error-banner { border-radius: 0; padding: .7rem 0; background: transparent; border-bottom: 1px solid var(--color-border); }
+.editor, .table-list { border-radius: 4px; padding: 16px 18px; }
+.operations-table-wrap { margin: 12px -18px -16px; }
+.table-status { background: #f1f5f9; color: #334155; }
+
+@media (max-width: 760px) {
   .page-heading,
-  .table-card,
   .section-heading {
     align-items: stretch;
     flex-direction: column;
@@ -421,8 +392,8 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 
-  .card-actions button {
-    flex: 1;
-  }
+  .page-heading .primary { align-self: flex-start; }
+  .error-state { align-items: stretch; flex-direction: column; text-align: left; }
+  .error-state button { align-self: flex-start; }
 }
 </style>

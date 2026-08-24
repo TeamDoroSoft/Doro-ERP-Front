@@ -55,6 +55,28 @@ describe('queue composables', () => {
     expect(model.fulfillments.value[0]?.status).toBe('READY')
   })
 
+  it('names the unavailable list per screen when the Queue service answers 503', async () => {
+    const entry = inScope(() =>
+      useEntryQueue({
+        list: vi.fn<EntryQueueApi['list']>().mockRejectedValue(new ApiError(503)),
+        register: vi.fn<EntryQueueApi['register']>(),
+        transition: vi.fn<EntryQueueApi['transition']>(),
+      }),
+    )
+    entry.businessDate.value = waiting.businessDate
+    await entry.load()
+    expect(entry.errorMessage.value).toBe('입장 대기 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+
+    const fulfillment = inScope(() =>
+      useFulfillmentQueue({
+        list: vi.fn<FulfillmentQueueApi['list']>().mockRejectedValue(new ApiError(503)),
+        ready: vi.fn<FulfillmentQueueApi['ready']>(),
+      }),
+    )
+    await fulfillment.load()
+    expect(fulfillment.errorMessage.value).toBe('조리 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  })
+
   it('bounds polling and clears its timer with the owning scope', async () => {
     vi.useFakeTimers()
     const callback = vi.fn<() => Promise<void>>().mockResolvedValue(undefined)

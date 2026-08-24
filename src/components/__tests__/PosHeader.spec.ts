@@ -24,7 +24,7 @@ describe('PosHeader', () => {
     session.applyLogin({ employeeId: 'employee-1', role: 'MANAGER', passwordChangeRequired: false }, 'doro')
     const wrapper = await mountHeader()
 
-    expect(wrapper.text()).toContain('관리자')
+    expect(wrapper.text()).toContain('매니저')
     expect(wrapper.text()).toContain('doro')
     await wrapper.get('[aria-label="사용자 메뉴"]').trigger('click')
     const logoutButton = wrapper.findAll('button').find((button) => button.text() === '로그아웃')

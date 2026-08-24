@@ -14,9 +14,9 @@ defineProps<{ title: string; description?: string; eyebrow?: string }>()
 </template>
 
 <style scoped>
-.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
-h1 { margin-bottom: 5px; color: var(--color-heading); font-size: clamp(24px, 3vw, 30px); font-weight: 800; letter-spacing: -.03em; }
+.page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+h1 { margin-bottom: 5px; color: var(--color-heading); font-size: clamp(23px, 3vw, 28px); font-weight: 740; letter-spacing: -.025em; }
 .description { margin-bottom: 0; color: var(--color-muted); }
-.eyebrow { margin-bottom: 5px; color: var(--color-primary); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.eyebrow { margin-bottom: 5px; color: var(--color-muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
 @media (max-width: 640px) { .page-header { flex-direction: column; } }
 </style>

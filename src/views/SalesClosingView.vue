@@ -64,7 +64,7 @@ async function closeDay() {
 function asError(e: unknown) {
   return e instanceof ApiError
     ? e
-    : new ApiError(0, { code: 'NETWORK_ERROR', detail: '서버에 연결할 수 없습니다.' })
+    : new ApiError(0, { code: 'NETWORK_ERROR', detail: '연결 상태를 확인해 주세요.' })
 }
 function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
   return [
@@ -78,7 +78,7 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
   <section class="page">
     <PageHeader
       title="일별 매출과 마감"
-      description="영업일 기준 매출을 조회하고 마감 상태를 확인합니다."
+      description="영업일별 매출과 마감 상태를 확인합니다."
       eyebrow="매출·마감"
     />
     <form class="panel query" @submit.prevent="load">
@@ -94,37 +94,19 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
       @retry="load"
     /><EmptyState
       v-else-if="!daily"
-      title="조회할 영업일을 선택하세요"
-      description="영업일은 서버의 매장 운영 기준으로 집계됩니다."
+      title="조회할 영업일을 선택해 주세요"
+      description="영업일을 선택하면 매출과 마감 상태를 확인할 수 있습니다."
     /><template v-else
       ><section class="panel heading">
-        <div>
-          <h2>{{ daily.businessDate }} 매출</h2>
-          <p>통화: {{ daily.currency }}</p>
-        </div>
-        <StatusBadge
-          :label="daily.closed ? '마감 완료' : '미마감'"
-          :tone="daily.closed ? 'success' : 'warning'"
-        />
+        <div><p class="section-kicker">일일 정산</p><h2>{{ daily.businessDate }} 정산</h2><p>결제 통화 {{ daily.currency }}</p></div>
+        <StatusBadge :label="daily.closed ? '마감 완료' : '미마감'" :tone="daily.closed ? 'success' : 'warning'" />
       </section>
-      <section class="metrics">
-        <article v-for="row in amountRows(daily)" :key="row[0]">
-          <span>{{ row[0] }}</span
-          ><strong>{{ formatExactKrw(row[1]) }}</strong>
-        </article>
-        <article>
-          <span>완료 주문</span><strong>{{ daily.completedOrderCount }}건</strong>
-        </article>
-        <article>
-          <span>취소 주문</span><strong>{{ daily.cancelledOrderCount }}건</strong>
-        </article>
-      </section>
+      <section class="sales-table-wrap"><table class="sales-table"><thead><tr><th>정산 항목</th><th>금액 / 건수</th></tr></thead><tbody><tr v-for="row in amountRows(daily)" :key="row[0]"><td>{{ row[0] }}</td><td>{{ formatExactKrw(row[1]) }}</td></tr><tr><td>완료 주문</td><td>{{ daily.completedOrderCount }}건</td></tr><tr><td>취소 주문</td><td>{{ daily.cancelledOrderCount }}건</td></tr></tbody></table></section>
       <section class="panel closing">
         <div>
           <h2>마감 기록</h2>
           <p v-if="closing">
-            마감 시각 {{ new Date(closing.closedAt).toLocaleString('ko-KR') }} · 기록 ID
-            {{ closing.closingId }}
+            마감 시각 {{ new Date(closing.closedAt).toLocaleString('ko-KR') }}
           </p>
           <p v-else>아직 생성된 마감 기록이 없습니다.</p>
         </div>
@@ -145,10 +127,9 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
   display: grid;
   gap: 18px;
 }
-.panel,
-.metrics article {
+.panel {
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: 4px;
   background: #fff;
   padding: 20px;
 }
@@ -171,36 +152,21 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
 }
 .query input {
   min-height: 42px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
   padding: 0 10px;
 }
 .query button,
 .closing button {
   min-height: 42px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-control);
   background: var(--color-primary);
   padding: 0 18px;
   color: #fff;
   font-weight: 700;
 }
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-.metrics span {
-  display: block;
-  color: var(--color-muted);
-  font-size: 12px;
-}
-.metrics strong {
-  display: block;
-  margin-top: 8px;
-  color: var(--color-heading);
-  font-size: 20px;
-}
+.section-kicker{margin:0 0 4px;color:#6b7280;font-size:10px;font-weight:700;letter-spacing:.08em}.sales-table-wrap{border:1px solid var(--color-border);background:#fff}.sales-table{width:100%;border-collapse:collapse}.sales-table th,.sales-table td{border-bottom:1px solid var(--color-border);padding:12px 16px;text-align:left;font-size:13px}.sales-table th{background:#f7f7f8;color:#6b7280;font-size:11px}.sales-table td:last-child{font-weight:700;text-align:right}.sales-table tr:last-child td{border-bottom:0}
 .heading h2,
 .closing h2 {
   margin: 0;
@@ -218,18 +184,15 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
 }
 .notice {
   margin: 0;
-  border-radius: 8px;
-  background: #ecfdf5;
-  padding: 12px;
-  color: #047857;
+  border-left:3px solid #00a878;
+  background:#fff;
+  padding:12px;
+  color:#276749;
 }
 button:disabled {
   opacity: 0.5;
 }
 @media (max-width: 900px) {
-  .metrics {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 @media (max-width: 560px) {
   .query,
@@ -237,9 +200,6 @@ button:disabled {
   .closing {
     align-items: stretch;
     flex-direction: column;
-  }
-  .metrics {
-    grid-template-columns: 1fr;
   }
 }
 </style>

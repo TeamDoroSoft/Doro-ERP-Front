@@ -75,7 +75,7 @@ describe('useOrderPayment', () => {
       }),
     })
     expect(await invalid.create()).toBeNull()
-    expect(invalid.errorMessage.value).toContain('서버 결제 정보')
+    expect(invalid.errorMessage.value).toContain('결제 정보가 주문 내용과 일치하지 않습니다')
   })
 
   it('refreshes a recent payment and polls PENDING state only for the configured limit', async () => {
@@ -105,7 +105,7 @@ describe('useOrderPayment', () => {
 
     expect(await model.refresh('payment-1')).toBeNull()
     expect(model.payment.value).toBeNull()
-    expect(model.errorMessage.value).toContain('서버 결제 정보')
+    expect(model.errorMessage.value).toContain('결제 정보가 주문 내용과 일치하지 않습니다')
   })
 
   it('cancels PAID with a separate customer-request key and does not change the order', async () => {

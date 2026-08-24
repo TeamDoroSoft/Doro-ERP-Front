@@ -13,19 +13,19 @@ test('[mock-ui] OWNER creates and updates Catalog data and changes sold-out stat
   await page.goto('/pos/catalog')
   await expect(page.getByRole('heading', { name: '상품·메뉴 관리' })).toBeVisible()
 
-  await page.getByRole('button', { name: 'Category 생성' }).click()
-  let editor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: 'Category 생성' }) })
-  await editor.getByLabel('이름').fill('디저트'); await editor.getByLabel('표시 순서').fill('2'); await editor.getByRole('button', { name: '저장' }).click()
+  await page.getByRole('button', { name: '분류 등록' }).click()
+  let editor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: '메뉴 분류 등록' }) })
+  await editor.getByLabel('분류명').fill('디저트'); await editor.getByLabel('표시 순서').fill('2'); await editor.getByRole('button', { name: '저장' }).click()
   await expect(page.getByText('디저트', { exact: true })).toBeVisible()
 
   const coffee = page.locator('.category-list li').filter({ hasText: '커피' })
   await coffee.getByRole('button', { name: '수정' }).click()
-  editor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: 'Category 수정' }) })
-  await editor.getByLabel('이름').fill('커피·차'); await editor.getByRole('button', { name: '저장' }).click()
+  editor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: '메뉴 분류 수정' }) })
+  await editor.getByLabel('분류명').fill('커피·차'); await editor.getByRole('button', { name: '저장' }).click()
   await expect(page.getByText('커피·차', { exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: '상품 생성' }).click()
-  const productEditor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: '상품 생성' }) })
+  await page.getByRole('button', { name: '상품 등록' }).click()
+  const productEditor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: '상품 등록' }) })
   await productEditor.getByLabel('상품명').fill('아메리카노'); await productEditor.getByLabel('가격').fill('4500'); await productEditor.getByLabel('표시 순서').fill('2'); await productEditor.getByRole('button', { name: '저장' }).click()
   await expect(page.getByText('아메리카노', { exact: true })).toBeVisible()
 
@@ -34,7 +34,7 @@ test('[mock-ui] OWNER creates and updates Catalog data and changes sold-out stat
   const editProduct = page.locator('.editor').filter({ has: page.getByRole('heading', { name: '상품 수정' }) })
   await editProduct.getByLabel('상품명').fill('카페라테'); await editProduct.getByLabel('가격').fill('5500'); await editProduct.getByRole('button', { name: '저장' }).click()
   latte = page.getByRole('row').filter({ hasText: '카페라테' }); await expect(latte.getByText('₩5,500')).toBeVisible()
-  await latte.getByRole('button', { name: '비활성화' }).click(); await expect(latte.getByText('비활성', { exact: true })).toBeVisible()
+  await latte.getByRole('button', { name: '판매 중지' }).click(); await expect(latte.getByText('판매 중지', { exact: true })).toBeVisible()
   await latte.getByRole('button', { name: '품절 처리' }).click()
   await expect(latte.getByText('품절', { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: '삭제' })).toHaveCount(0)
@@ -49,8 +49,8 @@ test('[mock-ui] OWNER creates and updates Catalog data and changes sold-out stat
 test('[mock-ui] STAFF can change sold-out but cannot open Catalog management forms', async ({ page }) => {
   await session(page, 'STAFF'); const categories = [{ ...category }]; const products = [{ ...product }]
   await catalogRoutes(page, categories, products); await page.goto('/pos/catalog')
-  await expect(page.getByRole('button', { name: 'Category 생성' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: '상품 생성' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '분류 등록' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '상품 등록' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: '수정' })).toHaveCount(0)
   await page.getByRole('button', { name: '품절 처리' }).click()
   await expect(page.getByRole('cell', { name: '품절', exact: true })).toBeVisible()
@@ -68,7 +68,7 @@ test('[mock-ui] MANAGER manages active tables, sees conflict, and STAFF is route
   await manager.goto('/pos/tables'); await manager.getByRole('button', { name: '테이블 등록' }).click()
   await manager.getByLabel('테이블 번호').fill('B-2'); await manager.getByLabel('표시 이름').fill('홀'); await manager.getByRole('button', { name: '저장' }).click(); await expect(manager.getByText('B-2')).toBeVisible()
   await manager.getByRole('button', { name: '수정' }).first().click(); await manager.getByLabel('표시 이름').fill('중앙'); await manager.getByRole('button', { name: '저장' }).click(); await expect(manager.getByText('중앙')).toBeVisible()
-  manager.on('dialog', (dialog) => dialog.accept()); await manager.getByRole('button', { name: '비활성화' }).first().click(); await expect(manager.getByText('진행 중인 주문이 있어', { exact: false })).toBeVisible(); await expect(manager.getByText('A-1')).toBeVisible()
+  manager.on('dialog', (dialog) => dialog.accept()); await manager.getByRole('button', { name: '이용 중지' }).first().click(); await expect(manager.getByText('진행 중인 주문이 있어', { exact: false })).toBeVisible(); await expect(manager.getByText('A-1')).toBeVisible()
 
   const staff = await browser.newPage(); await session(staff, 'STAFF'); await staff.goto('/pos/tables'); await expect(staff).toHaveURL(/\/pos\/orders\?reason=forbidden/)
 })

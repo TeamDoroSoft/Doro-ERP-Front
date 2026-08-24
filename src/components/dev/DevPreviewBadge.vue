@@ -1,5 +1,5 @@
-<template><span class="preview-badge">개발 미리보기</span></template>
+<template><span class="preview-badge">체험 모드</span></template>
 
 <style scoped>
-.preview-badge { border-radius: 999px; background: var(--color-primary-soft); padding: 4px 8px; color: var(--color-primary); font-size: 9px; font-weight: 800; letter-spacing: .04em; }
+.preview-badge { border-left: 1px solid var(--color-border); padding-left: 9px; color: var(--color-muted); font-size: 10px; font-weight: 600; letter-spacing: .02em; }
 </style>

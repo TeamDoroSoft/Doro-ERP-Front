@@ -4,9 +4,9 @@ defineEmits<{ preview: [] }>()
 
 <template>
   <div class="preview-entry">
-    <span>개발 환경 전용</span>
-    <button type="button" @click="$emit('preview')">POS 화면 미리보기</button>
-    <p>로그인 없이 POS 화면 구성을 확인합니다.</p>
+    <span>화면 체험</span>
+    <button type="button" @click="$emit('preview')">매장 운영 화면 둘러보기</button>
+    <p>로그인 없이 주요 화면을 살펴볼 수 있습니다.</p>
   </div>
 </template>
 

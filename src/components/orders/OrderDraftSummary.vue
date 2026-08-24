@@ -42,7 +42,7 @@ defineEmits<{
     <div class="total">
       <strong>예상 합계</strong><span>{{ estimatedTotal }}원</span>
     </div>
-    <p class="notice">예상 금액이며, 주문 생성 뒤 서버 금액이 적용됩니다.</p>
+    <p class="notice">최종 결제 금액은 주문을 등록할 때 확정됩니다.</p>
   </section>
 </template>
 <style scoped>

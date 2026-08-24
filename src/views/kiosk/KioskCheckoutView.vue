@@ -30,7 +30,7 @@ async function selectType(type: 'DINE_IN' | 'TAKEOUT') {
   try {
     tables.value = await getKioskTables()
   } catch {
-    error.value = '테이블을 불러올 수 없습니다. 잠시 후 다시 시도해주세요.'
+    error.value = '테이블을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.'
   } finally {
     loadingTables.value = false
   }
@@ -53,37 +53,37 @@ async function submit() {
     flow.payment = await createPayment(flow.order.orderId, flow.paymentCreateKey, 'kiosk')
     await router.push(`/kiosk/payments/${flow.payment.id}`)
   } catch {
-    error.value = '주문을 처리하지 못했습니다. 같은 주문으로 다시 시도해주세요.'
+    error.value = '주문을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
   } finally {
     busy.value = false
   }
 }
 </script>
 <template>
-  <section>
-    <header>
-      <p>주문 확인</p>
-      <h1>어디에서 드시나요?</h1>
+  <section class="checkout-page">
+    <header class="page-heading">
+      <p>이용 방법</p>
+      <h1>어떻게 이용하시나요?</h1>
     </header>
-    <div class="types">
+    <div class="types" role="radiogroup" aria-label="이용 방법">
       <label
         ><input
           v-model="serviceType"
           type="radio"
           value="DINE_IN"
           @change="selectType('DINE_IN')"
-        /><strong>매장 이용</strong><span>매장에서 드실게요</span></label
+        /><strong>매장에서 먹기</strong><span>테이블을 선택하고 매장에서 이용합니다</span></label
       ><label
         ><input
           v-model="serviceType"
           type="radio"
           value="TAKEOUT"
           @change="selectType('TAKEOUT')"
-        /><strong>포장</strong><span>가지고 갈게요</span></label
+        /><strong>포장하기</strong><span>포장 주문으로 준비합니다</span></label
       >
     </div>
     <section v-if="serviceType === 'DINE_IN'" class="tables">
-      <h2>테이블 선택</h2>
+      <h2>테이블을 선택해 주세요</h2>
       <p v-if="loadingTables">테이블을 확인하고 있어요…</p>
       <div>
         <label v-for="table in tables" :key="table.id"
@@ -103,92 +103,74 @@ async function submit() {
   </section>
 </template>
 <style scoped>
-header p {
-  color: #126a5a;
-  font-weight: 900;
-}
-header h1 {
-  font-size: 42px;
-}
+.checkout-page { max-width: 900px; margin: 0 auto; }.page-heading { margin-bottom: 26px; }.page-heading p { margin: 0 0 5px; color: #087f5b; font-size: 14px; font-weight: 800; }.page-heading h1 { margin: 0; font-size: 34px; letter-spacing: -1px; }.page-heading span { display: block; margin-top: 8px; color: #6b7280; font-size: 14px; }
 .types {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 18px;
+  gap: 14px;
   margin: 28px 0;
 }
 .types label {
-  display: grid;
-  min-height: 150px;
+  display: grid; position: relative;
+  min-height: 132px;
   align-content: center;
-  gap: 8px;
-  border: 3px solid #ddd6ca;
-  border-radius: 28px;
+  gap: 6px;
+  border: 1px solid #d4dad6;
+  border-radius: 6px;
   background: #fff;
-  padding: 26px;
+  padding: 24px;
 }
 .types label:has(input:checked) {
-  border-color: #126a5a;
-  background: #edf7f3;
+  border: 2px solid #087f5b;
+  background: #f5faf7;
 }
 .types input {
   position: absolute;
   opacity: 0;
 }
-.types strong {
-  font-size: 28px;
-}
+.types strong { font-size: 22px; }
 .types span {
   color: #68766f;
 }
 .tables {
-  border-radius: 24px;
-  background: #fff;
-  padding: 24px;
+  border: 1px solid #d9ddda; border-radius: 6px; background: #fff; padding: 22px;
 }
+.tables h2 { margin: 0 0 16px; font-size: 18px; }
 .tables > div {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 .tables label {
-  min-height: 54px;
-  border: 2px solid #ddd6ca;
-  border-radius: 16px;
-  padding: 15px;
+  min-height: 50px; border: 1px solid #d4dad6; border-radius: 4px; padding: 14px 16px; font-weight: 700;
 }
 .tables label:has(input:checked) {
-  border-color: #126a5a;
+  border: 2px solid #087f5b; color: #087f5b;
 }
 .tables input {
   position: absolute;
   opacity: 0;
 }
 .error {
-  border-radius: 16px;
-  background: #fff0ed;
-  padding: 16px;
+  border: 1px solid #f1c4bd; border-radius: 4px; background: #fff6f4; padding: 14px; color: #a13b32;
   color: #b42318;
 }
-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  margin-top: 28px;
-}
+footer { position: sticky; bottom: 0; display: flex; justify-content: flex-end; gap: 12px; margin-top: 28px; border-top: 1px solid #d9ddda; background: #f3f4f3; padding: 18px 0; }
 footer a,
 footer button {
   display: grid;
-  min-width: 180px;
-  min-height: 62px;
+  min-width: 170px;
+  min-height: 58px;
   place-items: center;
   border: 0;
-  border-radius: 19px;
+  border: 1px solid #d1d7d3;
+  border-radius: 4px;
   background: #fff;
   color: #17211d;
   font-weight: 900;
 }
 footer button {
-  background: #126a5a;
+  border-color: #087f5b; background: #087f5b;
   color: #fff;
 }
 button:disabled {

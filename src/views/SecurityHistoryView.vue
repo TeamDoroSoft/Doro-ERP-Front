@@ -5,6 +5,7 @@ import { ApiError, safeApiErrorMessage } from '@/api/http'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
+import { displayLabel } from '@/ui/displayLabels'
 const now = new Date(),
   from = new Date(now.getTime() - 7 * 86400000),
   filters = reactive({
@@ -45,10 +46,14 @@ async function load(append: boolean) {
     error.value =
       e instanceof ApiError
         ? e
-        : new ApiError(0, { code: 'NETWORK_ERROR', detail: '서버에 연결할 수 없습니다.' })
+        : new ApiError(0, { code: 'NETWORK_ERROR', detail: '연결 상태를 확인해 주세요.' })
   } finally {
     loading.value = false
   }
+}
+function knownLabel(value: string, fallback: string) {
+  const label = displayLabel(value)
+  return label === value ? fallback : label
 }
 </script>
 <template>
@@ -56,15 +61,15 @@ async function load(append: boolean) {
     <form class="filters" @submit.prevent="load(false)">
       <label>시작<input v-model="filters.from" type="datetime-local" required /></label
       ><label>종료<input v-model="filters.to" type="datetime-local" required /></label
-      ><label>이벤트<input v-model.trim="filters.eventType" placeholder="LOGIN_FAILED" /></label
+      ><label>활동 유형<input v-model.trim="filters.eventType" placeholder="활동 유형 입력" /></label
       ><label
         >결과<select v-model="filters.result">
           <option value="">전체</option>
-          <option value="SUCCESS">SUCCESS</option>
-          <option value="FAILURE">FAILURE</option>
+          <option value="SUCCESS">성공</option>
+          <option value="FAILURE">실패</option>
         </select></label
       ><label>대상 유형<input v-model.trim="filters.targetType" /></label
-      ><label>대상 ID<input v-model.trim="filters.targetId" /></label><button>조회</button>
+      ><label>대상 번호<input v-model.trim="filters.targetId" /></label><button>조회</button>
     </form>
     <ApiErrorNotice
       v-if="error"
@@ -74,7 +79,7 @@ async function load(append: boolean) {
       @retry="load(false)"
     /><LoadingState v-else-if="loading && !items.length" /><EmptyState
       v-else-if="!items.length"
-      title="보안 이력이 없습니다"
+      title="로그인·보안 기록이 없습니다"
       description="조회 기간이나 조건을 변경해 보세요."
     />
     <div v-else class="table-wrap">
@@ -82,7 +87,7 @@ async function load(append: boolean) {
         <thead>
           <tr>
             <th>발생 시각</th>
-            <th>이벤트</th>
+            <th>활동</th>
             <th>수행 직원</th>
             <th>대상</th>
             <th>결과</th>
@@ -92,13 +97,13 @@ async function load(append: boolean) {
         <tbody>
           <tr v-for="item in items" :key="item.id">
             <td>{{ new Date(item.occurredAt).toLocaleString('ko-KR') }}</td>
-            <td>{{ item.eventType }}</td>
+            <td>{{ knownLabel(item.eventType, '기타 활동') }}</td>
             <td>{{ item.actorEmployeeId }}</td>
             <td>
-              {{ item.targetType }}<small>{{ item.targetId }}</small>
+              {{ knownLabel(item.targetType, '기타 대상') }}<small>{{ item.targetId }}</small>
             </td>
-            <td>{{ item.result }}</td>
-            <td>{{ item.reasonCode || '-' }}</td>
+            <td>{{ item.result === 'SUCCESS' ? '성공' : '실패' }}</td>
+            <td>{{ item.reasonCode ? knownLabel(item.reasonCode, '확인 필요') : '-' }}</td>
           </tr>
         </tbody>
       </table>

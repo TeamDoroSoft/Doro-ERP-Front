@@ -58,7 +58,7 @@ export function useOrderDraft(createKey: () => string = () => crypto.randomUUID(
   function validate(): OrderDraftValidation {
     const errors: OrderDraftValidation = {}
     if (serviceType.value === 'DINE_IN' && !tableId.value)
-      errors.tableId = '매장 식사는 활성 테이블을 선택해야 합니다.'
+      errors.tableId = '매장에서 식사하는 주문은 테이블을 선택해 주세요.'
     if (lines.value.length === 0) errors.lines = '주문할 메뉴를 한 개 이상 담아 주세요.'
     if (
       lines.value.length > MAX_LINES ||

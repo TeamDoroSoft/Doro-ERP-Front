@@ -44,8 +44,8 @@ async function dismissRouteFeedback() {
 
 <style scoped>
 .pos-layout { min-height: 100vh; background: var(--color-background); }
-.pos-workspace { min-width: 0; margin-left: var(--sidebar-width); }
-.pos-main { width: min(100%, 1440px); margin: 0 auto; padding: 32px; }
+.pos-workspace { min-width:0; margin-left:208px; }
+.pos-main { width:min(100%, 1320px); margin:0 auto; padding:24px 32px 40px; }
 .route-feedback { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; border: 1px solid #fed7aa; border-radius: 10px; background: #fff7ed; padding: 12px 14px; color: #9a3412; font-size: 13px; }
 .route-feedback p { margin: 0; }
 .route-feedback button { border: 0; border-radius: 7px; background: transparent; padding: 5px 8px; color: inherit; font-weight: 700; }
@@ -53,6 +53,6 @@ async function dismissRouteFeedback() {
 .sidebar-backdrop { position: fixed; inset: 0; z-index: 20; background: rgb(15 23 42 / 42%); }
 @media (max-width: 900px) {
   .pos-workspace { margin-left: 0; }
-  .pos-main { padding: 24px 18px; }
+  .pos-main { padding: 22px 16px 32px; }
 }
 </style>

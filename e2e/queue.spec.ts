@@ -52,13 +52,13 @@ test('[mock-ui] registers an entry and handles enter, cancel, and no-show from W
     })
   }
 
-  await row(page, '#1').getByRole('button', { name: '입장', exact: true }).click()
+  await row(page, '#1').getByRole('button', { name: '입장 완료', exact: true }).click()
   await expect(row(page, '#1').getByText('입장 완료', { exact: true })).toBeVisible()
   await row(page, '#2').getByRole('button', { name: '취소', exact: true }).click()
   await expect(row(page, '#2').getByText('취소', { exact: true })).toBeVisible()
-  await row(page, '#3').getByRole('button', { name: '미방문', exact: true }).click()
+  await row(page, '#3').getByRole('button', { name: '미방문 처리', exact: true }).click()
   await expect(row(page, '#3').getByRole('cell', { name: '미방문', exact: true })).toBeVisible()
-  await expect(row(page, '#1').getByRole('button', { name: '입장', exact: true })).toBeDisabled()
+  await expect(row(page, '#1').getByRole('button', { name: '입장 완료', exact: true })).toBeDisabled()
 })
 
 test('[mock-ui] shows fulfillment event lag and moves only PREPARING to READY', async ({ page }) => {
@@ -73,7 +73,7 @@ test('[mock-ui] shows fulfillment event lag and moves only PREPARING to READY', 
     await fulfill(route, items[0])
   })
   await page.goto('/pos/queues/fulfillment')
-  await expect(page.getByText('이벤트가 반영되기까지', { exact: false })).toBeVisible()
+  await expect(page.getByText('결제가 완료된 주문은 잠시 후 목록에 표시될 수 있습니다.', { exact: false })).toBeVisible()
   await row(page, '#7').getByRole('button', { name: '준비 완료' }).click()
   await expect(row(page, '#7').locator('td:nth-child(2)')).toHaveText('준비 완료')
   await expect(row(page, '#8').getByRole('button', { name: '준비 완료' })).toBeDisabled()
@@ -86,11 +86,11 @@ test('[mock-ui] renders empty entry and unavailable fulfillment states safely', 
   await page.goto('/pos/queues/entry')
   await page.getByLabel('영업일').fill(businessDate)
   await page.getByRole('button', { name: '새로고침' }).click()
-  await expect(page.getByText('등록된 입장 대기가 없습니다.')).toBeVisible()
+  await expect(page.getByText('현재 입장 대기 중인 고객이 없습니다.')).toBeVisible()
 
   await page.route('**/api/v1/queues/fulfillment', (route) => fulfill(route, { status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'internal host' }, 503))
   await page.goto('/pos/queues/fulfillment')
-  await expect(page.getByText('대기열 서비스를 일시적으로 사용할 수 없습니다.')).toBeVisible()
+  await expect(page.getByText('조리 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')).toBeVisible()
   await expect(page.getByText('internal host')).toHaveCount(0)
 })
 

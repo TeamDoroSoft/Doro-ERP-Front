@@ -59,7 +59,7 @@ async function enterPreview() {
 function validate() {
   const next: Record<string, string> = {}
   if (!form.tenantCode.trim()) next.tenantCode = '업체 코드를 입력해 주세요.'
-  if (!form.loginId.trim()) next.loginId = '로그인 ID를 입력해 주세요.'
+  if (!form.loginId.trim()) next.loginId = '로그인 아이디를 입력해 주세요.'
   if (!form.password) next.password = '비밀번호를 입력해 주세요.'
   return next
 }
@@ -69,11 +69,11 @@ function validate() {
 // outcome collapses into `503 LOGIN_UNAVAILABLE`, and an unregistered Edge route answers `503`.
 function loginErrorMessage(error: unknown) {
   if (!(error instanceof ApiError)) return '로그인 요청을 처리하지 못했습니다.'
-  if (error.code === 'AUTHENTICATION_FAILED') return '업체 코드, 로그인 ID 또는 비밀번호를 확인해 주세요.'
+  if (error.code === 'AUTHENTICATION_FAILED') return '업체 코드, 로그인 아이디 또는 비밀번호를 확인해 주세요.'
   if (error.code === 'AUTH_RATE_LIMITED') return '로그인 요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.'
-  if (error.code === 'NETWORK_ERROR') return '인증 서버에 연결할 수 없습니다.'
+  if (error.code === 'NETWORK_ERROR') return '로그인할 수 없습니다. 연결 상태를 확인해 주세요.'
   if (error.code === 'LOGIN_UNAVAILABLE' || error.code === 'EDGE_ROUTE_NOT_REGISTERED')
-    return '직원 로그인 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+    return '지금은 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.'
   if (error.code === 'VALIDATION_FAILED') return '입력한 로그인 정보를 확인해 주세요.'
   return safeApiErrorMessage(error, '로그인 요청을 처리하지 못했습니다.')
 }
@@ -90,14 +90,14 @@ function loginErrorMessage(error: unknown) {
       <div class="login-card">
         <div class="mobile-brand"><span>D</span>Doro ERP</div>
         <p class="eyebrow">직원 로그인</p>
-        <h2>관리자 로그인</h2>
+        <h2>직원 로그인</h2>
         <p class="intro">업체 코드와 직원 계정으로 로그인해 주세요.</p>
         <p v-if="sessionExpired" class="session-notice" role="status">로그인 시간이 만료되었습니다. 다시 로그인해 주세요.</p>
         <p v-if="passwordChanged" class="session-notice" role="status">비밀번호가 변경되었습니다. 새 비밀번호로 다시 로그인해 주세요.</p>
         <p v-if="submitError" class="form-error" role="alert">{{ submitError }}</p>
         <form @submit.prevent="submit">
           <label>업체 코드<input v-model="form.tenantCode" name="tenantCode" autocomplete="organization" placeholder="예: doro-store" :aria-invalid="Boolean(errors.tenantCode)" /><small v-if="errors.tenantCode">{{ errors.tenantCode }}</small></label>
-          <label>로그인 ID<input v-model="form.loginId" name="loginId" autocomplete="username" placeholder="직원 로그인 ID" :aria-invalid="Boolean(errors.loginId)" /><small v-if="errors.loginId">{{ errors.loginId }}</small></label>
+          <label>로그인 아이디<input v-model="form.loginId" name="loginId" autocomplete="username" placeholder="직원 로그인 아이디" :aria-invalid="Boolean(errors.loginId)" /><small v-if="errors.loginId">{{ errors.loginId }}</small></label>
           <label>비밀번호<span class="password-field"><input v-model="form.password" name="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" placeholder="비밀번호" :aria-invalid="Boolean(errors.password)" /><button type="button" :aria-label="showPassword ? '비밀번호 숨기기' : '비밀번호 보기'" @click="showPassword = !showPassword">{{ showPassword ? '숨김' : '보기' }}</button></span><small v-if="errors.password">{{ errors.password }}</small></label>
           <button class="submit-button" type="submit" :disabled="busy">{{ busy ? '로그인 확인 중…' : '로그인' }}</button>
         </form>

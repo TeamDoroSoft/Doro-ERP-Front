@@ -12,12 +12,12 @@ defineProps<{ title: string; message: string; kind?: 'loading' | 'empty' | 'erro
 <style scoped>
 .state {
   display: grid;
-  min-height: 320px;
+  min-height: 300px;
   place-items: center;
   align-content: center;
   gap: 12px;
-  border: 2px dashed #d8d1c5;
-  border-radius: 32px;
+  border: 1px dashed #c6cfca;
+  border-radius: 6px;
   padding: 40px;
   background: #fff;
   text-align: center;
@@ -27,14 +27,12 @@ defineProps<{ title: string; message: string; kind?: 'loading' | 'empty' | 'erro
   width: 64px;
   height: 64px;
   place-items: center;
-  border-radius: 22px;
-  background: #e8f3ef;
-  color: #126a5a;
+  border-radius: 5px;
+  background: #edf3ef;
+  color: #087f5b;
   font-size: 28px;
 }
-.state h2 {
-  font-size: 28px;
-}
+.state h2 { margin: 0; font-size: 24px; }
 .state p {
   color: #68766f;
 }
