@@ -1,130 +1,405 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
-import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
-import { createPreviewTenants, type OwnerProvisioningState, type TenantStatus } from './providerAdminPreview'
+import {
+  changeProviderAdminTenantStatus,
+  createProviderAdminInitialOwner,
+  getProviderAdminSession,
+  getProviderAdminTenant,
+  getProviderAdminTenants,
+  isProviderAdminUnauthenticated,
+  logoutProviderAdmin,
+  providerAdminErrorMessage,
+  providerAdminLoginUrl,
+  provisionProviderAdminTenant,
+  type ProviderAdminMe,
+  type ProviderAdminTenantDetail,
+  type ProviderAdminTenantPage,
+  type ProviderAdminTenantStatus,
+} from '@/api/providerAdmin'
 
 type View = 'list' | 'create' | 'detail'
-type PreviewState = 'normal' | 'loading' | 'empty' | 'error'
-const tenants = ref(createPreviewTenants()), view = ref<View>('list'), selectedId = ref<string>(), search = ref('')
-const statusFilter = ref<'ALL' | TenantStatus>('ALL'), sortOrder = ref<'RECENT' | 'NAME'>('RECENT')
-const currentPage = ref(1), previewState = ref<PreviewState>('normal'), notice = ref(''), confirmStatus = ref(false)
-const PreviewStateControls = import.meta.env.DEV
-  ? defineAsyncComponent(() => import('./ProviderAdminPreviewControls.vue'))
-  : null
-const createStep = ref<'form' | 'created'>('form'), createForm = reactive({ tenantName: '', tenantCode: '', firstStoreName: '' })
-const pageSize = 5
-const selected = computed(() => tenants.value.find((tenant) => tenant.id === selectedId.value))
-const filtered = computed(() => {
-  const term = search.value.trim().toLowerCase()
-  const matched = tenants.value.filter((tenant) => (!term || tenant.name.toLowerCase().includes(term) || tenant.code.toLowerCase().includes(term)) && (statusFilter.value === 'ALL' || tenant.status === statusFilter.value))
-  return sortOrder.value === 'NAME' ? [...matched].sort((a, b) => a.name.localeCompare(b.name, 'ko')) : matched
-})
-const pageCount = computed(() => Math.max(1, Math.ceil(filtered.value.length / pageSize)))
-const paged = computed(() => filtered.value.slice((currentPage.value - 1) * pageSize, currentPage.value * pageSize))
-function statusLabel(status: TenantStatus) { return status === 'ACTIVE' ? '운영 중' : '이용 중지' }
-function ownerLabel(state: OwnerProvisioningState) { return state === 'COMPLETED' ? '점주 등록 완료' : state === 'FAILED' ? '점주 등록 실패' : '점주 등록 필요' }
-function openList() { view.value = 'list'; selectedId.value = undefined; notice.value = '' }
-function openCreate() { view.value = 'create'; createStep.value = 'form'; createForm.tenantName = ''; createForm.tenantCode = ''; createForm.firstStoreName = ''; notice.value = '' }
-function openTenant(id: string) { selectedId.value = id; view.value = 'detail'; notice.value = '' }
-function createTenantPreview() {
-  const id = `preview-tenant-${crypto.randomUUID()}`
-  tenants.value.unshift({ id, name: createForm.tenantName.trim() || '새 업체', code: createForm.tenantCode.trim().toLowerCase(), status: 'ACTIVE', firstStore: { name: createForm.firstStoreName.trim() || '첫 매장', status: 'ACTIVE' }, owner: { state: 'REQUIRED' }, createdLabel: '방금 등록' })
-  selectedId.value = id; createStep.value = 'created'
+type AuthState = 'loading' | 'authenticated' | 'unauthenticated' | 'error'
+
+const authState = ref<AuthState>('loading')
+const session = ref<ProviderAdminMe>()
+const authMessage = ref('')
+const view = ref<View>('list')
+const page = ref<ProviderAdminTenantPage>()
+const selected = ref<ProviderAdminTenantDetail>()
+const listLoading = ref(false)
+const detailLoading = ref(false)
+const commandLoading = ref(false)
+const listError = ref('')
+const detailError = ref('')
+const notice = ref('')
+const confirmStatus = ref(false)
+const currentPage = ref(0)
+const pageSize = 20
+const filters = reactive({ code: '', name: '', status: '' as '' | ProviderAdminTenantStatus })
+const createForm = reactive({ tenantCode: '', tenantName: '', storeName: '', timezone: 'Asia/Seoul' })
+const ownerForm = reactive({ loginId: '', temporaryPassword: '' })
+
+const tenants = computed(() => page.value?.items ?? [])
+const pageCount = computed(() => safePageCount(page.value?.totalPages))
+const loginUrl = providerAdminLoginUrl()
+
+onMounted(() => void bootstrap())
+
+async function bootstrap() {
+  readLoginFailure()
+  authState.value = 'loading'
+  try {
+    session.value = await getProviderAdminSession()
+    authState.value = 'authenticated'
+    await loadTenants()
+  } catch (error) {
+    if (isProviderAdminUnauthenticated(error)) {
+      authState.value = 'unauthenticated'
+      return
+    }
+    authState.value = 'error'
+    authMessage.value = providerAdminErrorMessage(error)
+  }
 }
-function openCreatedTenant() { view.value = 'detail'; notice.value = '업체와 첫 매장이 등록되었습니다. 최초 점주 등록을 계속할 수 있습니다.' }
-function completeOwnerPreview() { if (!selected.value) return; selected.value.owner = { state: 'COMPLETED' }; notice.value = '최초 점주 계정이 등록되었습니다.' }
-function changeStatusPreview() { if (!selected.value) return; selected.value.status = selected.value.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'; confirmStatus.value = false; notice.value = `업체 상태가 ${statusLabel(selected.value.status)}으로 변경되었습니다.` }
-function updateSearch() { currentPage.value = 1 }
-function changePage(page: number) { currentPage.value = Math.min(Math.max(page, 1), pageCount.value) }
+
+async function loadTenants(targetPage = currentPage.value) {
+  listLoading.value = true
+  listError.value = ''
+  try {
+    page.value = await getProviderAdminTenants({
+      code: filters.code,
+      name: filters.name,
+      status: filters.status || undefined,
+      page: targetPage,
+      size: pageSize,
+    })
+    currentPage.value = page.value.page
+  } catch (error) {
+    if (handleExpiredSession(error)) return
+    listError.value = providerAdminErrorMessage(error)
+  } finally {
+    listLoading.value = false
+  }
+}
+
+function searchTenants() {
+  currentPage.value = 0
+  void loadTenants(0)
+}
+
+function changePage(offset: number) {
+  const next = Math.min(Math.max(currentPage.value + offset, 0), pageCount.value - 1)
+  if (next !== currentPage.value) void loadTenants(next)
+}
+
+function openList() {
+  view.value = 'list'
+  selected.value = undefined
+  detailError.value = ''
+  notice.value = ''
+}
+
+function openCreate() {
+  view.value = 'create'
+  notice.value = ''
+  detailError.value = ''
+  Object.assign(createForm, {
+    tenantCode: '',
+    tenantName: '',
+    storeName: '',
+    timezone: 'Asia/Seoul',
+  })
+}
+
+async function openTenant(tenantId: string) {
+  view.value = 'detail'
+  detailLoading.value = true
+  detailError.value = ''
+  notice.value = ''
+  selected.value = undefined
+  try {
+    selected.value = await getProviderAdminTenant(tenantId)
+  } catch (error) {
+    if (handleExpiredSession(error)) return
+    detailError.value = providerAdminErrorMessage(error)
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+async function createTenant() {
+  commandLoading.value = true
+  detailError.value = ''
+  try {
+    const created = await provisionProviderAdminTenant(createForm)
+    await loadTenants(0)
+    await openTenant(created.tenantId)
+    notice.value = '업체와 첫 매장이 등록되었습니다. 최초 관리자 계정을 등록해 주세요.'
+  } catch (error) {
+    if (handleExpiredSession(error)) return
+    detailError.value = providerAdminErrorMessage(error)
+  } finally {
+    commandLoading.value = false
+  }
+}
+
+async function createInitialOwner() {
+  if (!selected.value) return
+  commandLoading.value = true
+  detailError.value = ''
+  notice.value = ''
+  try {
+    await createProviderAdminInitialOwner(selected.value.tenantId, {
+      loginId: ownerForm.loginId,
+      temporaryPassword: ownerForm.temporaryPassword,
+    })
+    ownerForm.loginId = ''
+    ownerForm.temporaryPassword = ''
+    selected.value = await getProviderAdminTenant(selected.value.tenantId)
+    notice.value = '최초 관리자 계정이 등록되었습니다.'
+    await loadTenants(currentPage.value)
+  } catch (error) {
+    if (handleExpiredSession(error)) return
+    detailError.value = providerAdminErrorMessage(error)
+  } finally {
+    commandLoading.value = false
+  }
+}
+
+async function changeStatus() {
+  if (!selected.value) return
+  commandLoading.value = true
+  detailError.value = ''
+  notice.value = ''
+  const status: ProviderAdminTenantStatus =
+    selected.value.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+  try {
+    const changed = await changeProviderAdminTenantStatus(selected.value.tenantId, status)
+    selected.value.status = changed.status
+    confirmStatus.value = false
+    notice.value = `업체 상태가 ${statusLabel(changed.status)}으로 변경되었습니다.`
+    await loadTenants(currentPage.value)
+  } catch (error) {
+    if (handleExpiredSession(error)) return
+    detailError.value = providerAdminErrorMessage(error)
+  } finally {
+    commandLoading.value = false
+  }
+}
+
+async function logout() {
+  commandLoading.value = true
+  authMessage.value = ''
+  try {
+    await logoutProviderAdmin()
+    session.value = undefined
+    authState.value = 'unauthenticated'
+  } catch (error) {
+    authMessage.value = providerAdminErrorMessage(error)
+  } finally {
+    commandLoading.value = false
+  }
+}
+
+function handleExpiredSession(error: unknown): boolean {
+  if (!isProviderAdminUnauthenticated(error)) return false
+  session.value = undefined
+  authState.value = 'unauthenticated'
+  authMessage.value = '관리자 세션이 만료되었습니다. 다시 로그인해 주세요.'
+  return true
+}
+
+function readLoginFailure() {
+  if (typeof window === 'undefined') return
+  const query = new URLSearchParams(window.location.search)
+  if (query.get('error') !== 'login_failed') return
+  authMessage.value = '관리자 로그인에 실패했습니다. 접근 권한을 확인한 뒤 다시 시도해 주세요.'
+  window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
+}
+
+function statusLabel(status: ProviderAdminTenantStatus) {
+  return status === 'ACTIVE' ? '운영 중' : '이용 중지'
+}
+
+function dateLabel(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '확인 필요' : new Intl.DateTimeFormat('ko-KR').format(date)
+}
+
+function safePageCount(value?: string) {
+  if (!value || !/^\d+$/.test(value)) return 1
+  const pages = BigInt(value)
+  if (pages < 1n) return 1
+  return pages > BigInt(Number.MAX_SAFE_INTEGER) ? Number.MAX_SAFE_INTEGER : Number(pages)
+}
 </script>
 
 <template>
   <div class="admin-shell">
-    <header class="admin-header"><button class="brand" type="button" @click="openList"><span class="brand-mark">D</span><span><strong>Doro ERP</strong><small>운영 관리</small></span></button><div class="header-meta"><span>운영 관리자</span></div></header>
-    <div class="admin-layout">
-      <aside class="admin-nav" aria-label="관리 메뉴"><div class="nav-section"><p class="nav-label">운영</p><button :class="{ active: view === 'list' || view === 'detail' || view === 'create' }" type="button" @click="openList"><span>업체 관리</span><small>업체·첫 매장·최초 점주</small></button></div><component :is="PreviewStateControls" v-if="PreviewStateControls" v-model="previewState" /></aside>
+    <header class="admin-header">
+      <button class="brand" type="button" @click="openList">
+        <span class="brand-mark">D</span>
+        <span><strong>Doro ERP</strong><small>Provider Admin</small></span>
+      </button>
+      <div v-if="authState === 'authenticated'" class="header-meta">
+        <span class="internal-badge">내부 관리자</span>
+        <span>{{ session?.adminId }}</span>
+        <button type="button" :disabled="commandLoading" @click="logout">로그아웃</button>
+      </div>
+    </header>
+
+    <main v-if="authState !== 'authenticated'" class="auth-page">
+      <LoadingState v-if="authState === 'loading'" />
+      <section v-else class="auth-card">
+        <p class="eyebrow">Provider Admin</p>
+        <h1>관리자 인증이 필요합니다</h1>
+        <p>{{ authMessage || (authState === 'error' ? '관리자 API에 연결하지 못했습니다.' : '승인된 관리자 계정으로 로그인해 주세요.') }}</p>
+        <div class="actions">
+          <a v-if="authState === 'unauthenticated'" class="primary" :href="loginUrl">관리자 로그인</a>
+          <button v-else class="secondary" type="button" @click="bootstrap">다시 확인</button>
+        </div>
+      </section>
+    </main>
+
+    <div v-else class="admin-layout">
+      <aside class="admin-nav" aria-label="관리 메뉴">
+        <p class="nav-label">관리</p>
+        <button class="active" type="button" @click="openList">▦ 업체 관리</button>
+        <p class="nav-note">Admin Edge를 통해 업체와 최초 관리자 계정을 관리합니다.</p>
+      </aside>
+
       <main class="admin-main">
+        <p v-if="authMessage" class="error-notice" role="alert">{{ authMessage }}</p>
+
         <section v-if="view === 'list'" class="page" aria-labelledby="tenant-list-title">
-          <div class="page-heading"><div><p class="eyebrow">운영 / 업체</p><h1 id="tenant-list-title">업체</h1><p>업체, 첫 매장, 최초 점주 등록 상태를 관리합니다.</p></div></div>
-          <div class="list-toolbar"><label class="search"><span class="sr-only">업체 검색</span><input v-model="search" placeholder="검색" @input="updateSearch" /></label><label class="compact-filter"><span>상태</span><select v-model="statusFilter" @change="updateSearch"><option value="ALL">전체 상태</option><option value="ACTIVE">운영 중</option><option value="INACTIVE">이용 중지</option></select></label><label class="compact-filter"><span>정렬</span><select v-model="sortOrder"><option value="RECENT">최근 등록순</option><option value="NAME">업체명순</option></select></label><button class="primary" data-test="new-tenant" type="button" @click="openCreate">업체 등록</button></div>
-          <LoadingState v-if="previewState === 'loading'" />
-          <ApiErrorNotice v-else-if="previewState === 'error'" message="업체 목록을 불러오지 못했습니다." retryable @retry="previewState = 'normal'" />
-          <EmptyState v-else-if="previewState === 'empty' || filtered.length === 0" title="표시할 업체가 없습니다" description="검색 조건을 바꾸거나 새 업체를 등록해 주세요." />
-          <template v-else><div class="tenant-table-wrap"><table class="tenant-table"><thead><tr><th>업체</th><th>상태</th><th>첫 매장</th><th>최초 점주</th><th class="action-column" aria-label="작업" /></tr></thead><tbody><tr v-for="tenant in paged" :key="tenant.id"><td><strong>{{ tenant.name }}</strong><small>{{ tenant.code }}</small></td><td><span class="status-text" :class="tenant.status.toLowerCase()"><i aria-hidden="true" />{{ statusLabel(tenant.status) }}</span></td><td><template v-if="tenant.firstStore"><strong>{{ tenant.firstStore.name }}</strong><small>{{ statusLabel(tenant.firstStore.status) }}</small></template><span v-else>등록 전</span></td><td><span class="owner-text" :class="tenant.owner.state.toLowerCase()">{{ ownerLabel(tenant.owner.state) }}</span></td><td class="action-cell"><button class="row-menu" type="button" aria-label="업체 상세 열기" @click="openTenant(tenant.id)">…</button></td></tr></tbody></table></div><nav v-if="pageCount > 1" class="pagination" aria-label="업체 목록 페이지"><button :disabled="currentPage === 1" type="button" @click="changePage(currentPage - 1)">이전</button><button v-for="page in pageCount" :key="page" :class="{ selected: currentPage === page }" type="button" @click="changePage(page)">{{ page }}</button><button :disabled="currentPage === pageCount" type="button" @click="changePage(currentPage + 1)">다음</button></nav></template>
+          <div class="page-heading">
+            <div><p class="eyebrow">업체 관리</p><h1 id="tenant-list-title">업체 목록</h1></div>
+            <button class="primary" data-test="new-tenant" type="button" @click="openCreate">신규 업체 등록</button>
+          </div>
+
+          <form class="filters" @submit.prevent="searchTenants">
+            <label>업체명<input v-model="filters.name" name="tenant-name-filter" maxlength="255" placeholder="업체명 검색" /></label>
+            <label>업체 코드<input v-model="filters.code" name="tenant-code-filter" maxlength="30" pattern="[a-z0-9-]+" placeholder="doro-gangnam" /></label>
+            <label>운영 상태<select v-model="filters.status"><option value="">전체</option><option value="ACTIVE">운영 중</option><option value="INACTIVE">이용 중지</option></select></label>
+            <button class="secondary" type="submit" :disabled="listLoading">조회</button>
+          </form>
+
+          <LoadingState v-if="listLoading" />
+          <section v-else-if="listError" class="error-notice" role="alert">
+            <p>{{ listError }}</p><button class="secondary" type="button" @click="loadTenants()">다시 시도</button>
+          </section>
+          <EmptyState v-else-if="tenants.length === 0" title="표시할 업체가 없습니다" description="검색 조건을 바꾸거나 신규 업체를 등록해 주세요." />
+          <template v-else>
+            <div class="tenant-table-wrap">
+              <table class="tenant-table">
+                <thead><tr><th>업체명</th><th>운영 상태</th><th>첫 매장</th><th>관리자</th><th>등록일</th><th /></tr></thead>
+                <tbody>
+                  <tr v-for="tenant in tenants" :key="tenant.tenantId">
+                    <td><strong>{{ tenant.name }}</strong><small>{{ tenant.tenantCode }}</small></td>
+                    <td><span class="status" :class="tenant.status.toLowerCase()">{{ statusLabel(tenant.status) }}</span></td>
+                    <td><template v-if="tenant.store"><strong>{{ tenant.store.name }}</strong><small>{{ statusLabel(tenant.store.status) }}</small></template><span v-else>등록 전</span></td>
+                    <td>{{ tenant.firstOwnerRequired ? '등록 필요' : '등록 완료' }}</td>
+                    <td>{{ dateLabel(tenant.createdAt) }}</td>
+                    <td><button class="text-button" type="button" @click="openTenant(tenant.tenantId)">상세보기</button></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <nav class="pagination" aria-label="업체 목록 페이지">
+              <button class="secondary" :disabled="currentPage === 0" type="button" @click="changePage(-1)">이전</button>
+              <span>{{ currentPage + 1 }} / {{ pageCount }}</span>
+              <button class="secondary" :disabled="currentPage + 1 >= pageCount" type="button" @click="changePage(1)">다음</button>
+            </nav>
+          </template>
         </section>
-        <section v-else-if="view === 'create'" class="page narrow" aria-labelledby="tenant-create-title"><button class="back" type="button" @click="openList">← 업체 목록</button><div class="page-heading"><div><p class="eyebrow">업체 관리</p><h1 id="tenant-create-title">업체 등록</h1><p>업체 정보와 첫 매장 정보를 입력해 주세요.</p></div></div><section v-if="createStep === 'form'" class="panel"><form class="form" @submit.prevent="createTenantPreview"><fieldset><legend>업체 정보</legend><label>업체명<input v-model="createForm.tenantName" required maxlength="255" placeholder="예: 도로식당 강남" /></label><label>업체 코드<input v-model="createForm.tenantCode" required minlength="3" maxlength="30" pattern="[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])" autocomplete="off" placeholder="예: doro-gangnam" /><small>로그인과 시스템 식별에 사용하는 영문 소문자·숫자·하이픈 조합입니다.</small></label></fieldset><fieldset><legend>매장 정보</legend><label>첫 매장명<input v-model="createForm.firstStoreName" required maxlength="190" placeholder="예: 강남 본점" /></label></fieldset><div class="actions"><button class="primary" type="submit">업체와 매장 등록</button><button class="secondary" type="button" @click="openList">취소</button></div></form></section><section v-else class="success-panel"><span class="success-icon" aria-hidden="true">✓</span><div><h2>업체와 첫 매장을 등록했습니다.</h2><p>이 업체에서 사용할 최초 점주 계정을 등록해 주세요.</p><div class="actions"><button class="primary" type="button" @click="openCreatedTenant">최초 점주 등록</button><button class="secondary" type="button" @click="openList">나중에 등록</button></div></div></section></section>
-        <section v-else-if="selected" class="page narrow" aria-labelledby="tenant-detail-title"><button class="back" type="button" @click="openList">← 업체 목록</button><div class="page-heading"><div><p class="eyebrow">업체 상세</p><h1 id="tenant-detail-title">{{ selected.name }}</h1><p>업체 코드: {{ selected.code }}</p></div><span class="status large" :class="selected.status.toLowerCase()">{{ statusLabel(selected.status) }}</span></div><p v-if="notice" class="notice" role="status">{{ notice }}</p><div class="detail-grid"><section class="panel"><h2>업체 정보</h2><dl><div><dt>업체명</dt><dd>{{ selected.name }}</dd></div><div><dt>업체 코드</dt><dd>{{ selected.code }}</dd></div><div><dt>운영 상태</dt><dd><span class="status" :class="selected.status.toLowerCase()">{{ statusLabel(selected.status) }}</span></dd></div></dl></section><section class="panel"><h2>첫 매장 정보</h2><template v-if="selected.firstStore"><dl><div><dt>첫 매장명</dt><dd>{{ selected.firstStore.name }}</dd></div><div><dt>운영 상태</dt><dd><span class="status" :class="selected.firstStore.status.toLowerCase()">{{ statusLabel(selected.firstStore.status) }}</span></dd></div></dl></template><p v-else>등록된 첫 매장이 없습니다.</p></section></div><section class="owner-panel" :class="selected.owner.state.toLowerCase()"><div><p class="eyebrow">최초 점주 계정</p><h2>{{ ownerLabel(selected.owner.state) }}</h2><p v-if="selected.owner.state === 'COMPLETED'">최초 점주 계정이 등록되어 있습니다.</p><p v-else-if="selected.owner.state === 'FAILED'">{{ selected.owner.message }}</p><p v-else>이 업체에서 사용할 최초 점주 계정을 등록해 주세요.</p></div><button v-if="selected.owner.state !== 'COMPLETED'" class="primary" type="button" @click="completeOwnerPreview">{{ selected.owner.state === 'FAILED' ? '다시 등록' : '최초 점주 등록' }}</button></section><section class="panel action-panel"><div><h2>업체 이용 관리</h2><p>이용을 중지해도 첫 매장과 최초 점주 계정 정보는 유지됩니다.</p></div><button class="danger" type="button" @click="confirmStatus = true">{{ selected.status === 'ACTIVE' ? '업체 이용 중지' : '업체 이용 재개' }}</button></section></section>
+
+        <section v-else-if="view === 'create'" class="page narrow" aria-labelledby="tenant-create-title">
+          <button class="back" type="button" @click="openList">← 업체 목록</button>
+          <div class="page-heading"><div><p class="eyebrow">업체 관리</p><h1 id="tenant-create-title">신규 업체 등록</h1></div></div>
+          <p v-if="detailError" class="error-notice" role="alert">{{ detailError }}</p>
+          <form class="panel form" @submit.prevent="createTenant">
+            <label>업체 코드<input v-model="createForm.tenantCode" name="tenant-code" required maxlength="30" pattern="[a-z0-9-]+" autocomplete="off" /></label>
+            <label>업체명<input v-model="createForm.tenantName" name="tenant-name" required maxlength="255" /></label>
+            <label>첫 매장명<input v-model="createForm.storeName" name="store-name" required maxlength="190" /></label>
+            <label>시간대<input v-model="createForm.timezone" name="timezone" maxlength="64" placeholder="Asia/Seoul" /></label>
+            <div class="actions"><button class="primary" type="submit" :disabled="commandLoading">업체 및 매장 등록</button><button class="secondary" type="button" @click="openList">취소</button></div>
+          </form>
+        </section>
+
+        <section v-else class="page narrow" aria-labelledby="tenant-detail-title">
+          <button class="back" type="button" @click="openList">← 업체 목록</button>
+          <LoadingState v-if="detailLoading" />
+          <section v-else-if="detailError && !selected" class="error-notice" role="alert"><p>{{ detailError }}</p><button class="secondary" type="button" @click="openList">목록으로</button></section>
+          <template v-else-if="selected">
+            <div class="page-heading"><div><p class="eyebrow">업체 상세</p><h1 id="tenant-detail-title">{{ selected.name }}</h1><p>{{ selected.tenantCode }}</p></div><span class="status large" :class="selected.status.toLowerCase()">{{ statusLabel(selected.status) }}</span></div>
+            <p v-if="notice" class="notice" role="status">{{ notice }}</p>
+            <p v-if="detailError" class="error-notice" role="alert">{{ detailError }}</p>
+            <div class="detail-grid">
+              <section class="panel"><h2>업체 정보</h2><dl><div><dt>업체 ID</dt><dd>{{ selected.tenantId }}</dd></div><div><dt>등록일</dt><dd>{{ dateLabel(selected.createdAt) }}</dd></div><div><dt>수정일</dt><dd>{{ dateLabel(selected.updatedAt) }}</dd></div></dl></section>
+              <section class="panel"><h2>첫 매장</h2><dl v-if="selected.store"><div><dt>매장명</dt><dd>{{ selected.store.name }}</dd></div><div><dt>상태</dt><dd>{{ statusLabel(selected.store.status) }}</dd></div></dl><p v-else>등록된 첫 매장이 없습니다.</p></section>
+            </div>
+            <form v-if="selected.firstOwnerRequired" class="panel form" @submit.prevent="createInitialOwner">
+              <div><p class="eyebrow">최초 관리자</p><h2>OWNER 계정 등록</h2></div>
+              <label>로그인 ID<input v-model="ownerForm.loginId" name="owner-login-id" required autocomplete="off" /></label>
+              <label>임시 비밀번호<input v-model="ownerForm.temporaryPassword" name="owner-temporary-password" required type="password" autocomplete="new-password" /></label>
+              <button class="primary" type="submit" :disabled="commandLoading || selected.status !== 'ACTIVE'">최초 관리자 등록</button>
+            </form>
+            <section v-else class="panel"><p class="eyebrow">최초 관리자</p><h2>등록 완료</h2><p>최초 OWNER 계정이 등록되어 있습니다.</p></section>
+            <section class="panel action-panel"><div><h2>업체 이용 관리</h2><p>이용 상태를 변경해도 매장과 관리자 정보는 유지됩니다.</p></div><button class="danger" type="button" :disabled="commandLoading" @click="confirmStatus = true">{{ selected.status === 'ACTIVE' ? '업체 이용 중지' : '업체 이용 재개' }}</button></section>
+          </template>
+        </section>
       </main>
     </div>
-    <div v-if="confirmStatus && selected" class="modal-backdrop" role="presentation"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="status-confirm-title"><p class="eyebrow">이용 상태 변경</p><h2 id="status-confirm-title">업체 이용을 {{ selected.status === 'ACTIVE' ? '중지' : '재개' }}할까요?</h2><p>변경 후에도 매장과 관리자 계정 정보는 그대로 유지됩니다.</p><div class="actions"><button class="danger" type="button" @click="changeStatusPreview">{{ selected.status === 'ACTIVE' ? '이용 중지' : '이용 재개' }}</button><button class="secondary" type="button" @click="confirmStatus = false">취소</button></div></section></div>
+
+    <div v-if="confirmStatus && selected" class="modal-backdrop" role="presentation">
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="status-confirm-title">
+        <p class="eyebrow">이용 상태 변경</p><h2 id="status-confirm-title">업체 이용을 {{ selected.status === 'ACTIVE' ? '중지' : '재개' }}할까요?</h2>
+        <div class="actions"><button class="danger" type="button" :disabled="commandLoading" @click="changeStatus">확인</button><button class="secondary" type="button" @click="confirmStatus = false">취소</button></div>
+      </section>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.admin-shell { min-height: 100vh; background: #f5f7fb; color: #24324a; }.admin-header { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; background: #15233f; color: #fff; }.brand { display: flex; align-items: center; gap: 10px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }.brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: #5b8def; font-weight: 800; }.brand small { display: block; color: #b9c6df; font-size: 11px; }.header-meta { display: flex; align-items: center; gap: 14px; color: #d7e0f0; font-size: 13px; }.internal-badge { border: 1px solid #516786; border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 700; }.admin-layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: calc(100vh - 68px); }.admin-nav { padding: 26px 14px; border-right: 1px solid #dce4f0; background: #fff; }.nav-label, .eyebrow { color: #62708a; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }.admin-nav button { display: flex; width: 100%; gap: 10px; align-items: center; border: 0; border-radius: 8px; background: transparent; padding: 11px 12px; color: #46546c; text-align: left; cursor: pointer; }.admin-nav button.active { background: #eaf1ff; color: #275cae; font-weight: 750; }.nav-note { margin: 28px 12px 0; color: #78859a; font-size: 12px; line-height: 1.55; }.admin-main { width: min(1180px, 100%); padding: 30px; margin: 0 auto; }.preview-banner { display: flex; gap: 10px; align-items: baseline; margin-bottom: 22px; border: 1px solid #bcd0f5; border-radius: 10px; background: #eff5ff; padding: 12px 14px; color: #355685; font-size: 13px; }.preview-banner strong { color: #1f549f; }.page { display: grid; gap: 20px; }.page.narrow { max-width: 980px; }.page-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }.page-heading h1 { margin: 4px 0 6px; color: #16233a; font-size: 28px; }.page-heading p:not(.eyebrow) { color: #68768d; }.primary, .danger, .secondary, .pagination button, .text-button { border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 700; cursor: pointer; }.primary { background: #2f69c7; color: #fff; }.danger { background: #c83c43; color: #fff; }.secondary, .pagination button { border: 1px solid #ccd6e5; background: #fff; color: #3d4e67; }.primary:disabled, .danger:disabled, .pagination button:disabled { opacity: .45; cursor: not-allowed; }.list-toolbar { display: flex; justify-content: space-between; gap: 16px; }.search { flex: 1; }.search input, .preview-control select, .form input { width: 100%; border: 1px solid #cbd6e6; border-radius: 8px; background: #fff; padding: 11px 12px; color: #24324a; }.preview-control { display: flex; align-items: center; gap: 8px; color: #5c6c84; font-size: 12px; font-weight: 700; }.preview-control select { width: auto; padding: 8px; }.tenant-table-wrap, .panel { overflow: hidden; border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; }.tenant-table { width: 100%; border-collapse: collapse; }.tenant-table th, .tenant-table td { padding: 15px 16px; border-bottom: 1px solid #edf1f6; text-align: left; font-size: 13px; }.tenant-table th { background: #f9fbfe; color: #68768d; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }.tenant-table tr:last-child td { border-bottom: 0; }.tenant-table small { display: block; margin-top: 3px; color: #7a8699; }.tenant-table small.inactive { color: #a55529; }.status, .owner { display: inline-flex; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; }.status.active { background: #e6f7f0; color: #087c57; }.status.inactive { background: #fceceb; color: #b5393e; }.owner.completed { background: #e6f7f0; color: #087c57; }.owner.required { background: #fff5d9; color: #a66400; }.owner.failed { background: #fce8e8; color: #b3393e; }.text-button { background: transparent; color: #2f69c7; padding: 5px; }.pagination { display: flex; justify-content: end; gap: 5px; }.pagination .selected { border-color: #2f69c7; background: #2f69c7; color: #fff; }.back { width: max-content; border: 0; background: transparent; padding: 0; color: #386ac0; font-weight: 700; cursor: pointer; }.contract-note { border-radius: 8px; background: #f4f6fa; padding: 12px; color: #59687e; font-size: 13px; }.panel { padding: 22px; }.form { display: grid; gap: 18px; margin-top: 18px; }.form fieldset { display: grid; gap: 9px; border: 0; padding: 0; }.form legend { margin-bottom: 8px; color: #26364f; font-weight: 800; }.form label { display: grid; gap: 6px; color: #526177; font-size: 13px; font-weight: 700; }.actions { display: flex; flex-wrap: wrap; gap: 9px; }.success-panel { display: flex; gap: 18px; align-items: start; border: 1px solid #bfe4d5; border-radius: 12px; background: #f0faf6; padding: 25px; }.success-panel h2 { margin-bottom: 7px; }.success-panel p { margin-bottom: 18px; color: #4c675c; }.success-icon { display: grid; flex: 0 0 auto; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: #119669; color: #fff; font-weight: 800; }.large { padding: 7px 11px; }.notice { border-radius: 9px; background: #eaf2ff; padding: 13px; color: #315b98; }.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.panel h2, .owner-panel h2 { margin-bottom: 14px; color: #20304a; font-size: 17px; }.panel dl { display: grid; gap: 14px; }.panel dl div { display: grid; gap: 3px; }.panel dt { color: #758197; font-size: 12px; }.panel dd { margin: 0; font-weight: 700; }.owner-panel, .action-panel { display: flex; align-items: center; justify-content: space-between; gap: 20px; border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; padding: 22px; }.owner-panel.required { border-color: #f0d18a; background: #fffaf0; }.owner-panel.failed { border-color: #edb9b9; background: #fff7f7; }.owner-panel p:not(.eyebrow), .action-panel p { color: #66758b; }.action-panel { align-items: end; }.modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgb(11 23 42 / 48%); }.modal { width: min(440px, 100%); border-radius: 14px; background: #fff; padding: 26px; box-shadow: 0 20px 50px rgb(0 0 0 / 25%); }.modal h2 { margin: 7px 0 10px; color: #20304a; font-size: 20px; }.modal > p:not(.eyebrow) { margin-bottom: 20px; color: #67758b; }.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
-@media (max-width: 760px) { .admin-header { padding: 0 18px; }.header-meta > span:last-child { display: none; }.admin-layout { grid-template-columns: 1fr; }.admin-nav { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-right: 0; border-bottom: 1px solid #dce4f0; }.nav-label, .nav-note { display: none; }.admin-nav button { width: auto; }.admin-main { padding: 20px 16px; }.page-heading, .list-toolbar, .action-panel, .owner-panel { align-items: stretch; flex-direction: column; }.detail-grid { grid-template-columns: 1fr; }.tenant-table th:nth-child(3), .tenant-table td:nth-child(3) { display: none; }.preview-banner { align-items: start; flex-direction: column; gap: 3px; } }
-
-/* Keep the development indicator deliberately unobtrusive and prevent long Korean labels from overflowing. */
-.preview-banner { width: max-content; max-width: 100%; margin: 0 0 22px auto; border-radius: 999px; padding: 5px 10px; font-size: 11px; }
-.page-heading p:not(.eyebrow) { max-width: 620px; }
-.preview-control { display: block; min-width: 146px; font-weight: 400; }.preview-control summary { cursor: pointer; font-weight: 700; }.preview-control label { display: grid; gap: 6px; margin-top: 8px; }.preview-control select { width: 100%; }
-.tenant-table { table-layout: fixed; }.tenant-table th, .tenant-table td { overflow-wrap: anywhere; }.tenant-table th:nth-child(1) { width: 28%; }.tenant-table th:nth-child(2) { width: 14%; }.tenant-table th:nth-child(3) { width: 23%; }.tenant-table th:nth-child(4) { width: 18%; }.status, .owner { max-width: 100%; white-space: nowrap; }.text-button { white-space: nowrap; }.notice, .panel dd, .owner-panel p:not(.eyebrow), .action-panel p { overflow-wrap: anywhere; }.modal { max-height: calc(100vh - 40px); overflow: auto; }
-@media (max-width: 760px) { .preview-banner { margin-bottom: 18px; }.tenant-table th:nth-child(1) { width: 37%; }.tenant-table th:nth-child(2) { width: 19%; }.tenant-table th:nth-child(4) { width: 25%; }.tenant-table th:nth-child(5) { width: 19%; }.tenant-table th, .tenant-table td { padding: 12px 8px; font-size: 12px; }.status, .owner { padding: 3px 6px; font-size: 10px; }.pagination { justify-content: center; }.modal { padding: 22px 18px; }.preview-control { width: max-content; } }
-
-/* V4 design-system alignment: the preview stays isolated, but adopts the same restrained back-office language. */
-.admin-shell { background: var(--color-background); color: var(--color-text); }
-.admin-header { height: 64px; border-bottom: 1px solid var(--color-border); background: var(--color-surface); color: var(--color-heading); }
-.brand-mark, .primary, .pagination .selected { background: var(--color-primary); }
-.brand small, .header-meta { color: var(--color-muted); }
-.internal-badge { border-color: var(--color-border); background: var(--color-surface-subtle); color: var(--color-muted); }
-.admin-layout { grid-template-columns: 192px minmax(0, 1fr); min-height: calc(100vh - 64px); }
-.admin-nav { padding: 16px 10px; border-color: var(--color-border); background: var(--color-surface); }
-.admin-nav button { border-radius: var(--radius-control); color: var(--color-text); font-size: 13px; }
-.admin-nav button.active { background: var(--color-primary-soft); color: var(--color-primary); }
-.admin-main { width: min(1320px, 100%); padding: 22px 28px; }
-.page { gap: 14px; }.page-heading { align-items: center; }.page-heading h1 { font-size: 24px; font-weight: 740; letter-spacing: -.025em; }.page-heading p:not(.eyebrow) { font-size: 13px; }
-.primary, .danger, .secondary, .pagination button, .text-button { border-radius: var(--radius-control); }
-.secondary, .pagination button { border-color: var(--color-border-strong); }
-.tenant-table-wrap, .panel, .owner-panel, .action-panel { border-color: var(--color-border); border-radius: var(--radius-control); box-shadow: none; }
-.tenant-table th { background: var(--color-surface-subtle); color: var(--color-muted); }
-.tenant-table th, .tenant-table td { padding: 11px 14px; }
-.tenant-table tbody tr:hover { background: #fafafa; }
-.list-toolbar { align-items: center; border: 0; border-bottom: 1px solid var(--color-border); border-radius: 0; background: transparent; padding: 0 0 12px; }
-.search input, .preview-control select, .form input { border-color: var(--color-border-strong); border-radius: var(--radius-control); }
-.preview-banner { border-radius: var(--radius-control); }.internal-badge, .preview-control { display: none; }.nav-note { display: none; }.nav-label { margin: 4px 8px 6px; }.admin-nav button { min-height: 34px; padding: 8px; }
-.status.active, .owner.completed { background: #eef2f7; color: #334155; }.status.inactive, .owner.failed { background: #fff1f1; color: #9f2c32; }.owner.required { background: #f4f4f5; color: #52525b; }
-.page-heading { border-bottom: 1px solid var(--color-border); padding-bottom: 14px; }.tenant-table-wrap { border-radius: 4px; }.tenant-table th, .tenant-table td { padding: 12px 14px; }.tenant-table th { font-size: 10px; }.tenant-table td { font-size: 13px; }.detail-grid { gap: 12px; }.panel, .owner-panel, .action-panel { border-radius: 4px; padding: 18px; }
-@media (max-width: 760px) { .admin-layout { grid-template-columns: 1fr; }.admin-main { padding: 20px 16px; }.list-toolbar { align-items: stretch; } }
-
-/* Provider-specific Shopify/Square operational shell. */
-.admin-shell { background:#f6f6f7; color:#202223; }.admin-header { height:56px; padding:0 20px; background:#fff; border-bottom:1px solid #e1e3e5; }.brand { gap:8px; }.brand-mark { width:28px; height:28px; border-radius:5px; font-size:13px; }.brand small { margin-top:1px; font-size:10px; }.header-meta { gap:12px; color:#616161; font-size:12px; }.admin-layout { grid-template-columns:220px minmax(0,1fr); min-height:calc(100vh - 56px); }.admin-nav { position:relative; display:flex; flex-direction:column; gap:20px; padding:18px 12px; background:#f9fafb; border-right:1px solid #e1e3e5; }.nav-section { display:grid; gap:2px; }.nav-label { margin:0 8px 5px; color:#6d7175; font-size:10px; font-weight:700; letter-spacing:.08em; }.admin-nav button { display:grid; gap:1px; width:100%; border:0; border-radius:4px; padding:8px; color:#303030; text-align:left; font-size:13px; }.admin-nav button small { color:#6d7175; font-size:10px; font-weight:400; }.admin-nav button.active { background:#e4efff; color:#1a5fb4; }.preview-drawer { margin-top:auto; border-top:1px solid #e1e3e5; padding:12px 8px 0; color:#6d7175; font-size:11px; }.preview-drawer summary { cursor:pointer; }.preview-drawer label { display:grid; gap:5px; margin-top:8px; }.preview-drawer select { min-height:28px; border:1px solid #c9cccf; border-radius:3px; background:#fff; font-size:11px; }.admin-main { width:min(1240px,100%); padding:24px 32px; }.page { gap:12px; }.page-heading { align-items:end; border:0; padding:0; }.page-heading h1 { margin:2px 0; font-size:20px; letter-spacing:-.015em; }.page-heading p:not(.eyebrow) { font-size:12px; }.eyebrow { font-size:10px; }.list-toolbar { display:grid; grid-template-columns:minmax(280px,1fr) 140px 130px auto; align-items:end; gap:8px; border:1px solid #e1e3e5; background:#fff; padding:10px; }.search input, .compact-filter select { min-height:32px; border:1px solid #babfc3; border-radius:3px; padding:0 9px; font-size:12px; }.compact-filter { display:grid; gap:4px; color:#6d7175; font-size:10px; }.primary { min-height:32px; border-radius:3px; padding:0 11px; font-size:12px; }.tenant-table-wrap { border:1px solid #e1e3e5; border-radius:3px; }.tenant-table { table-layout:fixed; }.tenant-table th { height:34px; background:#f6f6f7; color:#6d7175; font-size:10px; letter-spacing:.02em; }.tenant-table th, .tenant-table td { padding:8px 12px; }.tenant-table td { height:48px; font-size:12px; }.tenant-table th:nth-child(1){width:31%}.tenant-table th:nth-child(2){width:16%}.tenant-table th:nth-child(3){width:25%}.tenant-table th:nth-child(4){width:18%}.tenant-table th:nth-child(5){width:10%}.tenant-table small { margin-top:1px; color:#6d7175; font-size:10px; }.status, .owner { display:none; }.status-text { display:inline-flex; align-items:center; gap:6px; color:#303030; font-size:12px; }.status-text i { width:6px; height:6px; border-radius:50%; background:#7a7f85; }.status-text.inactive { color:#9b2c2c; }.status-text.inactive i { background:#c44b4b; }.owner-text { color:#4b5563; font-size:12px; }.owner-text.failed { color:#a13b3b; }.row-menu { width:28px; height:28px; border:0; border-radius:3px; background:transparent; color:#5c5f62; font-weight:700; letter-spacing:1px; }.row-menu:hover { background:#f1f2f3; }.pagination { padding-top:4px; }.pagination button { min-width:30px; min-height:30px; border-radius:3px; padding:0 8px; font-size:12px; }.panel, .owner-panel, .action-panel { border-radius:3px; padding:16px; }.internal-badge, .preview-control { display:none; }
-@media (max-width:760px){.admin-layout{grid-template-columns:1fr}.admin-nav{flex-direction:row;overflow:auto}.nav-section{min-width:150px}.preview-drawer{display:none}.admin-main{padding:18px 14px}.list-toolbar{grid-template-columns:1fr 1fr}.search{grid-column:1/-1}.tenant-table th:nth-child(3),.tenant-table td:nth-child(3){display:none}}
-
-/* Doro control plane: shared ink navigation, clean workspace, one cobalt action. */
-.admin-nav { background:#141b2d; border-right-color:#222b3f; }.nav-label { color:#69748d; }.admin-nav button { color:#b6c0d4; }.admin-nav button small { color:#77839d; }.admin-nav button.active { background:#253858; color:#fff; box-shadow:inset 2px 0 0 #60a5fa; }.preview-drawer { border-top-color:#263149; color:#8290aa; }.preview-drawer select { border-color:#33405a; background:#1d2639; color:#d9e1ef; }.page-heading h1 { font-weight:800; letter-spacing:-.035em; }.page-heading p:not(.eyebrow) { color:#64748b; }.list-toolbar { border-radius:8px; box-shadow:0 6px 18px rgb(15 23 42 / 4%); }.tenant-table-wrap { border-radius:8px; box-shadow:0 10px 25px rgb(15 23 42 / 4%); }.tenant-table tbody tr { transition:background .16s ease; }.tenant-table tbody tr:hover { background:#f7faff; }.primary { box-shadow:0 4px 10px rgb(37 99 235 / 17%); }
-.admin-nav { background:#1b1c20; border-right-color:#292b30; }.brand-mark,.primary,.pagination .selected { background:#009b6b; }.admin-nav button { color:#9b9da5; }.admin-nav button small { color:#777982; }.admin-nav button.active { background:#2d3036; color:#fff; box-shadow:inset 2px 0 0 #00a878; }.preview-drawer { border-top-color:#303238; color:#80828b; }.preview-drawer select { border-color:#3a3c43; background:#282a30; color:#d9dade; }.list-toolbar,.tenant-table-wrap { border-radius:3px; box-shadow:none; }.tenant-table tbody tr:hover { background:#f7fcfa; }.primary { box-shadow:none; }
-
-/* Keep operational controls readable instead of compressing table columns. */
-.admin-main { min-width: 0; }
-.list-toolbar > * { min-width: 0; }
-.list-toolbar .primary { white-space: nowrap; }
-.tenant-table-wrap { max-width: 100%; overflow-x: auto; }
-.tenant-table { min-width: 760px; }
-.tenant-table th.action-column,
-.tenant-table td.action-cell { width: 52px; min-width: 52px; max-width: 52px; padding-inline: 10px; text-align: center; }
-.row-menu { display: inline-flex; flex: 0 0 30px; align-items: center; justify-content: center; width: 30px; min-width: 30px; height: 30px; min-height: 30px; padding: 0; white-space: nowrap; line-height: 1; }
-.form label > small { color: #6d7175; font-size: 11px; font-weight: 400; line-height: 1.45; }
-@media (max-width: 1100px) {
-  .admin-main { padding-inline: 20px; }
-  .list-toolbar { grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(120px, 160px)); }
-  .list-toolbar .primary { justify-self: end; }
-}
-@media (max-width: 860px) {
-  .list-toolbar { grid-template-columns: minmax(0, 1fr) minmax(120px, .55fr); }
-  .search { grid-column: 1 / -1; }
-  .list-toolbar .primary { width: max-content; justify-self: end; }
-}
+* { box-sizing: border-box; }
+.admin-shell { min-height: 100vh; background: #f5f7fb; color: #24324a; }
+.admin-header { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px; background: #15233f; color: #fff; }
+.brand { display: flex; align-items: center; gap: 10px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+.brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 9px; background: #5b8def; font-weight: 800; }
+.brand small, .tenant-table small { display: block; color: #7a8699; font-size: 11px; }
+.brand small { color: #b9c6df; }
+.header-meta { display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.header-meta button { border: 1px solid #607493; border-radius: 7px; background: transparent; padding: 7px 10px; color: #fff; cursor: pointer; }
+.internal-badge { border: 1px solid #516786; border-radius: 999px; padding: 4px 9px; font-weight: 700; }
+.auth-page { display: grid; min-height: calc(100vh - 68px); place-items: center; padding: 24px; }
+.auth-card { width: min(480px, 100%); border: 1px solid #dbe3ef; border-radius: 14px; background: #fff; padding: 30px; box-shadow: 0 18px 50px rgb(25 46 80 / 10%); }
+.auth-card h1 { margin: 8px 0 12px; }.auth-card p:not(.eyebrow) { margin-bottom: 22px; color: #66758b; }
+.admin-layout { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: calc(100vh - 68px); }
+.admin-nav { padding: 26px 14px; border-right: 1px solid #dce4f0; background: #fff; }
+.nav-label, .eyebrow { color: #62708a; font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.admin-nav button { width: 100%; border: 0; border-radius: 8px; background: #eaf1ff; padding: 11px 12px; color: #275cae; text-align: left; font-weight: 750; cursor: pointer; }
+.nav-note { margin: 28px 12px 0; color: #78859a; font-size: 12px; line-height: 1.55; }
+.admin-main { width: min(1180px, 100%); padding: 30px; margin: 0 auto; }
+.page { display: grid; gap: 20px; }.page.narrow { max-width: 920px; }
+.page-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }.page-heading h1 { margin: 4px 0 5px; color: #16233a; font-size: 28px; }
+.filters { display: grid; grid-template-columns: 1fr 1fr 180px auto; gap: 10px; align-items: end; }
+label { display: grid; gap: 6px; color: #526177; font-size: 13px; font-weight: 700; }
+input, select { width: 100%; border: 1px solid #cbd6e6; border-radius: 8px; background: #fff; padding: 10px 11px; color: #24324a; }
+.primary, .danger, .secondary, .text-button { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 8px; padding: 10px 14px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.primary { background: #2f69c7; color: #fff; }.danger { background: #c83c43; color: #fff; }.secondary { border: 1px solid #ccd6e5; background: #fff; color: #3d4e67; }.text-button { background: transparent; color: #2f69c7; padding: 5px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.tenant-table-wrap, .panel { overflow: hidden; border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; }
+.tenant-table { width: 100%; border-collapse: collapse; table-layout: fixed; }.tenant-table th, .tenant-table td { padding: 14px 12px; border-bottom: 1px solid #edf1f6; text-align: left; font-size: 13px; overflow-wrap: anywhere; }.tenant-table th { background: #f9fbfe; color: #68768d; font-size: 11px; }.tenant-table tr:last-child td { border-bottom: 0; }
+.status { display: inline-flex; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 800; }.status.active { background: #e6f7f0; color: #087c57; }.status.inactive { background: #fceceb; color: #b5393e; }.status.large { padding: 7px 11px; }
+.pagination { display: flex; align-items: center; justify-content: end; gap: 10px; }
+.back { width: max-content; border: 0; background: transparent; padding: 0; color: #386ac0; font-weight: 700; cursor: pointer; }
+.panel { padding: 22px; }.panel h2 { margin: 5px 0 14px; color: #20304a; font-size: 17px; }.form { display: grid; gap: 16px; }.actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.panel dl { display: grid; gap: 14px; }.panel dt { color: #758197; font-size: 12px; }.panel dd { margin: 2px 0 0; font-weight: 700; overflow-wrap: anywhere; }
+.action-panel { display: flex; align-items: end; justify-content: space-between; gap: 20px; }.action-panel p { color: #66758b; }
+.notice, .error-notice { border-radius: 9px; padding: 13px; }.notice { background: #eaf2ff; color: #315b98; }.error-notice { background: #fff0f0; color: #9b2f36; }.error-notice p { margin-bottom: 10px; }
+.modal-backdrop { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 20px; background: rgb(11 23 42 / 48%); }.modal { width: min(440px, 100%); border-radius: 14px; background: #fff; padding: 26px; }.modal h2 { margin: 7px 0 20px; color: #20304a; font-size: 20px; }
+@media (max-width: 800px) { .admin-header { padding: 0 16px; }.header-meta > span { display: none; }.admin-layout { grid-template-columns: 1fr; }.admin-nav { padding: 10px 14px; border-right: 0; border-bottom: 1px solid #dce4f0; }.nav-label, .nav-note { display: none; }.admin-nav button { width: auto; }.admin-main { padding: 20px 14px; }.filters, .detail-grid { grid-template-columns: 1fr; }.page-heading, .action-panel { align-items: stretch; flex-direction: column; }.tenant-table th:nth-child(3), .tenant-table td:nth-child(3), .tenant-table th:nth-child(5), .tenant-table td:nth-child(5) { display: none; } }
 </style>

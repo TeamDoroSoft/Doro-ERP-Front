@@ -1,0 +1,15 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+node_modules
+dist
+dist-admin
+dist-ssr
+coverage
+test-results
+playwright-report
+*.log
+Dockerfile*
+README.md

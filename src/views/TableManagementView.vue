@@ -34,7 +34,7 @@ async function loadTables() {
   listError.value = ''
   try {
     tables.value = await getTables()
-  } catch (error) {
+  } catch {
     listError.value = '테이블 목록을 불러오지 못했습니다. 다시 시도해 주세요.'
   } finally {
     loading.value = false
