@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "test:unit": "vitest",
     "test:e2e": "playwright test --project=chromium",
+    "test:e2e:admin": "playwright test --config=playwright.admin.config.ts --project=chromium",
     "build-only": "vite build",
     "build-admin-only": "vite build --config vite.admin.config.ts",
     "type-check": "vue-tsc --build",
