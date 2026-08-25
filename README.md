@@ -162,11 +162,11 @@ Provider Admin은 Public POS·Kiosk Artifact와 분리된 Entry 및 `dist-admin/
 
 두 View Layer는 Build와 배포 대상을 공유하지 않습니다.
 
-| Workflow            | Trigger                   | 결과                                                                |
-| ------------------- | ------------------------- | ------------------------------------------------------------------- |
-| `verify-front.yml`  | Pull Request, `main` Push | Lint·Unit Test·Public/Admin Build 및 Admin Container Build 검증     |
-| `deploy-public.yml` | 수동 승인 실행            | Public `dist/`를 S3에 동기화하고 CloudFront Cache 무효화            |
-| `publish-admin.yml` | 수동 승인 실행            | Provider Admin Container를 Git SHA Tag로 ECR에 게시하고 Digest 출력 |
+| Workflow            | Trigger                   | 결과                                                            |
+| ------------------- | ------------------------- | --------------------------------------------------------------- |
+| `verify-front.yml`  | Pull Request, `main` Push | Lint·Unit Test·Public/Admin Build 및 Admin Container Build 검증 |
+| `deploy-public.yml` | 수동 실행                 | Public `dist/`를 S3에 동기화하고 CloudFront Cache 무효화        |
+| `publish-admin.yml` | `main` Push, 수동 실행    | Provider Admin Image를 ECR에 게시하고 GitOps Release PR 생성    |
 
 AWS 인증은 Access Key 대신 GitHub OIDC와 `prod` Environment에 제한된 최소 권한 IAM Role을
 사용합니다. 두 Workflow는 선택 가능한 배포 환경을 받지 않고 `prod` Environment로만 실행합니다.
@@ -185,10 +185,16 @@ Public Front 배포 Role, Provider Admin ECR 게시 Role과 대상 S3·CloudFron
 | `FRONTEND_ECR_REPOSITORY`             | Admin         | Provider Admin ECR Repository 이름             |
 | `PUBLIC_API_BASE_URL`                 | Public        | Public Edge API Base URL. same-origin이면 비움 |
 | `PUBLIC_TOSS_CLIENT_KEY`              | Public        | Browser 공개가 허용된 Toss Client Key          |
+| `GITOPS_APP_ID`                       | Admin         | GitOps 쓰기 권한이 있는 GitHub App ID          |
 
-Admin Workflow는 Private EKS API에 직접 접속하지 않습니다. 출력된 Image Digest를 Infra 저장소의
-승인된 Kustomize Overlay에 기록한 뒤 Infra 배포 절차로 Rollout합니다. Admin API Client와 OIDC
-Session UI는 구현됐지만 실제 Admin Edge Runtime·Browser E2E·배포 검증 완료를 의미하지 않습니다.
+Admin Workflow에는 `prod` Environment Secret `GITOPS_APP_PRIVATE_KEY`도 필요합니다. GitHub App은
+`Doro-ERP-GitOps` 저장소의 Contents와 Pull requests에 `Read and write` 권한을 가져야 합니다.
+
+Admin Workflow는 Private EKS API에 직접 접속하지 않습니다. ECR 게시 후 GitOps Release PR을 만들고,
+승인된 PR이 병합되면 Argo CD가 Provider Admin Deployment와 ClusterIP Service를 자동 Rollout합니다.
+Admin Nginx는 `/api/`를 같은 Namespace의 `edge-api:8080`으로 전달합니다. 외부 Route와 DNS는 만들지
+않으며 SSM 관리 경로의 `kubectl port-forward`로만 접근합니다. Admin API Client와 OIDC Session UI는
+구현됐지만 실제 Browser E2E 검증 완료를 의미하지 않습니다.
 
 ## 주요 Route
 

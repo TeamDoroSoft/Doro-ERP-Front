@@ -1,6 +1,9 @@
 name: Publish Provider Admin image to ECR
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 concurrency:
@@ -19,6 +22,8 @@ jobs:
     environment: prod
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+    outputs:
+      digest: ${{ steps.published-image.outputs.digest }}
 
     steps:
       - name: Check required GitHub variables
@@ -120,6 +125,7 @@ jobs:
         run: docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Verify published image digest
+        id: published-image
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
           ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
@@ -136,7 +142,143 @@ jobs:
             exit 1
           fi
 
+          echo "digest=${digest}" >> "${GITHUB_OUTPUT}"
           echo "### Provider Admin image" >> "${GITHUB_STEP_SUMMARY}"
           echo "\`${ECR_REGISTRY}/${ECR_REPOSITORY}@${digest}\`" >> "${GITHUB_STEP_SUMMARY}"
           echo "" >> "${GITHUB_STEP_SUMMARY}"
-          echo "Record this digest in the approved Infra Kustomize overlay before rollout." >> "${GITHUB_STEP_SUMMARY}"
+          echo "A GitOps release PR will record this digest for rollout." >> "${GITHUB_STEP_SUMMARY}"
+
+  update-gitops:
+    name: Open Provider Admin GitOps release PR
+    needs: publish
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: prod
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check GitOps automation configuration
+        env:
+          AWS_ADMIN_ECR_PUSH_ROLE_ARN: ${{ vars.AWS_ADMIN_ECR_PUSH_ROLE_ARN }}
+          GITOPS_APP_ID: ${{ vars.GITOPS_APP_ID }}
+          GITOPS_APP_PRIVATE_KEY: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+        run: |
+          missing=0
+          for name in AWS_ADMIN_ECR_PUSH_ROLE_ARN GITOPS_APP_ID GITOPS_APP_PRIVATE_KEY; do
+            if [[ -z "${!name}" ]]; then
+              echo "GitHub Environment 'prod' value ${name} is required." >&2
+              missing=1
+            fi
+          done
+          if [[ ${missing} -ne 0 ]]; then
+            exit 1
+          fi
+
+      - name: Configure AWS credentials through OIDC
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_ADMIN_ECR_PUSH_ROLE_ARN }}
+          role-session-name: doro-erp-admin-gitops-${{ github.run_id }}
+
+      - name: Create GitOps GitHub App token
+        id: gitops-app
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.GITOPS_APP_ID }}
+          private-key: ${{ secrets.GITOPS_APP_PRIVATE_KEY }}
+          owner: TeamDoroSoft
+          repositories: Doro-ERP-GitOps
+
+      - name: Check out GitOps repository
+        uses: actions/checkout@v6
+        with:
+          repository: TeamDoroSoft/Doro-ERP-GitOps
+          ref: main
+          token: ${{ steps.gitops-app.outputs.token }}
+          path: gitops
+
+      - name: Set up kubectl for Kustomize validation
+        uses: azure/setup-kubectl@v4
+
+      - name: Record Provider Admin image digest
+        working-directory: gitops
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          ./deploy/scripts/record-prod-alpha-admin-image.sh \
+            "${SOURCE_REVISION}" \
+            "${IMAGE_DIGEST}"
+
+          git diff --check
+          kubectl kustomize deploy/overlays/prod/alpha >/dev/null
+
+      - name: Create or update Provider Admin release PR
+        working-directory: gitops
+        env:
+          GH_TOKEN: ${{ steps.gitops-app.outputs.token }}
+          SOURCE_REVISION: ${{ github.sha }}
+          SOURCE_REPOSITORY: ${{ github.repository }}
+          SOURCE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if git diff --quiet -- deploy/overlays/prod/alpha/kustomization.yaml; then
+            echo "GitOps already records Provider Admin ${SOURCE_REVISION}." >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          branch="automation/provider-admin-${SOURCE_REVISION}"
+          short_revision="${SOURCE_REVISION:0:12}"
+
+          git config user.name "doro-erp-release-bot[bot]"
+          git config user.email "doro-erp-release-bot[bot]@users.noreply.github.com"
+          git fetch origin "${branch}:refs/remotes/origin/${branch}" || true
+          git switch -C "${branch}"
+          git add deploy/overlays/prod/alpha/kustomization.yaml
+          git commit -m "release: pin Provider Admin image for ${short_revision}"
+          git push --force-with-lease --set-upstream origin "${branch}"
+
+          existing_pr="$(gh pr list \
+            --repo TeamDoroSoft/Doro-ERP-GitOps \
+            --head "${branch}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')"
+
+          if [[ -n "${existing_pr}" ]]; then
+            pr_url="${existing_pr}"
+          else
+            pr_body="$(printf '%s\n' \
+              '## Release source' \
+              '' \
+              "- Repository: \`${SOURCE_REPOSITORY}\`" \
+              "- Revision: \`${SOURCE_REVISION}\`" \
+              "- Workflow: ${SOURCE_RUN_URL}" \
+              '' \
+              '## Changes' \
+              '' \
+              '- Pins the Provider Admin image to its verified ECR digest.' \
+              '- Adds Provider Admin to the Prod Alpha Overlay on its first release.' \
+              '- Keeps the Admin Service internal without Gateway or public DNS.' \
+              '' \
+              '## Validation' \
+              '' \
+              '- The Git SHA tag was resolved from ECR.' \
+              '- `git diff --check` passed.' \
+              '- Prod Alpha Kustomize rendering passed.')"
+
+            pr_url="$(gh pr create \
+              --repo TeamDoroSoft/Doro-ERP-GitOps \
+              --base main \
+              --head "${branch}" \
+              --title "release: deploy Provider Admin ${short_revision} to prod" \
+              --body "${pr_body}")"
+          fi
+
+          echo "### Provider Admin GitOps release PR" >> "${GITHUB_STEP_SUMMARY}"
+          echo "${pr_url}" >> "${GITHUB_STEP_SUMMARY}"
