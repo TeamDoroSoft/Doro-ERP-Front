@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Check required GitHub variables
         env:
-          AWS_FRONTEND_PUBLISH_ROLE_ARN: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
+          AWS_ADMIN_ECR_PUSH_ROLE_ARN: ${{ vars.AWS_ADMIN_ECR_PUSH_ROLE_ARN }}
           FRONTEND_ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
         run: |
           if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
@@ -32,7 +32,7 @@ jobs:
           fi
 
           missing=0
-          for name in AWS_FRONTEND_PUBLISH_ROLE_ARN FRONTEND_ECR_REPOSITORY; do
+          for name in AWS_ADMIN_ECR_PUSH_ROLE_ARN FRONTEND_ECR_REPOSITORY; do
             if [[ -z "${!name}" ]]; then
               echo "GitHub Environment 'prod' variable ${name} is required." >&2
               missing=1
@@ -68,7 +68,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_ADMIN_ECR_PUSH_ROLE_ARN }}
           role-session-name: doro-erp-admin-${{ github.run_id }}
 
       - name: Log in to Amazon ECR

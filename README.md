@@ -162,28 +162,29 @@ Provider Admin은 Public POS·Kiosk Artifact와 분리된 Entry 및 `dist-admin/
 
 두 View Layer는 Build와 배포 대상을 공유하지 않습니다.
 
-| Workflow | Trigger | 결과 |
-| -------- | ------- | ---- |
-| `verify-front.yml` | Pull Request, `main` Push | Lint·Unit Test·Public/Admin Build 및 Admin Container Build 검증 |
-| `deploy-public.yml` | 수동 승인 실행 | Public `dist/`를 S3에 동기화하고 CloudFront Cache 무효화 |
-| `publish-admin.yml` | 수동 승인 실행 | Provider Admin Container를 Git SHA Tag로 ECR에 게시하고 Digest 출력 |
+| Workflow            | Trigger                   | 결과                                                                |
+| ------------------- | ------------------------- | ------------------------------------------------------------------- |
+| `verify-front.yml`  | Pull Request, `main` Push | Lint·Unit Test·Public/Admin Build 및 Admin Container Build 검증     |
+| `deploy-public.yml` | 수동 승인 실행            | Public `dist/`를 S3에 동기화하고 CloudFront Cache 무효화            |
+| `publish-admin.yml` | 수동 승인 실행            | Provider Admin Container를 Git SHA Tag로 ECR에 게시하고 Digest 출력 |
 
 AWS 인증은 Access Key 대신 GitHub OIDC와 `prod` Environment에 제한된 최소 권한 IAM Role을
 사용합니다. 두 Workflow는 선택 가능한 배포 환경을 받지 않고 `prod` Environment로만 실행합니다.
 
-Front Publisher Role과 대상 S3·CloudFront·ECR Resource는 Infra 저장소에서 먼저 생성해야 합니다.
-Public과 Admin Workflow는 하나의 Front 전용 Publisher Role을 공유하지만 기존 Service Image 게시
-Role은 공유하지 않습니다.
+Public Front 배포 Role, Provider Admin ECR 게시 Role과 대상 S3·CloudFront·ECR Resource는 Infra
+저장소에서 먼저 생성해야 합니다. 두 Workflow는 서로의 권한과 기존 Service Image 게시 Role을
+공유하지 않습니다.
 
-| Variable | Workflow | 용도 |
-| -------- | -------- | ---- |
-| `AWS_REGION` | Public, Admin | AWS Region. 생략 시 `ap-northeast-2` |
-| `AWS_FRONTEND_PUBLISH_ROLE_ARN` | Public, Admin | Front 전용 S3·CloudFront·ECR Publisher Role |
-| `FRONTEND_S3_BUCKET` | Public | `dist/` 전용 S3 Bucket 이름 |
-| `FRONTEND_CLOUDFRONT_DISTRIBUTION_ID` | Public | 배포 후 무효화할 Distribution ID |
-| `FRONTEND_ECR_REPOSITORY` | Admin | Provider Admin ECR Repository 이름 |
-| `PUBLIC_API_BASE_URL` | Public | Public Edge API Base URL. same-origin이면 비움 |
-| `PUBLIC_TOSS_CLIENT_KEY` | Public | Browser 공개가 허용된 Toss Client Key |
+| Variable                              | Workflow      | 용도                                           |
+| ------------------------------------- | ------------- | ---------------------------------------------- |
+| `AWS_REGION`                          | Public, Admin | AWS Region. 생략 시 `ap-northeast-2`           |
+| `AWS_FRONTEND_DEPLOY_ROLE_ARN`        | Public        | Public Front 전용 S3·CloudFront 배포 Role      |
+| `AWS_ADMIN_ECR_PUSH_ROLE_ARN`         | Admin         | Provider Admin 전용 ECR 게시 Role              |
+| `FRONTEND_S3_BUCKET`                  | Public        | `dist/` 전용 S3 Bucket 이름                    |
+| `FRONTEND_CLOUDFRONT_DISTRIBUTION_ID` | Public        | 배포 후 무효화할 Distribution ID               |
+| `FRONTEND_ECR_REPOSITORY`             | Admin         | Provider Admin ECR Repository 이름             |
+| `PUBLIC_API_BASE_URL`                 | Public        | Public Edge API Base URL. same-origin이면 비움 |
+| `PUBLIC_TOSS_CLIENT_KEY`              | Public        | Browser 공개가 허용된 Toss Client Key          |
 
 Admin Workflow는 Private EKS API에 직접 접속하지 않습니다. 출력된 Image Digest를 Infra 저장소의
 승인된 Kustomize Overlay에 기록한 뒤 Infra 배포 절차로 Rollout합니다. Admin API Client와 OIDC
@@ -199,16 +200,16 @@ Session UI는 구현됐지만 실제 Admin Edge Runtime·Browser E2E·배포 검
 
 ## 검증 경계와 현재 상태
 
-| 영역                            | Front               | 실제 통합 상태        | 근거·Blocker                                                                                |
-| ------------------------------- | ------------------- | --------------------- | ------------------------------------------------------------------------------------------- |
-| POS Shell·Auth                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Route 연결 완료, 실제 배포 Session Runtime 미검증                                 |
-| Order                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Order와 Table Route 연결 완료, 실제 Runtime·AWS 연동 미검증                       |
-| Catalog                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | 판매 메뉴와 Category·Product 관리 Edge Route 연결 완료, 실제 Runtime·AWS 연동 미검증         |
-| Table·Queue·Sales·POS 운영 화면 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front 호출과 Edge Route 계약 정합성 확인 완료, 실제 Runtime 종단 검증 미완료                 |
+| 영역                            | Front               | 실제 통합 상태        | 근거·Blocker                                                                                  |
+| ------------------------------- | ------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| POS Shell·Auth                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Route 연결 완료, 실제 배포 Session Runtime 미검증                                  |
+| Order                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Order와 Table Route 연결 완료, 실제 Runtime·AWS 연동 미검증                        |
+| Catalog                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | 판매 메뉴와 Category·Product 관리 Edge Route 연결 완료, 실제 Runtime·AWS 연동 미검증          |
+| Table·Queue·Sales·POS 운영 화면 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front 호출과 Edge Route 계약 정합성 확인 완료, 실제 Runtime 종단 검증 미완료                  |
 | Provider Admin                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Admin API Client·OIDC Session UI·Unit Test 구현, 실제 Admin Runtime·Browser E2E·배포는 미검증 |
-| Payment                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime·Toss Sandbox 미검증                                       |
-| Audit                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime 미검증                                                    |
-| Kiosk                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Kiosk Route 연결 완료, 실제 기기 Credential 종단 검증 미완료                      |
+| Payment                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime·Toss Sandbox 미검증                                        |
+| Audit                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime 미검증                                                     |
+| Kiosk                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Kiosk Route 연결 완료, 실제 기기 Credential 종단 검증 미완료                       |
 
 Playwright 테스트는 Browser Route Mock 기반 `mock-ui` 검증입니다. 실제 Edge를 사용하는
 `edge-integration`이나 Toss Test Provider까지 사용하는 `provider-sandbox` 통과를 의미하지 않습니다.
