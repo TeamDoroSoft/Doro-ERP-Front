@@ -66,6 +66,12 @@ jobs:
       - name: Run Provider Admin unit test
         run: npm exec -- vitest run src/admin/__tests__/ProviderAdminApp.spec.ts
 
+      - name: Install Chromium for Provider Admin Browser E2E
+        run: npm exec -- playwright install --with-deps chromium
+
+      - name: Run Provider Admin Browser E2E
+        run: npm run test:e2e:admin
+
       - name: Build Provider Admin artifact
         run: npm run build:admin
 
@@ -263,8 +269,8 @@ jobs:
               '## Changes' \
               '' \
               '- Pins the Provider Admin image to its verified ECR digest.' \
-              '- Adds Provider Admin to the Prod Alpha Overlay on its first release.' \
-              '- Keeps the Admin Service internal without Gateway or public DNS.' \
+              '- Preserves the reviewed Admin Front, Private Edge and Internal Gateway topology.' \
+              '- Keeps Provider Admin disconnected from Public CloudFront and the Public Gateway.' \
               '' \
               '## Validation' \
               '' \

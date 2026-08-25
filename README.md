@@ -65,6 +65,7 @@ Windows PowerShell에서는 동일 명령을 `npm.cmd run dev`처럼 실행할 �
 | `npm run format`      | `src/` 디렉터리를 Prettier로 포매팅            |
 | `npm run test:unit`   | Vitest 단위 테스트 실행                        |
 | `npm run test:e2e`    | Playwright E2E 테스트 실행                     |
+| `npm run test:e2e:admin` | Provider Admin Browser Route Mock E2E 실행  |
 
 ## 테스트
 
@@ -79,6 +80,7 @@ Playwright를 처음 사용할 때는 테스트용 브라우저를 설치해야 
 ```sh
 npx playwright install
 npm run test:e2e
+npm run test:e2e:admin
 ```
 
 특정 브라우저나 테스트 파일만 실행할 수도 있습니다.
@@ -212,13 +214,15 @@ Admin Nginx는 `/api/`를 같은 Namespace의 `edge-api:8080`으로 전달합니
 | Order                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Order와 Table Route 연결 완료, 실제 Runtime·AWS 연동 미검증                        |
 | Catalog                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | 판매 메뉴와 Category·Product 관리 Edge Route 연결 완료, 실제 Runtime·AWS 연동 미검증          |
 | Table·Queue·Sales·POS 운영 화면 | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front 호출과 Edge Route 계약 정합성 확인 완료, 실제 Runtime 종단 검증 미완료                  |
-| Provider Admin                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Admin API Client·OIDC Session UI·Unit Test 구현, 실제 Admin Runtime·Browser E2E·배포는 미검증 |
+| Provider Admin                  | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Admin API Client·OIDC Session UI·Unit·Mock Browser E2E 구현, 실제 OIDC·Production 배포는 미검증 |
 | Payment                         | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime·Toss Sandbox 미검증                                        |
 | Audit                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Edge Route 연결 완료, 실제 Runtime 미검증                                                     |
 | Kiosk                           | `FRONT_IMPLEMENTED` | `INTEGRATION_BLOCKED` | Front·Edge Kiosk Route 연결 완료, 실제 기기 Credential 종단 검증 미완료                       |
 
 Playwright 테스트는 Browser Route Mock 기반 `mock-ui` 검증입니다. 실제 Edge를 사용하는
 `edge-integration`이나 Toss Test Provider까지 사용하는 `provider-sandbox` 통과를 의미하지 않습니다.
+Provider Admin E2E도 실제 Admin Entry와 API Client를 Chromium에서 실행하지만 API 응답은 Browser
+Route Mock이므로 실제 OIDC·Admin Runtime·Production 검증을 의미하지 않습니다.
 
 Legacy `/admin/**`, `/payments/test` 경로는 호환을 위해 Query와 Hash를 폐기한 뒤 안전한 POS Route로
 Redirect합니다. 외부 사용 종료가 확인되기 전까지 유지합니다.
