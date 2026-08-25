@@ -1,4 +1,4 @@
-import { ApiError, apiRequest, apiRequestExact } from './http'
+import { ApiError, apiRequest, apiRequestExact, safeApiErrorMessage } from './http'
 import { resolveApiBaseUrl } from './baseUrl'
 
 export type ProviderAdminTenantStatus = 'ACTIVE' | 'INACTIVE'
@@ -182,6 +182,9 @@ export function providerAdminErrorMessage(error: unknown): string {
     UPSTREAM_INVALID_RESPONSE: '업체 서비스 응답을 확인할 수 없습니다.',
     DEPENDENCY_UNAVAILABLE: '업체 서비스를 일시적으로 사용할 수 없습니다.',
     VALIDATION_FAILED: '입력한 내용을 확인해 주세요.',
+    WEAK_PASSWORD: '임시 비밀번호 정책을 확인해 주세요.',
+    INVALID_LOGIN_ID: '로그인 ID 형식을 확인해 주세요.',
+    INITIAL_OWNER_PROVISIONING_CONFLICT: '최초 관리자 등록 상태가 변경되었습니다. 업체 정보를 다시 확인해 주세요.',
   }
   const message = messages[error.code]
   if (message) return message
@@ -189,7 +192,7 @@ export function providerAdminErrorMessage(error: unknown): string {
   if (error.status === 502 || error.status === 503) {
     return '업체 서비스를 일시적으로 사용할 수 없습니다.'
   }
-  return '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+  return safeApiErrorMessage(error)
 }
 
 export function isProviderAdminUnauthenticated(error: unknown): error is ApiError {

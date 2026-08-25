@@ -20,7 +20,7 @@ const money = (value: string) => formatCurrencyInt64(value, 'KRW')
   <main class="catalog-page">
     <header><div><p>상품 관리</p><h1>상품·메뉴 관리</h1><span>메뉴 분류와 상품의 판매 상태를 관리합니다.</span></div><button type="button" :disabled="catalog.loading.value" @click="catalog.load">새로고침</button></header>
     <p v-if="catalog.notice.value" class="notice" role="status">{{ catalog.notice.value }}</p>
-    <ApiErrorNotice v-if="catalog.errorMessage.value" :message="catalog.errorMessage.value" retryable @retry="catalog.load" />
+    <ApiErrorNotice v-if="catalog.error.value" :message="catalog.errorMessage.value" :code="catalog.error.value.code" :request-id="catalog.error.value.requestId" retryable @retry="catalog.load" />
     <LoadingState v-if="catalog.loading.value" />
     <template v-else>
       <section class="catalog-card category-panel"><div class="section-heading"><div><h2>메뉴 분류</h2><p>상품을 구분하는 메뉴 분류입니다.</p></div><button v-if="catalog.canManage.value" class="primary" type="button" @click="openCategory(null)">분류 등록</button></div>

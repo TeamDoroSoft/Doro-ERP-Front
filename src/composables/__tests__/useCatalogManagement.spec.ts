@@ -25,6 +25,12 @@ describe('useCatalogManagement', () => {
     const model = useCatalogManagement(api); await model.load(); await model.toggleSoldOut(product)
     expect(api.getManagedProducts).toHaveBeenCalledTimes(2); expect(model.products.value[0]?.soldOut).toBe(false)
   })
+  it('uses the stable catalog problem code before the HTTP status', async () => {
+    const api = mockApi(); api.createCategory.mockRejectedValue(new ApiError(409, { code: 'CATEGORY_NAME_DUPLICATED', requestId: 'req-catalog' })); useOperatorSessionStore().setRole('OWNER')
+    const model = useCatalogManagement(api); await model.load(); model.categoryDraft.name = '커피'; await model.saveCategory()
+    expect(model.errorMessage.value).toContain('같은 이름')
+    expect(model.error.value?.requestId).toBe('req-catalog')
+  })
 })
 
 function mockApi() {
