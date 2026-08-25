@@ -2,15 +2,9 @@ name: Deploy Public front to S3
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: GitHub Environment containing the AWS deployment variables
-        required: true
-        default: production
-        type: environment
 
 concurrency:
-  group: public-front-${{ inputs.environment }}
+  group: public-front-prod
   cancel-in-progress: false
 
 permissions:
@@ -22,17 +16,16 @@ jobs:
     name: Deploy Public POS and Kiosk
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.environment }}
+    environment: prod
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-      TARGET_ENVIRONMENT: ${{ inputs.environment }}
 
     steps:
       - name: Check required GitHub variables
         env:
-          DEPLOY_ROLE_ARN: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
-          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
-          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PUBLIC_CLOUDFRONT_DISTRIBUTION_ID }}
+          AWS_FRONTEND_PUBLISH_ROLE_ARN: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
+          FRONTEND_S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
+          FRONTEND_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.FRONTEND_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
             echo "Public deployment is restricted to the main branch." >&2
@@ -40,17 +33,17 @@ jobs:
           fi
 
           missing=0
-          for name in DEPLOY_ROLE_ARN S3_BUCKET CLOUDFRONT_DISTRIBUTION_ID; do
+          for name in AWS_FRONTEND_PUBLISH_ROLE_ARN FRONTEND_S3_BUCKET FRONTEND_CLOUDFRONT_DISTRIBUTION_ID; do
             if [[ -z "${!name}" ]]; then
-              echo "GitHub Environment '${TARGET_ENVIRONMENT}' variable ${name} is required." >&2
+              echo "GitHub Environment 'prod' variable ${name} is required." >&2
               missing=1
             fi
           done
           if [[ ${missing} -ne 0 ]]; then
             exit 1
           fi
-          if [[ "${S3_BUCKET}" == s3://* || "${S3_BUCKET}" == */* ]]; then
-            echo "PUBLIC_S3_BUCKET must be a bucket name without s3:// or a path." >&2
+          if [[ "${FRONTEND_S3_BUCKET}" == s3://* || "${FRONTEND_S3_BUCKET}" == */* ]]; then
+            echo "FRONTEND_S3_BUCKET must be a bucket name without s3:// or a path." >&2
             exit 1
           fi
 
@@ -79,17 +72,17 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
           role-session-name: doro-erp-front-${{ github.run_id }}
 
       - name: Verify deployment bucket
         env:
-          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+          S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
         run: aws s3api head-bucket --bucket "${S3_BUCKET}"
 
       - name: Upload immutable Vite assets
         env:
-          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+          S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
         run: |
           aws s3 sync dist/assets "s3://${S3_BUCKET}/assets" \
             --delete \
@@ -97,7 +90,7 @@ jobs:
 
       - name: Upload Public entry files
         env:
-          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
+          S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
         run: |
           aws s3 sync dist "s3://${S3_BUCKET}" \
             --delete \
@@ -106,7 +99,7 @@ jobs:
 
       - name: Invalidate CloudFront cache
         env:
-          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PUBLIC_CLOUDFRONT_DISTRIBUTION_ID }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.FRONTEND_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
@@ -114,8 +107,8 @@ jobs:
 
       - name: Write deployment summary
         env:
-          S3_BUCKET: ${{ vars.PUBLIC_S3_BUCKET }}
-          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.PUBLIC_CLOUDFRONT_DISTRIBUTION_ID }}
+          S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
+          CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.FRONTEND_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
           echo "### Public front" >> "${GITHUB_STEP_SUMMARY}"
           echo "- Revision: \`${{ github.sha }}\`" >> "${GITHUB_STEP_SUMMARY}"

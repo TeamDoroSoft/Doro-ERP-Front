@@ -168,22 +168,22 @@ Provider Admin은 Public POS·Kiosk Artifact와 분리된 Entry 및 `dist-admin/
 | `deploy-public.yml` | 수동 승인 실행 | Public `dist/`를 S3에 동기화하고 CloudFront Cache 무효화 |
 | `publish-admin.yml` | 수동 승인 실행 | Provider Admin Container를 Git SHA Tag로 ECR에 게시하고 Digest 출력 |
 
-AWS 인증은 Access Key 대신 GitHub OIDC와 Environment별 최소 권한 IAM Role을 사용합니다.
-각 GitHub Environment에는 다음 Variable이 필요합니다.
+AWS 인증은 Access Key 대신 GitHub OIDC와 `prod` Environment에 제한된 최소 권한 IAM Role을
+사용합니다. 두 Workflow는 선택 가능한 배포 환경을 받지 않고 `prod` Environment로만 실행합니다.
 
-두 IAM Role과 대상 S3·CloudFront·ECR Resource는 Infra 저장소에서 먼저 생성해야 합니다.
-기존 Service Image 게시 Role을 Front가 공유한다고 가정하지 않습니다.
+Front Publisher Role과 대상 S3·CloudFront·ECR Resource는 Infra 저장소에서 먼저 생성해야 합니다.
+Public과 Admin Workflow는 하나의 Front 전용 Publisher Role을 공유하지만 기존 Service Image 게시
+Role은 공유하지 않습니다.
 
 | Variable | Workflow | 용도 |
 | -------- | -------- | ---- |
 | `AWS_REGION` | Public, Admin | AWS Region. 생략 시 `ap-northeast-2` |
-| `AWS_FRONTEND_DEPLOY_ROLE_ARN` | Public | Public 전용 S3·CloudFront 배포 Role |
-| `PUBLIC_S3_BUCKET` | Public | `dist/` 전용 S3 Bucket 이름 |
-| `PUBLIC_CLOUDFRONT_DISTRIBUTION_ID` | Public | 배포 후 무효화할 Distribution ID |
+| `AWS_FRONTEND_PUBLISH_ROLE_ARN` | Public, Admin | Front 전용 S3·CloudFront·ECR Publisher Role |
+| `FRONTEND_S3_BUCKET` | Public | `dist/` 전용 S3 Bucket 이름 |
+| `FRONTEND_CLOUDFRONT_DISTRIBUTION_ID` | Public | 배포 후 무효화할 Distribution ID |
+| `FRONTEND_ECR_REPOSITORY` | Admin | Provider Admin ECR Repository 이름 |
 | `PUBLIC_API_BASE_URL` | Public | Public Edge API Base URL. same-origin이면 비움 |
 | `PUBLIC_TOSS_CLIENT_KEY` | Public | Browser 공개가 허용된 Toss Client Key |
-| `AWS_ADMIN_ECR_PUSH_ROLE_ARN` | Admin | Admin 전용 ECR Push Role |
-| `ADMIN_ECR_REPOSITORY` | Admin | Provider Admin ECR Repository 이름 |
 
 Admin Workflow는 Private EKS API에 직접 접속하지 않습니다. 출력된 Image Digest를 Infra 저장소의
 승인된 Kustomize Overlay에 기록한 뒤 Infra 배포 절차로 Rollout합니다. Admin API Client와 OIDC

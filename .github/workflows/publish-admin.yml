@@ -2,15 +2,9 @@ name: Publish Provider Admin image to ECR
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: GitHub Environment containing the AWS publishing variables
-        required: true
-        default: production
-        type: environment
 
 concurrency:
-  group: provider-admin-${{ inputs.environment }}
+  group: provider-admin-prod
   cancel-in-progress: false
 
 permissions:
@@ -22,16 +16,15 @@ jobs:
     name: Publish immutable Provider Admin image
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: ${{ inputs.environment }}
+    environment: prod
     env:
       AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
-      TARGET_ENVIRONMENT: ${{ inputs.environment }}
 
     steps:
       - name: Check required GitHub variables
         env:
-          ECR_PUSH_ROLE_ARN: ${{ vars.AWS_ADMIN_ECR_PUSH_ROLE_ARN }}
-          ECR_REPOSITORY: ${{ vars.ADMIN_ECR_REPOSITORY }}
+          AWS_FRONTEND_PUBLISH_ROLE_ARN: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
+          FRONTEND_ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
         run: |
           if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
             echo "Provider Admin publishing is restricted to the main branch." >&2
@@ -39,17 +32,17 @@ jobs:
           fi
 
           missing=0
-          for name in ECR_PUSH_ROLE_ARN ECR_REPOSITORY; do
+          for name in AWS_FRONTEND_PUBLISH_ROLE_ARN FRONTEND_ECR_REPOSITORY; do
             if [[ -z "${!name}" ]]; then
-              echo "GitHub Environment '${TARGET_ENVIRONMENT}' variable ${name} is required." >&2
+              echo "GitHub Environment 'prod' variable ${name} is required." >&2
               missing=1
             fi
           done
           if [[ ${missing} -ne 0 ]]; then
             exit 1
           fi
-          if [[ ! "${ECR_REPOSITORY}" =~ ^[a-z0-9][a-z0-9._/-]*$ ]]; then
-            echo "ADMIN_ECR_REPOSITORY is not a valid private ECR repository name." >&2
+          if [[ ! "${FRONTEND_ECR_REPOSITORY}" =~ ^[a-z0-9][a-z0-9._/-]*$ ]]; then
+            echo "FRONTEND_ECR_REPOSITORY is not a valid private ECR repository name." >&2
             exit 1
           fi
 
@@ -75,7 +68,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_ADMIN_ECR_PUSH_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
           role-session-name: doro-erp-admin-${{ github.run_id }}
 
       - name: Log in to Amazon ECR
@@ -85,7 +78,7 @@ jobs:
       - name: Check immutable image tag
         id: image
         env:
-          ECR_REPOSITORY: ${{ vars.ADMIN_ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           set +e
@@ -108,7 +101,7 @@ jobs:
         if: steps.image.outputs.exists == 'false'
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ADMIN_ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           docker build \
@@ -122,14 +115,14 @@ jobs:
         if: steps.image.outputs.exists == 'false'
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ADMIN_ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: docker push "${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
       - name: Verify published image digest
         env:
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
-          ECR_REPOSITORY: ${{ vars.ADMIN_ECR_REPOSITORY }}
+          ECR_REPOSITORY: ${{ vars.FRONTEND_ECR_REPOSITORY }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
           digest="$(aws ecr describe-images \
