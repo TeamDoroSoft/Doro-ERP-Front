@@ -23,7 +23,7 @@ jobs:
     steps:
       - name: Check required GitHub variables
         env:
-          AWS_FRONTEND_PUBLISH_ROLE_ARN: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
+          AWS_FRONTEND_DEPLOY_ROLE_ARN: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
           FRONTEND_S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
           FRONTEND_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.FRONTEND_CLOUDFRONT_DISTRIBUTION_ID }}
         run: |
@@ -33,7 +33,7 @@ jobs:
           fi
 
           missing=0
-          for name in AWS_FRONTEND_PUBLISH_ROLE_ARN FRONTEND_S3_BUCKET FRONTEND_CLOUDFRONT_DISTRIBUTION_ID; do
+          for name in AWS_FRONTEND_DEPLOY_ROLE_ARN FRONTEND_S3_BUCKET FRONTEND_CLOUDFRONT_DISTRIBUTION_ID; do
             if [[ -z "${!name}" ]]; then
               echo "GitHub Environment 'prod' variable ${name} is required." >&2
               missing=1
@@ -72,7 +72,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ env.AWS_REGION }}
-          role-to-assume: ${{ vars.AWS_FRONTEND_PUBLISH_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
           role-session-name: doro-erp-front-${{ github.run_id }}
 
       - name: Verify deployment bucket
