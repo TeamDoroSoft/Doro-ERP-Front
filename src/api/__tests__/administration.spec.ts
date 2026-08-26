@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getSecurityHistory } from '@/api/administration'
+import { getKiosks, getSecurityHistory } from '@/api/administration'
 
 describe('administration API', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -60,5 +60,28 @@ describe('administration API', () => {
     expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include')
     expect(page.items[0]?.actorEmployeeId).toBeNull()
     expect(page.hasMore).toBe(true)
+  })
+
+  it('lists only safe kiosk device metadata from the management endpoint', async () => {
+    const devices = [
+      {
+        id: '88000000-0000-0000-0000-000000000001',
+        deviceCode: 'KIOSK-01',
+        status: 'ACTIVE',
+        credentialVersion: 2,
+        createdAt: '2026-08-25T09:00:00Z',
+        updatedAt: '2026-08-26T09:00:00Z',
+      },
+    ]
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(devices), { status: 200 }))
+
+    const result = await getKiosks()
+
+    const [input, init] = fetchMock.mock.calls[0]!
+    expect(new URL(String(input), 'http://local').pathname).toBe('/api/v1/kiosk-devices')
+    expect(init?.method).toBe('GET')
+    expect(init?.credentials).toBe('include')
+    expect(result).toEqual(devices)
+    expect(result[0]).not.toHaveProperty('credential')
   })
 })

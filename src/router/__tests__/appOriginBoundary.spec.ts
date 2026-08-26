@@ -16,16 +16,16 @@ describe('public application origin boundary', () => {
     ).toBe('https://kiosk.minseok.click/kiosk/orders/order-1?step=2#status')
   })
 
-  it('moves non-kiosk paths away from the kiosk origin', () => {
+  it('normalizes employee routes on the kiosk origin to device activation', () => {
     expect(crossOriginTarget(new URL('https://kiosk.minseok.click/pos/login'), origins)).toBe(
-      'https://doro.minseok.click/pos/login',
+      'https://kiosk.minseok.click/kiosk/activate',
     )
   })
 
-  it('opens the kiosk home when the kiosk origin root is entered directly', () => {
-    expect(crossOriginTarget(new URL('https://kiosk.minseok.click/?from=device#start'), origins)).toBe(
-      'https://kiosk.minseok.click/kiosk?from=device#start',
-    )
+  it('opens device activation directly when the kiosk origin root is entered', () => {
+    expect(
+      crossOriginTarget(new URL('https://kiosk.minseok.click/?from=device#start'), origins),
+    ).toBe('https://kiosk.minseok.click/kiosk/activate?from=device#start')
   })
 
   it('does not redirect an application already on its assigned origin', () => {

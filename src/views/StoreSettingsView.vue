@@ -6,6 +6,7 @@ import {
   changeStoreStatus,
   createEmployee,
   getEmployees,
+  getKiosks,
   getStore,
   reauthenticate,
   registerKiosk,
@@ -15,6 +16,7 @@ import {
   updateStore,
   type EmployeeView,
   type KioskCredentialView,
+  type KioskDeviceView,
   type Role,
   type StoreView,
 } from '@/api/administration'
@@ -31,6 +33,10 @@ const session = useOperatorSessionStore(),
   tab = ref<'store' | 'employees' | 'kiosk'>('store'),
   store = ref<StoreView | null>(null),
   employees = ref<EmployeeView[]>([]),
+  kiosks = ref<KioskDeviceView[]>([]),
+  kioskLoading = ref(false),
+  kioskLoaded = ref(false),
+  kioskError = ref<ApiError | null>(null),
   loading = ref(false),
   busy = ref(false),
   error = ref<ApiError | null>(null),
@@ -49,16 +55,27 @@ const storeForm = reactive({ name: '', timezone: '' }),
 const activeOwnerCount = computed(
   () => employees.value.filter((e) => e.role === 'OWNER' && e.status === 'ACTIVE').length,
 )
-const employeeLoginIdError = computed(() => employeeForm.loginId ? loginIdError(employeeForm.loginId) : '')
-const employeePasswordError = computed(() => employeeForm.temporaryPassword ? temporaryPasswordError(employeeForm.temporaryPassword, employeeForm.loginId) : '')
+const employeeLoginIdError = computed(() =>
+  employeeForm.loginId ? loginIdError(employeeForm.loginId) : '',
+)
+const employeePasswordError = computed(() =>
+  employeeForm.temporaryPassword
+    ? temporaryPasswordError(employeeForm.temporaryPassword, employeeForm.loginId)
+    : '',
+)
 const resetPasswordError = computed(() => {
-  const loginId = employees.value.find((employee) => employee.id === resetForm.employeeId)?.loginId ?? ''
+  const loginId =
+    employees.value.find((employee) => employee.id === resetForm.employeeId)?.loginId ?? ''
   return resetForm.password ? temporaryPasswordError(resetForm.password, loginId) : ''
 })
-const settingsErrorMessage = computed(() => error.value?.code === 'AUTHENTICATION_FAILED'
-  ? '현재 비밀번호가 올바르지 않습니다. 다시 입력해 주세요.'
-  : safeApiErrorMessage(error.value))
-const issuedSecret = computed(() => issued.value ? issuedActivationSecret(issued.value.credential) : null)
+const settingsErrorMessage = computed(() =>
+  error.value?.code === 'AUTHENTICATION_FAILED'
+    ? '현재 비밀번호가 올바르지 않습니다. 다시 입력해 주세요.'
+    : safeApiErrorMessage(error.value),
+)
+const issuedSecret = computed(() =>
+  issued.value ? issuedActivationSecret(issued.value.credential) : null,
+)
 watch(
   () => [employeeForm.loginId, employeeForm.temporaryPassword, employeeForm.role],
   () => {
@@ -71,6 +88,9 @@ watch(
     resetKey.value = crypto.randomUUID()
   },
 )
+watch(tab, (current) => {
+  if (current === 'kiosk' && !kioskLoaded.value) void loadKiosks()
+})
 onMounted(loadAll)
 async function loadAll() {
   loading.value = true
@@ -84,6 +104,18 @@ async function loadAll() {
     error.value = asError(e)
   } finally {
     loading.value = false
+  }
+}
+async function loadKiosks() {
+  kioskLoading.value = true
+  kioskError.value = null
+  try {
+    kiosks.value = await getKiosks()
+    kioskLoaded.value = true
+  } catch (e) {
+    kioskError.value = asError(e)
+  } finally {
+    kioskLoading.value = false
   }
 }
 async function run(action: () => Promise<unknown>, message: string) {
@@ -151,16 +183,13 @@ function toggleStore() {
 function addEmployee() {
   if (employeeLoginIdError.value || employeePasswordError.value) return
   const key = createKey.value
-  return requireReauth(
-    async () => {
-      await createEmployee({ ...employeeForm }, key)
-      employeeForm.loginId = ''
-      employeeForm.temporaryPassword = ''
-      employeeForm.role = 'STAFF'
-      createKey.value = crypto.randomUUID()
-    },
-    '직원이 등록되었습니다.',
-  )
+  return requireReauth(async () => {
+    await createEmployee({ ...employeeForm }, key)
+    employeeForm.loginId = ''
+    employeeForm.temporaryPassword = ''
+    employeeForm.role = 'STAFF'
+    createKey.value = crypto.randomUUID()
+  }, '직원이 등록되었습니다.')
 }
 function canManage(e: EmployeeView) {
   if (e.id === session.employeeId) return false
@@ -185,51 +214,49 @@ function resetPassword() {
   const key = resetKey.value,
     id = resetForm.employeeId,
     password = resetForm.password
-  return requireReauth(
-    async () => {
-      await resetEmployeePassword(id, password, key)
-      resetForm.employeeId = ''
-      resetForm.password = ''
-      resetKey.value = crypto.randomUUID()
-    },
-    '임시 비밀번호가 설정되었습니다.',
-  )
+  return requireReauth(async () => {
+    await resetEmployeePassword(id, password, key)
+    resetForm.employeeId = ''
+    resetForm.password = ''
+    resetKey.value = crypto.randomUUID()
+  }, '임시 비밀번호가 설정되었습니다.')
 }
 function addKiosk() {
   const registeredDeviceCode = deviceCode.value.trim()
   copyFeedback.value = ''
-  return requireReauth(
-    async () => {
-      issued.value = await registerKiosk(registeredDeviceCode)
-      issuedDeviceCode.value = registeredDeviceCode
-      copyFeedback.value = ''
-      deviceCode.value = ''
-    },
-    '키오스크 기기가 등록되었습니다.',
-  )
+  return requireReauth(async () => {
+    issued.value = await registerKiosk(registeredDeviceCode)
+    issuedDeviceCode.value = registeredDeviceCode
+    copyFeedback.value = ''
+    deviceCode.value = ''
+    await loadKiosks()
+  }, '키오스크 기기가 등록되었습니다.')
 }
-function rotate() {
-  if (!issued.value) return
+function rotate(kiosk?: KioskDeviceView) {
+  const kioskDeviceId = kiosk?.id ?? issued.value?.kioskDeviceId
+  if (!kioskDeviceId) return
   copyFeedback.value = ''
-  return requireReauth(
-    async () => {
-      issued.value = await rotateKiosk(issued.value!.kioskDeviceId)
-      copyFeedback.value = ''
-    },
-    '기기 활성화 정보를 새로 발급했습니다.',
-  )
+  return requireReauth(async () => {
+    issued.value = await rotateKiosk(kioskDeviceId)
+    if (kiosk) issuedDeviceCode.value = kiosk.deviceCode
+    copyFeedback.value = ''
+    await loadKiosks()
+  }, '기기 활성화 정보를 새로 발급했습니다.')
 }
-function revoke() {
-  if (!issued.value) return
-  return requireReauth(
-    async () => {
-      await revokeKiosk(issued.value!.kioskDeviceId)
-      issued.value = null
-      issuedDeviceCode.value = ''
-      copyFeedback.value = ''
-    },
-    '키오스크 기기 이용을 중지했습니다.',
-  )
+function revoke(kiosk?: KioskDeviceView) {
+  const kioskDeviceId = kiosk?.id ?? issued.value?.kioskDeviceId
+  if (!kioskDeviceId) return
+  return requireReauth(async () => {
+    await revokeKiosk(kioskDeviceId)
+    if (issued.value?.kioskDeviceId === kioskDeviceId) clearIssued()
+    await loadKiosks()
+  }, '키오스크 기기 이용을 중지했습니다.')
+}
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
 }
 function clearIssued() {
   issued.value = null
@@ -314,7 +341,18 @@ function asError(e: unknown) {
             관리 작업 직전에 현재 비밀번호로 재인증합니다. 비밀번호는 저장하지 않습니다.
           </p>
           <form class="form grid" @submit.prevent="addEmployee">
-            <label>로그인 아이디<input v-model.trim="employeeForm.loginId" required minlength="4" maxlength="50" pattern="[a-z0-9](?:[a-z0-9._-]{2,48}[a-z0-9])" aria-describedby="employee-login-hint" /><small id="employee-login-hint" :class="{ invalid: employeeLoginIdError }">{{ employeeLoginIdError || '4~50자 영문 소문자·숫자·점·밑줄·하이픈, 시작과 끝은 영문 또는 숫자' }}</small></label
+            <label
+              >로그인 아이디<input
+                v-model.trim="employeeForm.loginId"
+                required
+                minlength="4"
+                maxlength="50"
+                pattern="[a-z0-9](?:[a-z0-9._-]{2,48}[a-z0-9])"
+                aria-describedby="employee-login-hint"
+              /><small id="employee-login-hint" :class="{ invalid: employeeLoginIdError }">{{
+                employeeLoginIdError ||
+                '4~50자 영문 소문자·숫자·점·밑줄·하이픈, 시작과 끝은 영문 또는 숫자'
+              }}</small></label
             ><label
               >임시 비밀번호<input
                 v-model="employeeForm.temporaryPassword"
@@ -328,7 +366,11 @@ function asError(e: unknown) {
                 <option v-if="session.role === 'OWNER'" value="MANAGER">매니저</option>
                 <option value="STAFF">직원</option>
               </select></label
-            ><p v-if="employeePasswordError" class="invalid">{{ employeePasswordError }}</p><button :disabled="busy || !!employeeLoginIdError || !!employeePasswordError">직원 등록</button>
+            >
+            <p v-if="employeePasswordError" class="invalid">{{ employeePasswordError }}</p>
+            <button :disabled="busy || !!employeeLoginIdError || !!employeePasswordError">
+              직원 등록
+            </button>
           </form>
         </section>
         <section class="panel">
@@ -355,7 +397,13 @@ function asError(e: unknown) {
                       ><select
                         :value="e.role"
                         :disabled="busy || protectedOwner(e)"
-                        @change="setRole(e, ($event.target as HTMLSelectElement).value as Role, $event.target as HTMLSelectElement)"
+                        @change="
+                          setRole(
+                            e,
+                            ($event.target as HTMLSelectElement).value as Role,
+                            $event.target as HTMLSelectElement,
+                          )
+                        "
                       >
                         <option v-if="session.role === 'OWNER'" value="OWNER">점주</option>
                         <option v-if="session.role === 'OWNER'" value="MANAGER">매니저</option>
@@ -385,17 +433,17 @@ function asError(e: unknown) {
                 type="password"
                 minlength="15"
                 maxlength="128"
-                required /></label
-            ><p v-if="resetPasswordError" class="invalid">{{ resetPasswordError }}</p><button :disabled="busy || !!resetPasswordError">재설정</button>
+                required
+            /></label>
+            <p v-if="resetPasswordError" class="invalid">{{ resetPasswordError }}</p>
+            <button :disabled="busy || !!resetPasswordError">재설정</button>
           </form>
         </section></template
       >
       <template v-if="tab === 'kiosk'"
         ><section class="panel">
           <h2>키오스크 기기 등록</h2>
-          <p class="help">
-            이 화면에서는 새로 등록한 기기의 활성화 정보를 확인할 수 있습니다.
-          </p>
+          <p class="help">이 화면에서는 새로 등록한 기기의 활성화 정보를 확인할 수 있습니다.</p>
           <form class="form grid" @submit.prevent="addKiosk">
             <label>기기 코드<input v-model.trim="deviceCode" required /></label
             ><button :disabled="busy">기기 등록</button>
@@ -406,14 +454,17 @@ function asError(e: unknown) {
           <p>이 창을 닫으면 다시 확인할 수 없습니다. 사용할 키오스크에 바로 입력해 주세요.</p>
           <template v-if="issuedSecret">
             <div class="credential-value">
-              <small>기기 코드</small><code data-test="issued-device-code">{{ issuedDeviceCode }}</code>
+              <small>기기 코드</small
+              ><code data-test="issued-device-code">{{ issuedDeviceCode }}</code>
               <button
                 type="button"
                 class="secondary"
                 aria-label="기기 코드 복사"
                 data-test="copy-device-code"
                 @click="copyIssuedValue(issuedDeviceCode, '기기 코드')"
-              >기기 코드 복사</button>
+              >
+                기기 코드 복사
+              </button>
             </div>
             <div class="credential-value">
               <small>활성화 코드</small><code data-test="issued-secret">{{ issuedSecret }}</code>
@@ -423,30 +474,128 @@ function asError(e: unknown) {
                 aria-label="활성화 코드 복사"
                 data-test="copy-activation-secret"
                 @click="copyIssuedValue(issuedSecret, '활성화 코드')"
-              >활성화 코드 복사</button>
+              >
+                활성화 코드 복사
+              </button>
             </div>
-            <p v-if="copyFeedback" class="copy-feedback" role="status" aria-live="polite">{{ copyFeedback }}</p>
+            <p v-if="copyFeedback" class="copy-feedback" role="status" aria-live="polite">
+              {{ copyFeedback }}
+            </p>
           </template>
-          <p v-else class="invalid" role="alert">활성화 정보를 안전하게 표시할 수 없습니다. 새로 발급해 주세요.</p>
+          <p v-else class="invalid" role="alert">
+            활성화 정보를 안전하게 표시할 수 없습니다. 새로 발급해 주세요.
+          </p>
           <small>기기 번호 {{ issued.kioskDeviceId }}</small>
           <div class="actions">
             <button @click="clearIssued">확인 후 닫기</button
-            ><button class="secondary" :disabled="busy" @click="rotate">새로 발급</button
-            ><button class="danger" :disabled="busy" @click="revoke">이용 중지</button>
+            ><button class="secondary" :disabled="busy" @click="rotate()">새로 발급</button
+            ><button class="danger" :disabled="busy" @click="revoke()">이용 중지</button>
           </div>
         </section>
         <section v-else class="panel">
           <p class="help">현재 확인할 수 있는 기기 활성화 정보가 없습니다.</p>
+        </section>
+        <section class="panel" data-test="kiosk-device-list">
+          <div class="panel-title">
+            <div>
+              <h2>등록된 키오스크 기기</h2>
+              <p>활성화 코드는 보안을 위해 목록에 표시하지 않습니다.</p>
+            </div>
+            <button
+              type="button"
+              class="secondary refresh-button"
+              :disabled="busy || kioskLoading"
+              @click="loadKiosks"
+            >
+              새로고침
+            </button>
+          </div>
+          <LoadingState v-if="kioskLoading" />
+          <ApiErrorNotice
+            v-else-if="kioskError"
+            :message="safeApiErrorMessage(kioskError)"
+            :code="kioskError.code"
+            :request-id="kioskError.requestId"
+            retryable
+            @retry="loadKiosks"
+          />
+          <p v-else-if="!kiosks.length" class="help" data-test="kiosk-empty">
+            등록된 키오스크 기기가 없습니다.
+          </p>
+          <div v-else class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>기기 코드</th>
+                  <th>상태</th>
+                  <th>인증 버전</th>
+                  <th>등록 일시</th>
+                  <th>최근 변경</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="kiosk in kiosks" :key="kiosk.id" data-test="kiosk-device-row">
+                  <td>
+                    <strong>{{ kiosk.deviceCode }}</strong
+                    ><small>{{ kiosk.id }}</small>
+                  </td>
+                  <td>
+                    <StatusBadge
+                      :label="kiosk.status === 'ACTIVE' ? '사용 중' : '해제됨'"
+                      :tone="kiosk.status === 'ACTIVE' ? 'success' : 'neutral'"
+                    />
+                  </td>
+                  <td>{{ kiosk.credentialVersion }}</td>
+                  <td>
+                    <time :datetime="kiosk.createdAt">{{ formatDate(kiosk.createdAt) }}</time>
+                  </td>
+                  <td>
+                    <time :datetime="kiosk.updatedAt">{{ formatDate(kiosk.updatedAt) }}</time>
+                  </td>
+                  <td>
+                    <template v-if="kiosk.status === 'ACTIVE'">
+                      <button class="secondary" :disabled="busy" @click="rotate(kiosk)">
+                        활성화 코드 재발급
+                      </button>
+                      <button class="danger" :disabled="busy" @click="revoke(kiosk)">
+                        이용 중지
+                      </button>
+                    </template>
+                    <span v-else>관리 불가</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </section></template
       >
     </template>
     <div v-if="pendingAction" class="modal-backdrop">
-      <section class="panel reauth-modal" role="dialog" aria-modal="true" aria-labelledby="reauth-title">
+      <section
+        class="panel reauth-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="reauth-title"
+      >
         <h2 id="reauth-title">현재 비밀번호 확인</h2>
         <p>보호된 관리 작업을 실행하기 직전에 다시 인증합니다.</p>
         <form class="form" @submit.prevent="confirmReauth">
-          <label>현재 비밀번호<input v-model="reauthPassword" data-test="reauth-password" type="password" autocomplete="current-password" required autofocus /></label>
-          <div class="actions"><button :disabled="busy || !reauthPassword">확인</button><button type="button" class="secondary" :disabled="busy" @click="cancelReauth">취소</button></div>
+          <label
+            >현재 비밀번호<input
+              v-model="reauthPassword"
+              data-test="reauth-password"
+              type="password"
+              autocomplete="current-password"
+              required
+              autofocus
+          /></label>
+          <div class="actions">
+            <button :disabled="busy || !reauthPassword">확인</button
+            ><button type="button" class="secondary" :disabled="busy" @click="cancelReauth">
+              취소
+            </button>
+          </div>
         </form>
       </section>
     </div>
@@ -486,6 +635,14 @@ function asError(e: unknown) {
 .panel-title {
   display: flex;
   justify-content: space-between;
+}
+.refresh-button {
+  align-self: flex-start;
+  min-height: 32px;
+  border-radius: 3px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
 }
 .panel-title p,
 .help {
@@ -599,9 +756,23 @@ td select {
 button:disabled {
   opacity: 0.5;
 }
-.invalid { color: var(--color-danger); font-size: 12px; }
-.modal-backdrop { position:fixed; inset:0; z-index:20; display:grid; place-items:center; background:rgba(15,23,42,.55); padding:20px; }
-.reauth-modal { width:min(440px,100%); box-shadow:0 20px 50px rgba(15,23,42,.25); }
+.invalid {
+  color: var(--color-danger);
+  font-size: 12px;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.55);
+  padding: 20px;
+}
+.reauth-modal {
+  width: min(440px, 100%);
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+}
 @media (max-width: 650px) {
   .grid {
     grid-template-columns: 1fr;
@@ -611,5 +782,52 @@ button:disabled {
     flex-direction: column;
   }
 }
-.page{gap:14px}.tabs{gap:20px}.tabs button{padding:10px 0;font-size:12px;font-weight:650}.tabs .active{border-width:2px;color:#007f5b}.panel{border-radius:3px;padding:16px}.panel h2{font-size:15px}.form input,.form select,td select{min-height:34px;border-radius:3px}.form button,.actions button,td button{min-height:32px;border-radius:3px;background:#009b6b;font-size:12px}.secondary{border-radius:3px!important}.table-wrap{margin:0 -16px -16px}.notice{border-radius:0;border-left:3px solid #00a878;background:#fff;padding:10px 12px}
+.page {
+  gap: 14px;
+}
+.tabs {
+  gap: 20px;
+}
+.tabs button {
+  padding: 10px 0;
+  font-size: 12px;
+  font-weight: 650;
+}
+.tabs .active {
+  border-width: 2px;
+  color: #007f5b;
+}
+.panel {
+  border-radius: 3px;
+  padding: 16px;
+}
+.panel h2 {
+  font-size: 15px;
+}
+.form input,
+.form select,
+td select {
+  min-height: 34px;
+  border-radius: 3px;
+}
+.form button,
+.actions button,
+td button {
+  min-height: 32px;
+  border-radius: 3px;
+  background: #009b6b;
+  font-size: 12px;
+}
+.secondary {
+  border-radius: 3px !important;
+}
+.table-wrap {
+  margin: 0 -16px -16px;
+}
+.notice {
+  border-radius: 0;
+  border-left: 3px solid #00a878;
+  background: #fff;
+  padding: 10px 12px;
+}
 </style>

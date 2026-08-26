@@ -48,11 +48,24 @@ describe('Phase 06 management views', () => {
   })
   it('queues a role change until reauthentication and rolls the select back on cancel', async () => {
     const calls: string[] = []
-    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
-      const path = String(input); calls.push(`${init?.method ?? 'GET'} ${path}`)
-      const body = path.endsWith('/store') ? storeResponse : path.endsWith('/employees') ? [employeeResponse] : path.endsWith('/auth/reauthenticate') ? undefined : { ...employeeResponse, role: 'MANAGER' }
-      return new Response(body === undefined ? null : JSON.stringify(body), { status: body === undefined ? 204 : 200, headers: { 'Content-Type': 'application/json' } })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const path = String(input)
+        calls.push(`${init?.method ?? 'GET'} ${path}`)
+        const body = path.endsWith('/store')
+          ? storeResponse
+          : path.endsWith('/employees')
+            ? [employeeResponse]
+            : path.endsWith('/auth/reauthenticate')
+              ? undefined
+              : { ...employeeResponse, role: 'MANAGER' }
+        return new Response(body === undefined ? null : JSON.stringify(body), {
+          status: body === undefined ? 204 : 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
     const wrapper = mount(StoreSettingsView)
     await flushPromises()
     await wrapper.findAll('.tabs button')[1]!.trigger('click')
@@ -67,15 +80,27 @@ describe('Phase 06 management views', () => {
     await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
     await wrapper.get('[role=dialog] form').trigger('submit')
     await flushPromises()
-    expect(calls.findIndex((call) => call.includes('/auth/reauthenticate'))).toBeLessThan(calls.findIndex((call) => call.includes('/role')))
+    expect(calls.findIndex((call) => call.includes('/auth/reauthenticate'))).toBeLessThan(
+      calls.findIndex((call) => call.includes('/role')),
+    )
   })
   it('keeps the action queued, clears the password, and gives contextual reauthentication feedback on failure', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (input: string) => {
-      const path = String(input)
-      if (path.endsWith('/auth/reauthenticate')) return new Response(JSON.stringify({ code: 'AUTHENTICATION_FAILED', requestId: 'req-reauth' }), { status: 401, headers: { 'Content-Type': 'application/problem+json' } })
-      const body = path.endsWith('/store') ? storeResponse : [employeeResponse]
-      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        const path = String(input)
+        if (path.endsWith('/auth/reauthenticate'))
+          return new Response(
+            JSON.stringify({ code: 'AUTHENTICATION_FAILED', requestId: 'req-reauth' }),
+            { status: 401, headers: { 'Content-Type': 'application/problem+json' } },
+          )
+        const body = path.endsWith('/store') ? storeResponse : [employeeResponse]
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
     const wrapper = mount(StoreSettingsView)
     await flushPromises()
     await wrapper.findAll('.tabs button')[1]!.trigger('click')
@@ -95,24 +120,27 @@ describe('Phase 06 management views', () => {
       configurable: true,
       value: { writeText },
     })
-    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
-      const path = String(input)
-      if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
-      if (path.endsWith('/kiosk-devices') && init?.method === 'POST') {
-        return new Response(
-          JSON.stringify({
-            kioskDeviceId: 'device-id-1',
-            credential: 'kdc_credential-id.activation-secret',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
-      }
-      const body = path.endsWith('/store') ? storeResponse : []
-      return new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const path = String(input)
+        if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
+        if (path.endsWith('/kiosk-devices') && init?.method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              kioskDeviceId: 'device-id-1',
+              credential: 'kdc_credential-id.activation-secret',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        const body = path.endsWith('/store') ? storeResponse : []
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
 
     const wrapper = mount(StoreSettingsView)
     await flushPromises()
@@ -147,24 +175,27 @@ describe('Phase 06 management views', () => {
           .mockRejectedValue(new Error('permission denied')),
       },
     })
-    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
-      const path = String(input)
-      if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
-      if (path.endsWith('/kiosk-devices') && init?.method === 'POST') {
-        return new Response(
-          JSON.stringify({
-            kioskDeviceId: 'device-id-1',
-            credential: 'kdc_credential-id.activation-secret',
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        )
-      }
-      const body = path.endsWith('/store') ? storeResponse : []
-      return new Response(JSON.stringify(body), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    }))
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const path = String(input)
+        if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
+        if (path.endsWith('/kiosk-devices') && init?.method === 'POST') {
+          return new Response(
+            JSON.stringify({
+              kioskDeviceId: 'device-id-1',
+              credential: 'kdc_credential-id.activation-secret',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        const body = path.endsWith('/store') ? storeResponse : []
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
 
     const wrapper = mount(StoreSettingsView)
     await flushPromises()
@@ -183,7 +214,121 @@ describe('Phase 06 management views', () => {
     expect(wrapper.find('[role=status]').exists()).toBe(false)
     expect(wrapper.text()).toContain('현재 확인할 수 있는 기기 활성화 정보가 없습니다.')
   })
+
+  it('loads safe kiosk metadata and rotates an active device from its list row', async () => {
+    const calls: string[] = []
+    const device = {
+      id: 'device-id-1',
+      deviceCode: 'KIOSK-01',
+      status: 'ACTIVE',
+      credentialVersion: 1,
+      createdAt: '2026-08-25T09:00:00Z',
+      updatedAt: '2026-08-25T09:00:00Z',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const path = String(input)
+        calls.push(`${init?.method ?? 'GET'} ${path}`)
+        if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
+        if (path.endsWith('/kiosk-devices/device-id-1/rotate')) {
+          return new Response(
+            JSON.stringify({
+              kioskDeviceId: 'device-id-1',
+              credential: 'kdc_credential-id.rotated-secret',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        const body = path.endsWith('/store')
+          ? storeResponse
+          : path.endsWith('/employees')
+            ? []
+            : [device]
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
+
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[2]!.trigger('click')
+    await flushPromises()
+
+    const row = wrapper.get('[data-test=kiosk-device-row]')
+    expect(row.text()).toContain('KIOSK-01')
+    expect(row.text()).toContain('사용 중')
+    expect(wrapper.text()).not.toContain('rotated-secret')
+
+    await row.findAll('button')[0]!.trigger('click')
+    await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
+    await wrapper.get('[role=dialog] form').trigger('submit')
+    await flushPromises()
+
+    expect(calls.some((call) => call.includes('POST') && call.includes('/rotate'))).toBe(true)
+    expect(wrapper.get('[data-test=issued-device-code]').text()).toBe('KIOSK-01')
+    expect(wrapper.get('[data-test=issued-secret]').text()).toBe('rotated-secret')
+  })
+
+  it('shows an empty kiosk list and allows an isolated list retry after an API failure', async () => {
+    let kioskRequests = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        const path = String(input)
+        if (path.endsWith('/kiosk-devices')) {
+          kioskRequests += 1
+          if (kioskRequests === 1) {
+            return new Response(
+              JSON.stringify({
+                code: 'STORE_ACCESS_UNAVAILABLE',
+                requestId: 'req-kiosk-list',
+              }),
+              { status: 503, headers: { 'Content-Type': 'application/problem+json' } },
+            )
+          }
+          return new Response(JSON.stringify([]), { status: 200 })
+        }
+        const body = path.endsWith('/store') ? storeResponse : []
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }),
+    )
+
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[2]!.trigger('click')
+    await flushPromises()
+    const list = wrapper.get('[data-test=kiosk-device-list]')
+    expect(list.text()).toContain('req-kiosk-list')
+
+    const retry = list.findAll('button').find((button) => button.text().includes('다시 시도'))
+    expect(retry).toBeDefined()
+    await retry!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test=kiosk-empty]').text()).toContain(
+      '등록된 키오스크 기기가 없습니다',
+    )
+  })
 })
 
-const storeResponse = { id: 's1', tenantId: 't1', name: '도로', timezone: 'Asia/Seoul', currency: 'KRW', status: 'ACTIVE' }
-const employeeResponse = { id: 'employee-2', loginId: 'staff.one', role: 'STAFF', status: 'ACTIVE', passwordChangeRequired: true, createdAt: '2026-01-01T00:00:00Z' }
+const storeResponse = {
+  id: 's1',
+  tenantId: 't1',
+  name: '도로',
+  timezone: 'Asia/Seoul',
+  currency: 'KRW',
+  status: 'ACTIVE',
+}
+const employeeResponse = {
+  id: 'employee-2',
+  loginId: 'staff.one',
+  role: 'STAFF',
+  status: 'ACTIVE',
+  passwordChangeRequired: true,
+  createdAt: '2026-01-01T00:00:00Z',
+}

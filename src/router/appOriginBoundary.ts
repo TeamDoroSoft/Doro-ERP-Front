@@ -25,15 +25,17 @@ export function configuredAppOrigins(): AppOrigins {
 }
 
 export function crossOriginTarget(current: URL, origins: AppOrigins): string | null {
-  if (origins.kioskOrigin && current.origin === origins.kioskOrigin && current.pathname === '/') {
-    const kioskHome = new URL(origins.kioskOrigin)
-    kioskHome.pathname = '/kiosk'
-    kioskHome.search = current.search
-    kioskHome.hash = current.hash
-    return kioskHome.href
+  const kioskPath = current.pathname === '/kiosk' || current.pathname.startsWith('/kiosk/')
+  if (origins.kioskOrigin && current.origin === origins.kioskOrigin) {
+    if (kioskPath) return null
+    const activation = new URL('/kiosk/activate', origins.kioskOrigin)
+    if (current.pathname === '/') {
+      activation.search = current.search
+      activation.hash = current.hash
+    }
+    return activation.href
   }
 
-  const kioskPath = current.pathname === '/kiosk' || current.pathname.startsWith('/kiosk/')
   const targetOrigin = kioskPath ? origins.kioskOrigin : origins.publicOrigin
   if (!targetOrigin || current.origin === targetOrigin) return null
 
