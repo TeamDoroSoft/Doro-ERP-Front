@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { ApiError } from '@/api/http'
 import type { SecurityPage } from '@/api/administration'
@@ -34,6 +34,24 @@ describe('SecurityHistoryView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     administrationApi.getSecurityHistory.mockResolvedValue(contractPage)
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('initializes datetime filters with browser-local values', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T10:00:00Z'))
+    vi.spyOn(Date.prototype, 'getTimezoneOffset').mockReturnValue(-540)
+
+    const wrapper = mount(SecurityHistoryView)
+    await flushPromises()
+    const dateTimeInputs = wrapper.findAll<HTMLInputElement>('input[type="datetime-local"]')
+
+    expect(dateTimeInputs[0]?.element.value).toBe('2026-08-19T19:00')
+    expect(dateTimeInputs[1]?.element.value).toBe('2026-08-26T19:00')
   })
 
   it('renders a full login-history contract record including a nullable actor', async () => {
