@@ -39,6 +39,29 @@ export function safeApiErrorMessage(
   fallback = '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
 ) {
   if (!(error instanceof ApiError)) return fallback
+  const codeMessages: Record<string, string> = {
+    REAUTH_PASSWORD_REQUIRED: '계속하려면 현재 비밀번호를 입력해 주세요.',
+    AUTHENTICATION_FAILED: '아이디 또는 비밀번호가 올바르지 않습니다. 다시 확인해 주세요.',
+    SESSION_INVALIDATED: '보안을 위해 세션이 종료되었습니다. 다시 로그인해 주세요.',
+    REAUTHENTICATION_REQUIRED: '보호된 작업입니다. 현재 비밀번호로 다시 인증해 주세요.',
+    PASSWORD_CHANGE_REQUIRED: '계속하려면 먼저 본인 비밀번호를 변경해 주세요.',
+    FORBIDDEN: '이 작업을 수행할 권한이 없습니다.',
+    CSRF_VALIDATION_FAILED: '요청을 확인할 수 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.',
+    SESSION_VALIDATION_UNAVAILABLE: '로그인 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    VALIDATION_FAILED: '입력한 내용을 확인해 주세요.',
+    CATEGORY_NAME_DUPLICATED: '같은 이름의 메뉴 분류가 있습니다. 다른 이름을 입력해 주세요.',
+    CATEGORY_NOT_FOUND: '메뉴 분류를 찾을 수 없습니다. 최신 목록을 확인해 주세요.',
+    CATALOG_VERSION_CONFLICT: '다른 사용자가 먼저 변경했습니다. 최신 목록을 확인한 뒤 다시 시도해 주세요.',
+    PRECONDITION_REQUIRED: '최신 버전을 확인한 뒤 다시 시도해 주세요.',
+    COMMERCE_UNAVAILABLE: '상품 관리 기능을 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    STORE_ACCESS_UNAVAILABLE: '직원·권한 관리 기능을 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+    WEAK_PASSWORD: '임시 비밀번호 정책을 확인해 주세요.',
+    INVALID_LOGIN_ID: '로그인 ID 형식을 확인해 주세요.',
+    INITIAL_OWNER_PROVISIONING_CONFLICT: '최초 관리자 등록 상태가 변경되었습니다. 업체 정보를 다시 확인해 주세요.',
+    UPSTREAM_INVALID_RESPONSE: '업체 서비스 응답을 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.',
+  }
+  const codeMessage = codeMessages[error.code]
+  if (codeMessage) return codeMessage
   if (error.status === 0) return '네트워크 연결을 확인한 뒤 다시 시도해 주세요.'
   if (error.status === 401) return '로그인 시간이 만료되었습니다. 다시 로그인해 주세요.'
   if (error.status === 403) return '이 작업을 수행할 권한이 없습니다.'

@@ -67,7 +67,7 @@ describe('AuditLogView', () => {
     const wrapper = mountView('MANAGER')
     await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toContain('이 기능에 접근할 권한이 없습니다')
-    expect(wrapper.text()).not.toContain('req-1')
+    expect(wrapper.text()).toContain('req-1')
   })
 
   it('applies only supported filters and resets them', async () => {

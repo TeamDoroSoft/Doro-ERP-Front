@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
+import { loginIdError, temporaryPasswordError } from '@/validation/credentials'
 import {
   changeProviderAdminTenantStatus,
   createProviderAdminInitialOwner,
@@ -45,6 +46,8 @@ const ownerForm = reactive({ loginId: '', temporaryPassword: '' })
 const tenants = computed(() => page.value?.items ?? [])
 const pageCount = computed(() => safePageCount(page.value?.totalPages))
 const loginUrl = providerAdminLoginUrl()
+const ownerLoginIdError = computed(() => ownerForm.loginId ? loginIdError(ownerForm.loginId) : '')
+const ownerPasswordError = computed(() => ownerForm.temporaryPassword ? temporaryPasswordError(ownerForm.temporaryPassword, ownerForm.loginId) : '')
 
 onMounted(() => void bootstrap())
 
@@ -148,6 +151,7 @@ async function createTenant() {
 
 async function createInitialOwner() {
   if (!selected.value) return
+  if (ownerLoginIdError.value || ownerPasswordError.value) return
   commandLoading.value = true
   detailError.value = ''
   notice.value = ''
@@ -343,9 +347,9 @@ function safePageCount(value?: string) {
             </div>
             <form v-if="selected.firstOwnerRequired" class="panel form" @submit.prevent="createInitialOwner">
               <div><p class="eyebrow">최초 관리자</p><h2>OWNER 계정 등록</h2></div>
-              <label>로그인 ID<input v-model="ownerForm.loginId" name="owner-login-id" required autocomplete="off" /></label>
-              <label>임시 비밀번호<input v-model="ownerForm.temporaryPassword" name="owner-temporary-password" required type="password" autocomplete="new-password" /></label>
-              <button class="primary" type="submit" :disabled="commandLoading || selected.status !== 'ACTIVE'">최초 관리자 등록</button>
+              <label>로그인 ID<input v-model="ownerForm.loginId" name="owner-login-id" required minlength="4" maxlength="50" pattern="[a-z0-9](?:[a-z0-9._-]{2,48}[a-z0-9])" autocomplete="off" /><small :class="{ invalid: ownerLoginIdError }">{{ ownerLoginIdError || '4~50자 영문 소문자·숫자·점·밑줄·하이픈, 시작과 끝은 영문 또는 숫자' }}</small></label>
+              <label>임시 비밀번호<input v-model="ownerForm.temporaryPassword" name="owner-temporary-password" required minlength="15" maxlength="128" type="password" autocomplete="new-password" /><small v-if="ownerPasswordError" class="invalid">{{ ownerPasswordError }}</small></label>
+              <button class="primary" type="submit" :disabled="commandLoading || selected.status !== 'ACTIVE' || !!ownerLoginIdError || !!ownerPasswordError">최초 관리자 등록</button>
             </form>
             <section v-else class="panel"><p class="eyebrow">최초 관리자</p><h2>등록 완료</h2><p>최초 OWNER 계정이 등록되어 있습니다.</p></section>
             <section class="panel action-panel"><div><h2>업체 이용 관리</h2><p>이용 상태를 변경해도 매장과 관리자 정보는 유지됩니다.</p></div><button class="danger" type="button" :disabled="commandLoading" @click="confirmStatus = true">{{ selected.status === 'ACTIVE' ? '업체 이용 중지' : '업체 이용 재개' }}</button></section>
