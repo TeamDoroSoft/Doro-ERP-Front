@@ -9,8 +9,8 @@ import { displayLabel } from '@/ui/displayLabels'
 const now = new Date(),
   from = new Date(now.getTime() - 7 * 86400000),
   filters = reactive({
-    from: from.toISOString().slice(0, 16),
-    to: now.toISOString().slice(0, 16),
+    from: localDateTime(from),
+    to: localDateTime(now),
     eventType: '',
     targetType: '',
     targetId: '',
@@ -55,9 +55,14 @@ function knownLabel(value: string, fallback: string) {
   const label = displayLabel(value)
   return label === value ? fallback : label
 }
+function localDateTime(value: Date) {
+  const offset = value.getTimezoneOffset() * 60_000
+  return new Date(value.getTime() - offset).toISOString().slice(0, 16)
+}
 </script>
 <template>
   <section class="security">
+    <p class="scope-notice">일반적인 정상 로그인·로그아웃은 기록하지 않으며, 로그인 실패와 보안상 중요한 변경만 표시합니다.</p>
     <form class="filters" @submit.prevent="load(false)">
       <label>시작<input v-model="filters.from" type="datetime-local" required /></label
       ><label>종료<input v-model="filters.to" type="datetime-local" required /></label
@@ -98,7 +103,7 @@ function knownLabel(value: string, fallback: string) {
           <tr v-for="item in items" :key="item.id">
             <td>{{ new Date(item.occurredAt).toLocaleString('ko-KR') }}</td>
             <td>{{ knownLabel(item.eventType, '기타 활동') }}</td>
-            <td>{{ item.actorEmployeeId }}</td>
+            <td>{{ item.actorEmployeeId || '시스템' }}</td>
             <td>
               {{ knownLabel(item.targetType, '기타 대상') }}<small>{{ item.targetId }}</small>
             </td>
@@ -117,6 +122,11 @@ function knownLabel(value: string, fallback: string) {
 .security {
   display: grid;
   gap: 16px;
+}
+.scope-notice {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 12px;
 }
 .filters {
   display: grid;

@@ -14,7 +14,7 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
   await expect(page.locator('.sidebar')).toHaveCount(0)
   await page.getByLabel('업체 코드').fill('doro')
   await page.getByLabel('기기 코드').fill('K-1')
-  await page.getByLabel('활성화 코드').fill('one-time')
+  await page.getByLabel('활성화 코드').fill('kdc_credential-id.one-time')
   await page.getByRole('button', { name: '기기 연결' }).click()
   await expect(page.getByRole('heading', { name: '메뉴', exact: true })).toBeVisible()
   await page.setViewportSize({ width: 768, height: 1024 })
@@ -138,7 +138,14 @@ test('[mock-ui] a kiosk payment 401 never touches the employee POS session', asy
 
 async function mocks(page: Page, capture: (body: unknown) => void) {
   let statusReads = 0
-  await page.route('**/api/v1/kiosk-auth/activate', (r) => r.fulfill({ status: 204 }))
+  await page.route('**/api/v1/kiosk-auth/activate', async (r) => {
+    expect(r.request().postDataJSON()).toEqual({
+      tenantCode: 'doro',
+      deviceCode: 'K-1',
+      secret: 'one-time',
+    })
+    await r.fulfill({ status: 204 })
+  })
   await page.route('**/api/v1/catalog/menu', (r) =>
     json(r, {
       currency: 'KRW',

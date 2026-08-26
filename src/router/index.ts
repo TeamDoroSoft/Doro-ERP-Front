@@ -23,6 +23,7 @@ import KioskOrderStatusView from '@/views/kiosk/KioskOrderStatusView.vue'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
 import { useKioskSessionStore } from '@/stores/kioskSession'
 import { applyPageMetadata } from '@/router/pageMetadata'
+import { configuredAppOrigins, crossOriginTarget } from '@/router/appOriginBoundary'
 
 declare module 'vue-router' {
   interface RouteMeta {
@@ -348,6 +349,14 @@ const router = createRouter({
 router.afterEach((to) => applyPageMetadata(to))
 
 router.beforeEach((to) => {
+  const originTarget = crossOriginTarget(
+    new URL(to.fullPath, window.location.origin),
+    configuredAppOrigins(),
+  )
+  if (originTarget) {
+    window.location.replace(originTarget)
+    return false
+  }
   const session = useOperatorSessionStore()
   const kioskSession = useKioskSessionStore()
   const kioskRoute = to.matched.some((record) => record.meta.kiosk)

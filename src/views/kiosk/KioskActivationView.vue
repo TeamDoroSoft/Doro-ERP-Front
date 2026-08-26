@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useKioskSessionStore } from '@/stores/kioskSession'
+import { activationSecret } from '@/security/kioskCredential'
 const session = useKioskSessionStore(),
   router = useRouter(),
   form = reactive({ tenantCode: '', deviceCode: '', secret: '' }),
@@ -12,8 +13,14 @@ const session = useKioskSessionStore(),
   )
 async function activate() {
   message.value = ''
+  const secret = activationSecret(form.secret)
+  if (!secret) {
+    form.secret = ''
+    message.value = '활성화 코드 형식을 확인해 주세요.'
+    return
+  }
   try {
-    await session.activate(form.tenantCode, form.deviceCode, form.secret)
+    await session.activate(form.tenantCode.trim(), form.deviceCode.trim(), secret)
     form.secret = ''
     await router.replace('/kiosk')
   } catch {

@@ -89,6 +89,100 @@ describe('Phase 06 management views', () => {
     expect((wrapper.get('[data-test=reauth-password]').element as HTMLInputElement).value).toBe('')
     expect((wrapper.get('td select').element as HTMLSelectElement).value).toBe('STAFF')
   })
+  it('shows and copies the device code and activation secret without exposing the full credential', async () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText },
+    })
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      const path = String(input)
+      if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
+      if (path.endsWith('/kiosk-devices') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            kioskDeviceId: 'device-id-1',
+            credential: 'kdc_credential-id.activation-secret',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      const body = path.endsWith('/store') ? storeResponse : []
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[2]!.trigger('click')
+    await wrapper.get('.panel input').setValue('KIOSK-01')
+    await wrapper.get('.panel form').trigger('submit')
+    await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
+    await wrapper.get('[role=dialog] form').trigger('submit')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test=issued-device-code]').text()).toBe('KIOSK-01')
+    expect(wrapper.get('[data-test=issued-secret]').text()).toBe('activation-secret')
+    expect(wrapper.text()).not.toContain('kdc_credential-id')
+
+    await wrapper.get('[data-test=copy-device-code]').trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenLastCalledWith('KIOSK-01')
+    expect(wrapper.get('[role=status]').text()).toBe('기기 코드를 복사했습니다.')
+
+    await wrapper.get('[data-test=copy-activation-secret]').trigger('click')
+    await flushPromises()
+    expect(writeText).toHaveBeenLastCalledWith('activation-secret')
+    expect(writeText).not.toHaveBeenCalledWith('kdc_credential-id.activation-secret')
+    expect(wrapper.get('[role=status]').text()).toBe('활성화 코드를 복사했습니다.')
+  })
+  it('handles clipboard failure and clears copy feedback when the credential panel closes', async () => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi
+          .fn<(text: string) => Promise<void>>()
+          .mockRejectedValue(new Error('permission denied')),
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn(async (input: string, init?: RequestInit) => {
+      const path = String(input)
+      if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
+      if (path.endsWith('/kiosk-devices') && init?.method === 'POST') {
+        return new Response(
+          JSON.stringify({
+            kioskDeviceId: 'device-id-1',
+            credential: 'kdc_credential-id.activation-secret',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        )
+      }
+      const body = path.endsWith('/store') ? storeResponse : []
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[2]!.trigger('click')
+    await wrapper.get('.panel input').setValue('KIOSK-01')
+    await wrapper.get('.panel form').trigger('submit')
+    await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
+    await wrapper.get('[role=dialog] form').trigger('submit')
+    await flushPromises()
+
+    await wrapper.get('[data-test=copy-activation-secret]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role=status]').text()).toContain('복사하지 못했습니다')
+
+    await wrapper.get('.credential .actions button').trigger('click')
+    expect(wrapper.find('[role=status]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('현재 확인할 수 있는 기기 활성화 정보가 없습니다.')
+  })
 })
 
 const storeResponse = { id: 's1', tenantId: 't1', name: '도로', timezone: 'Asia/Seoul', currency: 'KRW', status: 'ACTIVE' }
