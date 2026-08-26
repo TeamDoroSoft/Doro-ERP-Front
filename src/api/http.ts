@@ -50,7 +50,9 @@ export function safeApiErrorMessage(
     SESSION_VALIDATION_UNAVAILABLE: '로그인 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.',
     VALIDATION_FAILED: '입력한 내용을 확인해 주세요.',
     CATEGORY_NAME_DUPLICATED: '같은 이름의 메뉴 분류가 있습니다. 다른 이름을 입력해 주세요.',
+    PRODUCT_NAME_DUPLICATED: '같은 이름의 상품이 있습니다. 다른 이름을 입력해 주세요.',
     CATEGORY_NOT_FOUND: '메뉴 분류를 찾을 수 없습니다. 최신 목록을 확인해 주세요.',
+    PRODUCT_NOT_FOUND: '상품을 찾을 수 없습니다. 최신 목록을 확인해 주세요.',
     CATALOG_VERSION_CONFLICT: '다른 사용자가 먼저 변경했습니다. 최신 목록을 확인한 뒤 다시 시도해 주세요.',
     PRECONDITION_REQUIRED: '최신 버전을 확인한 뒤 다시 시도해 주세요.',
     COMMERCE_UNAVAILABLE: '상품 관리 기능을 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.',
@@ -68,6 +70,10 @@ export function safeApiErrorMessage(
   if (error.status === 404) return '요청한 정보를 찾을 수 없습니다.'
   if (error.status === 409)
     return '다른 작업과 충돌했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.'
+  if (error.status === 412)
+    return '다른 사용자가 먼저 변경했습니다. 최신 목록을 확인한 뒤 다시 시도해 주세요.'
+  if (error.status === 428)
+    return '최신 버전을 확인한 뒤 다시 시도해 주세요.'
   if (error.status === 503) return '현재 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.'
   if (error.status === 400 || error.code === 'VALIDATION_FAILED')
     return '입력한 내용을 확인해 주세요.'

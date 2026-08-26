@@ -56,6 +56,59 @@ test('[mock-ui] STAFF can change sold-out but cannot open Catalog management for
   await expect(page.getByRole('cell', { name: '품절', exact: true })).toBeVisible()
 })
 
+test('[mock-ui] Product editor preserves input across conflict and distinguishes refresh failure', async ({ page }) => {
+  await session(page, 'OWNER')
+  const nullableProduct = { ...product, description: null }
+  let productGetCount = 0
+  const mutationMatches: string[] = []
+  await page.route('**/api/v1/catalog/categories', (route) => fulfill(route, [category]))
+  await page.route('**/api/v1/catalog/products', async (route) => {
+    productGetCount += 1
+    if (productGetCount === 3) {
+      return fulfill(route, { status: 503, code: 'COMMERCE_UNAVAILABLE' }, 503)
+    }
+    return fulfill(route, [{ ...nullableProduct, version: productGetCount - 1 }])
+  })
+  await page.route(`**/api/v1/catalog/products/${productId}`, async (route) => {
+    mutationMatches.push(route.request().headers()['if-match'] ?? '')
+    if (mutationMatches.length === 1) {
+      return fulfill(route, { status: 412, code: 'CATALOG_VERSION_CONFLICT' }, 412)
+    }
+    return fulfill(route, {
+      ...nullableProduct,
+      ...route.request().postDataJSON(),
+      version: 2,
+    })
+  })
+  await page.goto('/pos/catalog')
+  const row = page.getByRole('row').filter({ hasText: '라테' })
+  await row.getByRole('button', { name: '수정' }).click()
+  const editor = page.locator('.editor').filter({ has: page.getByRole('heading', { name: '상품 수정' }) })
+  await expect(editor.getByLabel('설명')).toHaveValue('')
+  await editor.getByLabel('상품명').fill('내 카페라테')
+
+  await editor.getByLabel('가격').fill('05000')
+  await editor.getByRole('button', { name: '저장' }).click()
+  await expect(editor.getByLabel('가격')).toHaveValue('05000')
+  expect(mutationMatches).toHaveLength(0)
+
+  await editor.getByLabel('가격').fill('100000001')
+  await editor.getByRole('button', { name: '저장' }).click()
+  await expect(page.getByText('0~100,000,000원 가격', { exact: false })).toBeVisible()
+  expect(mutationMatches).toHaveLength(0)
+
+  await editor.getByLabel('가격').fill('5000')
+  await editor.getByRole('button', { name: '저장' }).click()
+  await expect(page.getByText('다른 사용자가 먼저 변경했습니다', { exact: false })).toBeVisible()
+  await expect(editor.getByLabel('상품명')).toHaveValue('내 카페라테')
+
+  await editor.getByRole('button', { name: '저장' }).click()
+  await expect(editor).toHaveCount(0)
+  expect(mutationMatches).toEqual(['"0"', '"1"'])
+  await expect(page.getByText('수정했지만 최신 목록을 불러오지 못했습니다', { exact: false })).toBeVisible()
+  await expect(page.getByText('내 카페라테', { exact: true })).toBeVisible()
+})
+
 test('[mock-ui] MANAGER manages active tables, sees conflict, and STAFF is route-guarded', async ({ browser }) => {
   const manager = await browser.newPage(); await session(manager, 'MANAGER')
   const tables = [{ id: '33333333-3333-4333-8333-333333333333', tableNumber: 'A-1', displayName: '창가', status: 'ACTIVE', version: 0 }]

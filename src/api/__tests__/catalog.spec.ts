@@ -32,6 +32,7 @@ describe('catalog API', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
+    document.cookie = 'XSRF-TOKEN=catalog%20csrf; path=/'
   })
 
   it('loads only the Commerce sales-menu resource', async () => {
@@ -117,6 +118,18 @@ describe('catalog API', () => {
     )
   })
 
+  it('accepts a nullable managed Product description from the Commerce contract', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        '[{"productId":"product-1","categoryId":"category-1","name":"라테","description":null,' +
+          '"price":5000,"soldOut":false,"active":true,"displayOrder":1,"version":3}]',
+        { status: 200 },
+      ),
+    )
+
+    await expect(getManagedProducts()).resolves.toMatchObject([{ description: null, price: '5000' }])
+  })
+
   it('sends an int64 product price as an exact JSON integer, never a string or rounded number', async () => {
     fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }))
 
@@ -133,12 +146,84 @@ describe('catalog API', () => {
     expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain('"9007199254740993"')
   })
 
+  it('uses the exact create, update, deactivate, and sold-out Product mutation contracts', async () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }))
+
+    await createProduct({
+      categoryId: 'category-1',
+      name: '라테',
+      description: 'ICE',
+      price: '5000',
+      displayOrder: 2,
+      active: true,
+    })
+    await updateProduct(
+      'product/id',
+      { name: '카페라테', description: 'HOT', price: '5500', displayOrder: 3 },
+      '7',
+    )
+    await updateProduct('product/id', { active: false }, '8')
+    await changeProductSoldOut('product/id', true, '9')
+
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expectProductMutation(0, '/api/v1/catalog/products', 'POST', {
+      categoryId: 'category-1',
+      name: '라테',
+      description: 'ICE',
+      price: 5000,
+      displayOrder: 2,
+      active: true,
+    })
+    expectProductMutation(
+      1,
+      '/api/v1/catalog/products/product%2Fid',
+      'PATCH',
+      {
+        name: '카페라테',
+        description: 'HOT',
+        price: 5500,
+        displayOrder: 3,
+      },
+      '"7"',
+    )
+    expectProductMutation(
+      2,
+      '/api/v1/catalog/products/product%2Fid',
+      'PATCH',
+      { active: false },
+      '"8"',
+    )
+    expectProductMutation(
+      3,
+      '/api/v1/catalog/products/product%2Fid/sold-out',
+      'PATCH',
+      { soldOut: true },
+      '"9"',
+    )
+  })
+
   it('refuses to send a malformed version as an optimistic lock', async () => {
     fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }))
 
     expect(() => updateProduct('product-1', { price: '1' }, '9,007')).toThrow(
       '정수 금액 형식이 올바르지 않습니다.',
     )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('refuses a non-canonical product price before it can form invalid JSON', () => {
+    fetchMock.mockImplementation(async () => new Response('{}', { status: 200 }))
+
+    expect(() =>
+      createProduct({
+        categoryId: 'category-1',
+        name: '라테',
+        description: '',
+        price: '05000',
+        displayOrder: 1,
+        active: true,
+      }),
+    ).toThrow('상품 가격은 앞자리 0이 없는 정수여야 합니다.')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -160,4 +245,21 @@ describe('catalog API', () => {
       { url: '/api/v1/catalog/products/product%2Fid/sold-out', method: 'PATCH', body: { soldOut: true }, match: '"5"' },
     ])
   })
+
+  function expectProductMutation(
+    index: number,
+    url: string,
+    method: 'POST' | 'PATCH',
+    body: object,
+    ifMatch: string | null = null,
+  ) {
+    const [actualUrl, options] = fetchMock.mock.calls[index]!
+    const headers = new Headers(options?.headers)
+    expect(actualUrl).toBe(url)
+    expect(options?.method).toBe(method)
+    expect(options?.credentials).toBe('include')
+    expect(headers.get('If-Match')).toBe(ifMatch)
+    expect(headers.get('X-XSRF-TOKEN')).toBe('catalog csrf')
+    expect(JSON.parse(String(options?.body))).toEqual(body)
+  }
 })
