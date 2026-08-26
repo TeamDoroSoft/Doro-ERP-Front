@@ -89,6 +89,36 @@ describe('common authentication errors', () => {
     })
     expect(handler).not.toHaveBeenCalled()
   })
+
+  it.each(['POST', 'PATCH'])(
+    'adds included credentials and decoded CSRF to %s requests',
+    async (method) => {
+      document.cookie = 'XSRF-TOKEN=common%20csrf; path=/'
+      const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await apiRequest('/protected-command', { method })
+
+      const [url, options] = fetchMock.mock.calls[0]!
+      const headers = new Headers(options?.headers)
+      expect(url).toBe('/api/v1/protected-command')
+      expect(options?.method).toBe(method)
+      expect(options?.credentials).toBe('include')
+      expect(headers.get('X-XSRF-TOKEN')).toBe('common csrf')
+    },
+  )
+
+  it('does not attach the CSRF header to a safe request', async () => {
+    document.cookie = 'XSRF-TOKEN=common%20csrf; path=/'
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiRequest('/protected')
+
+    const [, options] = fetchMock.mock.calls[0]!
+    expect(options?.credentials).toBe('include')
+    expect(new Headers(options?.headers).has('X-XSRF-TOKEN')).toBe(false)
+  })
 })
 
 function problem(status: number, code: string) {

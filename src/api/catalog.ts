@@ -37,7 +37,7 @@ export interface ManagedProductResponse {
   productId: string
   categoryId: string
   name: string
-  description: string
+  description: string | null
   price: Int64String
   soldOut: boolean
   active: boolean
@@ -69,6 +69,9 @@ export const changeProductSoldOut = (id: string, soldOut: boolean, version: Int6
 
 /** Emits `price` as an exact JSON integer literal, matching the Commerce `Long` request field. */
 function productBody({ price, ...rest }: Partial<ProductRequest>): string {
+  if (price !== undefined && !/^(0|[1-9]\d*)$/.test(price)) {
+    throw new TypeError('상품 가격은 앞자리 0이 없는 정수여야 합니다.')
+  }
   return stringifyWithInt64(rest, { price })
 }
 

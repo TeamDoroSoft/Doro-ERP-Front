@@ -17,6 +17,7 @@ export function useCatalogManagement(api = catalogApi) {
   const selectedProducts = computed(() => products.value.filter((item) => item.categoryId === selectedCategoryId.value))
   const categoryDraft = reactive({ name: '', displayOrder: 0, active: true })
   const productDraft = reactive({ categoryId: '', name: '', description: '', price: '0', displayOrder: 0, active: true })
+  const staleProductEditors = new Map<string, catalogApi.ManagedProductResponse>()
 
   async function load() {
     loading.value = true
@@ -26,7 +27,14 @@ export function useCatalogManagement(api = catalogApi) {
       categories.value = nextCategories
       products.value = nextProducts
       if (!categories.value.some((item) => item.categoryId === selectedCategoryId.value)) selectedCategoryId.value = categories.value[0]?.categoryId ?? ''
-      productDraft.categoryId = selectedCategoryId.value
+      if (!productDraft.categoryId) productDraft.categoryId = selectedCategoryId.value
+      for (const [productId, editor] of staleProductEditors) {
+        const latest = nextProducts.find((item) => item.productId === productId)
+        if (latest) {
+          editor.version = latest.version
+          staleProductEditors.delete(productId)
+        }
+      }
     } catch (cause) { error.value = asApiError(cause) }
     finally { loading.value = false }
   }
@@ -55,37 +63,83 @@ export function useCatalogManagement(api = catalogApi) {
   }
 
   async function saveProduct(existing?: catalogApi.ManagedProductResponse) {
-    if (!canManage.value || busyId.value) return
-    if (!productDraft.categoryId || !productDraft.name.trim() || !/^\d+$/.test(productDraft.price) || !Number.isInteger(productDraft.displayOrder) || productDraft.displayOrder < 0 || productDraft.displayOrder > 9999) {
-      error.value = new ApiError(400, { code: 'CLIENT_PRODUCT_VALIDATION' }); return
+    if (!canManage.value || busyId.value) return false
+    if (existing && staleProductEditors.has(existing.productId)) {
+      error.value = new ApiError(409, { code: 'CLIENT_PRODUCT_STALE' })
+      return false
     }
-    busyId.value = existing?.productId ?? 'new-product'; error.value = null
+    if (!isValidProductDraft()) {
+      error.value = new ApiError(400, { code: 'CLIENT_PRODUCT_VALIDATION' }); return false
+    }
+    busyId.value = existing?.productId ?? 'new-product'; error.value = null; notice.value = ''
     try {
       const request = { ...productDraft, name: productDraft.name.trim(), description: productDraft.description.trim() }
-      if (existing) await api.updateProduct(existing.productId, request, existing.version)
-      else await api.createProduct(request)
-      notice.value = existing ? '상품을 수정했습니다.' : '상품을 생성했습니다.'
-      resetProductDraft(); await load()
-    } catch (error) { await mutationFailure(error) } finally { busyId.value = '' }
+      const saved = existing
+        ? await api.updateProduct(existing.productId, request, existing.version)
+        : await api.createProduct(request)
+      upsertProduct(saved)
+      const successNotice = existing ? '상품을 수정했습니다.' : '상품을 생성했습니다.'
+      resetProductDraft()
+      await refreshAfterProductMutation(successNotice)
+      return true
+    } catch (error) {
+      await mutationFailure(error, existing)
+      return false
+    } finally { busyId.value = '' }
   }
 
-  function editProduct(item: catalogApi.ManagedProductResponse) { Object.assign(productDraft, { categoryId: item.categoryId, name: item.name, description: item.description, price: item.price, displayOrder: item.displayOrder, active: item.active }) }
+  function editProduct(item: catalogApi.ManagedProductResponse) { Object.assign(productDraft, { categoryId: item.categoryId, name: item.name, description: item.description ?? '', price: item.price, displayOrder: item.displayOrder, active: item.active }) }
   async function toggleProductActive(item: catalogApi.ManagedProductResponse) {
     if (!canManage.value || busyId.value) return
-    busyId.value = item.productId
-    try { await api.updateProduct(item.productId, { active: !item.active }, item.version); await load() }
+    busyId.value = item.productId; error.value = null; notice.value = ''
+    try {
+      const saved = await api.updateProduct(item.productId, { active: !item.active }, item.version)
+      upsertProduct(saved)
+      await refreshAfterProductMutation('상품 판매 상태를 변경했습니다.')
+    }
     catch (error) { await mutationFailure(error) } finally { busyId.value = '' }
   }
   async function toggleSoldOut(item: catalogApi.ManagedProductResponse) {
     if (!session.canToggleSoldOut || busyId.value) return
-    busyId.value = item.productId; error.value = null
-    try { await api.changeProductSoldOut(item.productId, !item.soldOut, item.version); notice.value = '품절 상태를 변경했습니다.'; await load() }
+    busyId.value = item.productId; error.value = null; notice.value = ''
+    try {
+      const saved = await api.changeProductSoldOut(item.productId, !item.soldOut, item.version)
+      upsertProduct(saved)
+      await refreshAfterProductMutation('품절 상태를 변경했습니다.')
+    }
     catch (error) { await mutationFailure(error) } finally { busyId.value = '' }
   }
 
-  async function mutationFailure(cause: unknown) {
-    if (cause instanceof ApiError && [404, 409, 412, 428].includes(cause.status)) await load()
+  async function mutationFailure(cause: unknown, productEditor?: catalogApi.ManagedProductResponse) {
+    if (cause instanceof ApiError && [404, 409, 412, 428].includes(cause.status)) {
+      if (productEditor) staleProductEditors.set(productEditor.productId, productEditor)
+      await load()
+      if (productEditor && error.value) {
+        error.value = new ApiError(cause.status, {
+          code: 'CLIENT_PRODUCT_REFRESH_FAILED',
+          requestId: cause.requestId,
+        })
+        return
+      }
+    }
     error.value = asApiError(cause)
+  }
+  function isValidProductDraft() {
+    const canonicalPrice = /^(0|[1-9]\d*)$/.test(productDraft.price)
+    const priceInRange = canonicalPrice && BigInt(productDraft.price) <= 100_000_000n
+    return !!productDraft.categoryId && !!productDraft.name.trim() && priceInRange &&
+      Number.isInteger(productDraft.displayOrder) && productDraft.displayOrder >= 0 && productDraft.displayOrder <= 9999
+  }
+  function upsertProduct(saved: catalogApi.ManagedProductResponse | undefined) {
+    if (!saved) return
+    const index = products.value.findIndex((item) => item.productId === saved.productId)
+    if (index === -1) products.value.push(saved)
+    else products.value[index] = saved
+  }
+  async function refreshAfterProductMutation(successNotice: string) {
+    notice.value = successNotice
+    await load()
+    if (error.value) notice.value = `${successNotice.replace(/했습니다\.$/, '했지만')} 최신 목록을 불러오지 못했습니다. 새로고침해 주세요.`
   }
   function resetCategoryDraft() { Object.assign(categoryDraft, { name: '', displayOrder: 0, active: true }) }
   function resetProductDraft() { Object.assign(productDraft, { categoryId: selectedCategoryId.value, name: '', description: '', price: '0', displayOrder: 0, active: true }) }
@@ -96,6 +150,8 @@ function asApiError(error: unknown) { return error instanceof ApiError ? error :
 
 function message(error: unknown, fallback: string) {
   if (error instanceof ApiError && error.code === 'CLIENT_CATEGORY_VALIDATION') return '메뉴 분류명과 0~9999 사이의 표시 순서를 확인해 주세요.'
-  if (error instanceof ApiError && error.code === 'CLIENT_PRODUCT_VALIDATION') return '상품명, 메뉴 분류, 0원 이상의 가격과 표시 순서를 확인해 주세요.'
+  if (error instanceof ApiError && error.code === 'CLIENT_PRODUCT_VALIDATION') return '상품명, 메뉴 분류, 0~100,000,000원 가격과 표시 순서를 확인해 주세요.'
+  if (error instanceof ApiError && error.code === 'CLIENT_PRODUCT_STALE') return '최신 상품 버전을 불러온 뒤 다시 저장해 주세요.'
+  if (error instanceof ApiError && error.code === 'CLIENT_PRODUCT_REFRESH_FAILED') return '상품 변경이 충돌했고 최신 목록도 불러오지 못했습니다. 새로고침한 뒤 다시 저장해 주세요.'
   return safeApiErrorMessage(error, fallback)
 }

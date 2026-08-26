@@ -18,6 +18,7 @@ describe('Provider Admin API', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
+    document.cookie = 'XSRF-TOKEN=provider%20csrf; path=/'
   })
 
   it('uses the Admin Edge authentication routes with included credentials', async () => {
@@ -98,6 +99,20 @@ describe('Provider Admin API', () => {
     for (const [, options] of fetchMock.mock.calls) {
       expect(String(options?.body)).not.toContain('requestedBy')
     }
+  })
+
+  it('sends the exact Provider Admin status PATCH with credentials and common CSRF', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ tenantId: 'tenant/id', status: 'INACTIVE' }))
+
+    await changeProviderAdminTenantStatus('tenant/id', 'INACTIVE')
+
+    const [url, options] = fetchMock.mock.calls[0]!
+    const headers = new Headers(options?.headers)
+    expect(url).toBe('/api/v1/provider/tenants/tenant%2Fid/status')
+    expect(options?.method).toBe('PATCH')
+    expect(options?.credentials).toBe('include')
+    expect(headers.get('X-XSRF-TOKEN')).toBe('provider csrf')
+    expect(JSON.parse(String(options?.body))).toEqual({ status: 'INACTIVE' })
   })
 
   it('keeps an Admin 401 out of the employee session boundary', async () => {

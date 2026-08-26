@@ -18,3 +18,22 @@ describe('safeApiErrorMessage', () => {
     expect(message).not.toContain('현재 비밀번호')
   })
 })
+
+describe('Catalog Product messages', () => {
+  it('explains duplicate Product names without exposing raw detail', () => {
+    const error = new ApiError(409, {
+      code: 'PRODUCT_NAME_DUPLICATED',
+      detail: 'duplicate key tenant_product_name',
+    })
+
+    expect(safeApiErrorMessage(error)).toContain('같은 이름의 상품')
+    expect(safeApiErrorMessage(error)).not.toContain('duplicate key')
+  })
+
+  it.each([
+    [412, '최신 목록'],
+    [428, '최신 버전'],
+  ])('explains an HTTP %s Product precondition failure', (status, expected) => {
+    expect(safeApiErrorMessage(new ApiError(status))).toContain(expected)
+  })
+})
