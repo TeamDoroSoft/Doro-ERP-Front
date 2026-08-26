@@ -26,8 +26,8 @@ onMounted(async () => {
     <section class="queue-card" aria-labelledby="fulfillment-list-title">
       <div class="queue-section-heading"><h2 id="fulfillment-list-title">조리 목록</h2><button type="button" :disabled="queue.loading.value" @click="() => queue.load()">새로고침</button></div>
       <LoadingState v-if="queue.loading.value" />
-      <p v-else-if="queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다.</p>
-      <div v-else class="queue-table-wrap">
+      <p v-else-if="!queue.errorMessage.value && queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다.</p>
+      <div v-else-if="queue.fulfillments.value.length > 0" class="queue-table-wrap">
         <table><thead><tr><th>주문</th><th>상태</th><th>주문 상세</th><th>작업</th></tr></thead>
           <tbody><tr v-for="item in queue.fulfillments.value" :key="item.fulfillmentId">
             <td><strong>#{{ item.displayNumber }}</strong></td><td>{{ displayLabel(item.status) }}</td>

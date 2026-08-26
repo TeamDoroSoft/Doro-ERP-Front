@@ -24,7 +24,13 @@ describe('LoginView', () => {
     expect(wrapper.get('h2').text()).toBe('직원 로그인')
     expect(wrapper.find('input[name="tenantCode"]').exists()).toBe(true)
     expect(wrapper.find('input[name="loginId"]').exists()).toBe(true)
-    expect(wrapper.find('input[name="password"]').attributes('type')).toBe('password')
+    const password = wrapper.get<HTMLInputElement>('input[name="password"]')
+    const passwordLabel = wrapper.get('label[for="login-password"]')
+    expect(password.attributes('type')).toBe('password')
+    expect(password.attributes('id')).toBe('login-password')
+    expect(passwordLabel.text()).toBe('비밀번호')
+    expect(passwordLabel.find('button').exists()).toBe(false)
+    expect(password.element.labels?.[0]).toBe(passwordLabel.element)
   })
 
   it('applies a successful role and enters the POS orders view', async () => {
