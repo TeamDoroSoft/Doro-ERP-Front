@@ -27,6 +27,15 @@ export interface KioskCredentialView {
   kioskDeviceId: string
   credential: string
 }
+export type KioskDeviceStatus = 'ACTIVE' | 'REVOKED'
+export interface KioskDeviceView {
+  id: string
+  deviceCode: string
+  status: KioskDeviceStatus
+  credentialVersion: number
+  createdAt: string
+  updatedAt: string
+}
 export interface SecurityEntry {
   id: string
   eventType: string
@@ -85,6 +94,7 @@ export const registerKiosk = (deviceCode: string) =>
     method: 'POST',
     body: JSON.stringify({ deviceCode }),
   })
+export const getKiosks = () => apiRequest<KioskDeviceView[]>('/kiosk-devices')
 export const rotateKiosk = (id: string) =>
   apiRequest<KioskCredentialView>(`/kiosk-devices/${encodeURIComponent(id)}/rotate`, {
     method: 'POST',
