@@ -151,6 +151,13 @@ Doro-ERP-Front/
 | `VITE_API_BASE_URL`      | Edge Origin 또는 `/api/v1` 포함 Base URL. Origin만 입력하면 `/api/v1` 자동 추가; 비우면 same-origin `/api/v1` 사용 |
 | `VITE_EDGE_PROXY_TARGET` | 로컬 개발용 Vite `/api` Proxy 대상                                                                                 |
 | `VITE_TOSS_CLIENT_KEY`   | Browser 사용이 허용된 Toss 테스트 Client Key                                                                       |
+| `VITE_PUBLIC_APP_ORIGIN` | 운영 POS Origin. 경로 없는 HTTPS Origin만 허용 (`https://doro.minseok.click`)                                       |
+| `VITE_KIOSK_APP_ORIGIN`  | 운영 Kiosk 전용 Origin. 경로 없는 HTTPS Origin만 허용 (`https://kiosk.minseok.click`)                               |
+
+운영 Build에서는 두 Origin을 모두 설정합니다. Kiosk Origin의 `/`는 `/kiosk`로 연결하고, POS Origin의
+`/kiosk/**` 접근은 같은 경로·Query·Hash를 Kiosk Origin으로 이동시킵니다. Kiosk Origin의 다른 경로는
+POS Origin으로 이동시켜 두 Host의 인증 Cookie가 한 요청에 섞이지 않게 합니다. 로컬 단일 Origin
+개발에서는 두 값을 비울 수 있습니다.
 
 Toss Secret Key, Kiosk Secret·Credential, HMAC Key는 `VITE_*` 환경 변수에 넣지 않습니다.
 
@@ -187,6 +194,8 @@ Public Front 배포 Role, Provider Admin ECR 게시 Role과 대상 S3·CloudFron
 | `FRONTEND_ECR_REPOSITORY`             | Admin         | Provider Admin ECR Repository 이름             |
 | `PUBLIC_API_BASE_URL`                 | Public        | Public Edge API Base URL. same-origin이면 비움 |
 | `PUBLIC_TOSS_CLIENT_KEY`              | Public        | Browser 공개가 허용된 Toss Client Key          |
+| `PUBLIC_APP_ORIGIN`                   | Public        | POS 전용 HTTPS Origin                           |
+| `KIOSK_APP_ORIGIN`                    | Public        | Kiosk 전용 HTTPS Origin                         |
 | `GITOPS_APP_ID`                       | Admin         | GitOps 쓰기 권한이 있는 GitHub App ID          |
 
 Admin Workflow에는 `prod` Environment Secret `GITOPS_APP_PRIVATE_KEY`도 필요합니다. GitHub App은

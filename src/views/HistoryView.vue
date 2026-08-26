@@ -14,7 +14,7 @@ const tab = ref<'audit' | 'security'>('audit')
       ><header>
         <p>운영·보안 기록</p>
         <h1>로그인·보안 기록</h1>
-        <span>로그인과 계정 보안 관련 활동을 확인합니다.</span>
+        <span>로그인 실패와 계정·기기 보안 변경 기록을 확인합니다.</span>
       </header>
       <SecurityHistoryView
     /></template>

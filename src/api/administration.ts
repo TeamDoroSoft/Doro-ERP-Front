@@ -30,7 +30,7 @@ export interface KioskCredentialView {
 export interface SecurityEntry {
   id: string
   eventType: string
-  actorEmployeeId: string
+  actorEmployeeId: string | null
   targetType: string
   targetId: string
   result: string

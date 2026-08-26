@@ -26,6 +26,9 @@ jobs:
           AWS_FRONTEND_DEPLOY_ROLE_ARN: ${{ vars.AWS_FRONTEND_DEPLOY_ROLE_ARN }}
           FRONTEND_S3_BUCKET: ${{ vars.FRONTEND_S3_BUCKET }}
           FRONTEND_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.FRONTEND_CLOUDFRONT_DISTRIBUTION_ID }}
+          PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+          KIOSK_APP_ORIGIN: ${{ vars.KIOSK_APP_ORIGIN }}
+          PUBLIC_TOSS_CLIENT_KEY: ${{ vars.PUBLIC_TOSS_CLIENT_KEY }}
         run: |
           if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
             echo "Public deployment is restricted to the main branch." >&2
@@ -33,13 +36,21 @@ jobs:
           fi
 
           missing=0
-          for name in AWS_FRONTEND_DEPLOY_ROLE_ARN FRONTEND_S3_BUCKET FRONTEND_CLOUDFRONT_DISTRIBUTION_ID; do
+          for name in AWS_FRONTEND_DEPLOY_ROLE_ARN FRONTEND_S3_BUCKET FRONTEND_CLOUDFRONT_DISTRIBUTION_ID PUBLIC_APP_ORIGIN KIOSK_APP_ORIGIN PUBLIC_TOSS_CLIENT_KEY; do
             if [[ -z "${!name}" ]]; then
               echo "GitHub Environment 'prod' variable ${name} is required." >&2
               missing=1
             fi
           done
           if [[ ${missing} -ne 0 ]]; then
+            exit 1
+          fi
+          if [[ ! "${PUBLIC_APP_ORIGIN}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ || ! "${KIOSK_APP_ORIGIN}" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ || "${PUBLIC_APP_ORIGIN}" == "${KIOSK_APP_ORIGIN}" ]]; then
+            echo "PUBLIC_APP_ORIGIN and KIOSK_APP_ORIGIN must be distinct HTTPS origins without paths." >&2
+            exit 1
+          fi
+          if [[ ! "${PUBLIC_TOSS_CLIENT_KEY}" =~ ^test_gck_[A-Za-z0-9_-]+$ ]]; then
+            echo "PUBLIC_TOSS_CLIENT_KEY must be a Toss test client key (test_gck_...)." >&2
             exit 1
           fi
           if [[ "${FRONTEND_S3_BUCKET}" == s3://* || "${FRONTEND_S3_BUCKET}" == */* ]]; then
@@ -66,6 +77,8 @@ jobs:
         env:
           VITE_API_BASE_URL: ${{ vars.PUBLIC_API_BASE_URL }}
           VITE_TOSS_CLIENT_KEY: ${{ vars.PUBLIC_TOSS_CLIENT_KEY }}
+          VITE_PUBLIC_APP_ORIGIN: ${{ vars.PUBLIC_APP_ORIGIN }}
+          VITE_KIOSK_APP_ORIGIN: ${{ vars.KIOSK_APP_ORIGIN }}
         run: npm run build
 
       - name: Configure AWS credentials through OIDC

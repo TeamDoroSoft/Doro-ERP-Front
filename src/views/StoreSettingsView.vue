@@ -26,6 +26,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 import { displayLabel } from '@/ui/displayLabels'
+import { issuedActivationSecret } from '@/security/kioskCredential'
 const session = useOperatorSessionStore(),
   tab = ref<'store' | 'employees' | 'kiosk'>('store'),
   store = ref<StoreView | null>(null),
@@ -37,7 +38,9 @@ const session = useOperatorSessionStore(),
   reauthPassword = ref(''),
   pendingAction = ref<{ execute: () => Promise<unknown>; message: string } | null>(null),
   deviceCode = ref(''),
-  issued = ref<KioskCredentialView | null>(null)
+  issued = ref<KioskCredentialView | null>(null),
+  issuedDeviceCode = ref(''),
+  copyFeedback = ref('')
 const storeForm = reactive({ name: '', timezone: '' }),
   employeeForm = reactive({ loginId: '', temporaryPassword: '', role: 'STAFF' as Role }),
   resetForm = reactive({ employeeId: '', password: '' }),
@@ -55,6 +58,7 @@ const resetPasswordError = computed(() => {
 const settingsErrorMessage = computed(() => error.value?.code === 'AUTHENTICATION_FAILED'
   ? '현재 비밀번호가 올바르지 않습니다. 다시 입력해 주세요.'
   : safeApiErrorMessage(error.value))
+const issuedSecret = computed(() => issued.value ? issuedActivationSecret(issued.value.credential) : null)
 watch(
   () => [employeeForm.loginId, employeeForm.temporaryPassword, employeeForm.role],
   () => {
@@ -192,9 +196,13 @@ function resetPassword() {
   )
 }
 function addKiosk() {
+  const registeredDeviceCode = deviceCode.value.trim()
+  copyFeedback.value = ''
   return requireReauth(
     async () => {
-      issued.value = await registerKiosk(deviceCode.value)
+      issued.value = await registerKiosk(registeredDeviceCode)
+      issuedDeviceCode.value = registeredDeviceCode
+      copyFeedback.value = ''
       deviceCode.value = ''
     },
     '키오스크 기기가 등록되었습니다.',
@@ -202,9 +210,11 @@ function addKiosk() {
 }
 function rotate() {
   if (!issued.value) return
+  copyFeedback.value = ''
   return requireReauth(
     async () => {
       issued.value = await rotateKiosk(issued.value!.kioskDeviceId)
+      copyFeedback.value = ''
     },
     '기기 활성화 정보를 새로 발급했습니다.',
   )
@@ -215,9 +225,27 @@ function revoke() {
     async () => {
       await revokeKiosk(issued.value!.kioskDeviceId)
       issued.value = null
+      issuedDeviceCode.value = ''
+      copyFeedback.value = ''
     },
     '키오스크 기기 이용을 중지했습니다.',
   )
+}
+function clearIssued() {
+  issued.value = null
+  issuedDeviceCode.value = ''
+  copyFeedback.value = ''
+}
+async function copyIssuedValue(value: string, label: string) {
+  copyFeedback.value = ''
+  try {
+    const clipboard = navigator.clipboard
+    if (!clipboard?.writeText) throw new Error('Clipboard API is unavailable')
+    await clipboard.writeText(value)
+    copyFeedback.value = `${label}를 복사했습니다.`
+  } catch {
+    copyFeedback.value = '복사하지 못했습니다. 브라우저 권한을 확인하고 직접 선택해 주세요.'
+  }
 }
 function asError(e: unknown) {
   return e instanceof ApiError
@@ -376,10 +404,33 @@ function asError(e: unknown) {
         <section v-if="issued" class="panel credential">
           <h2>기기 활성화 정보</h2>
           <p>이 창을 닫으면 다시 확인할 수 없습니다. 사용할 키오스크에 바로 입력해 주세요.</p>
-          <code>{{ issued.credential }}</code
-          ><small>기기 번호 {{ issued.kioskDeviceId }}</small>
+          <template v-if="issuedSecret">
+            <div class="credential-value">
+              <small>기기 코드</small><code data-test="issued-device-code">{{ issuedDeviceCode }}</code>
+              <button
+                type="button"
+                class="secondary"
+                aria-label="기기 코드 복사"
+                data-test="copy-device-code"
+                @click="copyIssuedValue(issuedDeviceCode, '기기 코드')"
+              >기기 코드 복사</button>
+            </div>
+            <div class="credential-value">
+              <small>활성화 코드</small><code data-test="issued-secret">{{ issuedSecret }}</code>
+              <button
+                type="button"
+                class="secondary"
+                aria-label="활성화 코드 복사"
+                data-test="copy-activation-secret"
+                @click="copyIssuedValue(issuedSecret, '활성화 코드')"
+              >활성화 코드 복사</button>
+            </div>
+            <p v-if="copyFeedback" class="copy-feedback" role="status" aria-live="polite">{{ copyFeedback }}</p>
+          </template>
+          <p v-else class="invalid" role="alert">활성화 정보를 안전하게 표시할 수 없습니다. 새로 발급해 주세요.</p>
+          <small>기기 번호 {{ issued.kioskDeviceId }}</small>
           <div class="actions">
-            <button @click="issued = null">확인 후 닫기</button
+            <button @click="clearIssued">확인 후 닫기</button
             ><button class="secondary" :disabled="busy" @click="rotate">새로 발급</button
             ><button class="danger" :disabled="busy" @click="revoke">이용 중지</button>
           </div>
@@ -525,9 +576,25 @@ td select {
   background: #f1f5f9;
   padding: 16px;
 }
+.credential-value {
+  margin-bottom: 15px;
+}
+.credential-value code {
+  margin: 8px 0;
+}
+.credential-value button {
+  min-height: 32px;
+  border-radius: 3px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
 .credential small {
   display: block;
-  margin-bottom: 15px;
+}
+.copy-feedback {
+  color: var(--color-muted);
+  font-size: 12px;
 }
 button:disabled {
   opacity: 0.5;

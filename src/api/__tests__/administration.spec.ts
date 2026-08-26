@@ -1,0 +1,64 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getSecurityHistory } from '@/api/administration'
+
+describe('administration API', () => {
+  const fetchMock = vi.fn<typeof fetch>()
+
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal('fetch', fetchMock)
+  })
+
+  it('uses the Store Access security-history contract and preserves nullable actors', async () => {
+    const fixture = {
+      items: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          eventType: 'EMPLOYEE_LOGIN_FAILED',
+          actorEmployeeId: null,
+          targetType: 'EMPLOYEE',
+          targetId: '22222222-2222-4222-8222-222222222222',
+          result: 'FAILURE',
+          reasonCode: 'AUTHENTICATION_FAILED',
+          previousValue: null,
+          newValue: null,
+          occurredAt: '2026-08-25T09:00:00Z',
+        },
+      ],
+      nextCursorOccurredAt: '2026-08-25T09:00:00Z',
+      nextCursorId: '11111111-1111-4111-8111-111111111111',
+      hasMore: true,
+    }
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(fixture), { status: 200 }))
+
+    const page = await getSecurityHistory({
+      from: '2026-08-18T09:00:00.000Z',
+      to: '2026-08-25T09:00:00.000Z',
+      eventType: 'EMPLOYEE_LOGIN_FAILED',
+      targetType: 'EMPLOYEE',
+      targetId: '22222222-2222-4222-8222-222222222222',
+      result: 'FAILURE',
+      cursorOccurredAt: '2026-08-25T09:00:00Z',
+      cursorId: '11111111-1111-4111-8111-111111111111',
+      size: 20,
+    })
+
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]), 'http://local')
+    expect(url.pathname).toBe('/api/v1/security-history')
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      from: '2026-08-18T09:00:00.000Z',
+      to: '2026-08-25T09:00:00.000Z',
+      eventType: 'EMPLOYEE_LOGIN_FAILED',
+      targetType: 'EMPLOYEE',
+      targetId: '22222222-2222-4222-8222-222222222222',
+      result: 'FAILURE',
+      cursorOccurredAt: '2026-08-25T09:00:00Z',
+      cursorId: '11111111-1111-4111-8111-111111111111',
+      size: '20',
+    })
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe('GET')
+    expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe('include')
+    expect(page.items[0]?.actorEmployeeId).toBeNull()
+    expect(page.hasMore).toBe(true)
+  })
+})
