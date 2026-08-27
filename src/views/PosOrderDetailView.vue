@@ -85,9 +85,7 @@ async function complete() {
     order.value = await completeOrder(order.value.orderId)
   } catch (caught) {
     if (isConflict(caught)) await loadOrder(false, false)
-    operationError.value = isConflict(caught)
-      ? '준비 완료 상태가 아니거나 주문 상태가 바뀌었습니다. 최신 주문 정보를 다시 확인했습니다.'
-      : mutationMessage(caught, '주문 완료를 처리하지 못했습니다.')
+    operationError.value = completionMessage(caught)
   } finally {
     completing.value = false
   }
@@ -98,6 +96,16 @@ function isConflict(caught: unknown) {
     caught instanceof ApiError &&
     (caught.status === 409 || caught.status === 422 || caught.code === 'INVALID_STATE')
   )
+}
+
+function completionMessage(caught: unknown) {
+  if (caught instanceof ApiError && caught.code === 'INVALID_STATE')
+    return '조리 현황에서 먼저 ‘준비 완료’를 처리해 주세요. 최신 주문 정보를 다시 확인했습니다.'
+  if (caught instanceof ApiError && caught.code === 'DEPENDENCY_UNAVAILABLE')
+    return '조리 준비 상태를 확인할 수 없어 주문을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+  if (isConflict(caught))
+    return '준비 완료 상태가 아니거나 주문 상태가 바뀌었습니다. 최신 주문 정보를 다시 확인했습니다.'
+  return mutationMessage(caught, '주문 완료를 처리하지 못했습니다.')
 }
 
 // Commerce order errors are `400 VALIDATION_FAILED`, `403 FORBIDDEN`, `404 ORDER_NOT_FOUND`,

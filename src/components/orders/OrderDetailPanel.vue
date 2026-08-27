@@ -65,6 +65,10 @@ function tone(status: OrderStatus) {
       <p v-else-if="order.status === 'ACCEPTED'" class="payment-guidance">
         결제가 완료된 주문은 먼저 결제를 전액 취소해 주세요.
       </p>
+      <p v-if="order.status === 'ACCEPTED'" class="completion-guidance">
+        주문 완료 전
+        <a href="/pos/queues/fulfillment">조리 현황</a>에서 먼저 ‘준비 완료’를 처리해 주세요.
+      </p>
       <button
         v-if="order.status === 'ACCEPTED'"
         class="primary"
@@ -138,6 +142,15 @@ function tone(status: OrderStatus) {
 .payment-guidance {
   margin: 0;
   color: var(--color-muted);
+}
+.completion-guidance {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--color-muted);
+}
+.completion-guidance a {
+  color: var(--color-primary);
+  font-weight: 700;
 }
 .primary,
 .danger {

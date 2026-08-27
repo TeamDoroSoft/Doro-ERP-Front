@@ -50,6 +50,8 @@ describe('order query and detail panels', () => {
     expect(created.text()).not.toContain('주문 완료')
     expect(accepted.text()).not.toContain('주문 취소')
     expect(accepted.text()).toContain('결제가 완료된 주문은 먼저 결제를 전액 취소해 주세요.')
+    expect(accepted.text()).toContain('조리 현황에서 먼저 ‘준비 완료’를 처리해 주세요.')
+    expect(accepted.get('a[href="/pos/queues/fulfillment"]').text()).toBe('조리 현황')
     expect(accepted.text()).toContain('주문 완료')
   })
 
