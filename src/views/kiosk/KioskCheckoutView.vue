@@ -51,6 +51,7 @@ async function submit() {
     )
     if (!flow.order.orderAccessToken) throw new Error('missing access token')
     flow.payment = await createPayment(flow.order.orderId, flow.paymentCreateKey, 'kiosk')
+    if (!flow.persistPaymentFlow()) throw new Error('payment recovery unavailable')
     await router.push(`/kiosk/payments/${flow.payment.id}`)
   } catch {
     error.value = '주문을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'

@@ -87,7 +87,11 @@ const employeeSessionEndCodes = new Set([
   'SESSION_ABSOLUTE_EXPIRED',
   'SESSION_INVALIDATED',
 ])
-const kioskSessionEndCodes = new Set(['KIOSK_AUTHENTICATION_FAILED'])
+const kioskSessionEndCodes = new Set([
+  'KIOSK_AUTHENTICATION_FAILED',
+  'UNAUTHENTICATED',
+  'SESSION_ABSOLUTE_EXPIRED',
+])
 let unauthorizedHandler: (() => void) | undefined
 let kioskUnauthorizedHandler: (() => void) | undefined
 
