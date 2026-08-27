@@ -4,6 +4,9 @@ import type { Int64String } from './int64'
 export type OrderChannel = 'POS' | 'KIOSK'
 export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
 export type OrderStatus = 'CREATED' | 'ACCEPTED' | 'COMPLETED' | 'CANCELLED'
+export type OrderSourceType = 'KIOSK' | 'EMPLOYEE_POS'
+export type OrderPaymentPolicy = 'PAY_NOW' | 'PAY_LATER'
+export type OrderPaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'CANCELLED'
 
 /** A request can contain at most 100 lines; each quantity must be between 1 and 999. */
 export interface CreateOrderLineRequest {
@@ -31,6 +34,13 @@ export interface OrderResponse {
   status: OrderStatus
   businessDate: string
   orderAccessToken: string | null
+  /** Target-contract fields are optional until the Commerce response migration is deployed. */
+  sourceType?: OrderSourceType | null
+  sourceDeviceId?: string | null
+  sourceDeviceNameSnapshot?: string | null
+  paymentPolicy?: OrderPaymentPolicy
+  paymentStatus?: OrderPaymentStatus
+  paymentHandoffDeviceNameSnapshot?: string | null
 }
 
 export interface OrderListQuery {

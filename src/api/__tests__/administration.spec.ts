@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getKiosks, getSecurityHistory } from '@/api/administration'
+import { changeKioskMode, getKiosks, getSecurityHistory } from '@/api/administration'
 
 describe('administration API', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -83,5 +83,34 @@ describe('administration API', () => {
     expect(init?.credentials).toBe('include')
     expect(result).toEqual(devices)
     expect(result[0]).not.toHaveProperty('credential')
+  })
+
+  it('updates a kiosk mode and clears pairing outside ORDER mode', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: '88000000-0000-0000-0000-000000000001',
+          deviceCode: 'KIOSK-01',
+          status: 'ACTIVE',
+          mode: 'PAYMENT',
+          credentialVersion: 2,
+          createdAt: '2026-08-25T09:00:00Z',
+          updatedAt: '2026-08-26T09:00:00Z',
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await changeKioskMode('88000000-0000-0000-0000-000000000001', 'PAYMENT', 'ignored-pair')
+
+    const [input, init] = fetchMock.mock.calls[0]!
+    expect(new URL(String(input), 'http://local').pathname).toBe(
+      '/api/v1/kiosk-devices/88000000-0000-0000-0000-000000000001/mode',
+    )
+    expect(init?.method).toBe('PATCH')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      mode: 'PAYMENT',
+      pairedPaymentDeviceId: null,
+    })
   })
 })

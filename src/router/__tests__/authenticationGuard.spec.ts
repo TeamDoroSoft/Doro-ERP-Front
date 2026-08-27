@@ -177,4 +177,27 @@ describe('POS authentication & role guard', () => {
     await router.push('/kiosk/cart')
     expect(router.currentRoute.value.path).toBe('/kiosk/cart')
   })
+
+  it.each([
+    ['/pay/public-id', 'public-checkout'],
+    ['/pay/public-id/success', 'public-checkout-success'],
+    ['/pay/public-id/fail', 'public-checkout-fail'],
+  ])('keeps %s outside employee and kiosk authentication guards', async (path, name) => {
+    await router.push(path)
+
+    expect(router.currentRoute.value.name).toBe(name)
+    expect(router.currentRoute.value.meta.requiresAuth).not.toBe(true)
+    expect(router.currentRoute.value.meta.kiosk).not.toBe(true)
+    expect(router.currentRoute.value.meta.kioskActivation).not.toBe(true)
+
+    useKioskSessionStore().markAuthenticated()
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'owner', role: 'OWNER', passwordChangeRequired: false },
+      'doro',
+    )
+    await router.push('/pos/orders')
+    await router.push(path)
+
+    expect(router.currentRoute.value.name).toBe(name)
+  })
 })

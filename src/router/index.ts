@@ -20,6 +20,7 @@ import KioskCartView from '@/views/kiosk/KioskCartView.vue'
 import KioskCheckoutView from '@/views/kiosk/KioskCheckoutView.vue'
 import KioskPaymentView from '@/views/kiosk/KioskPaymentView.vue'
 import KioskOrderStatusView from '@/views/kiosk/KioskOrderStatusView.vue'
+import PublicCheckoutView from '@/views/checkout/PublicCheckoutView.vue'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
 import { useKioskSessionStore } from '@/stores/kioskSession'
 import { applyPageMetadata } from '@/router/pageMetadata'
@@ -265,6 +266,34 @@ const routes: RouteRecordRaw[] = [
       requiresAuth: true,
       title: '결제 실패',
       description: '결제 실패 사유를 확인하고 원래 주문 화면으로 돌아갑니다.',
+    },
+  },
+  // Public mobile checkout routes have neither employee nor kiosk authentication metadata.
+  {
+    path: '/pay/:publicId',
+    name: 'public-checkout',
+    component: PublicCheckoutView,
+    meta: {
+      title: '모바일 결제',
+      description: 'Doro 모바일 결제 링크의 유효성을 안전하게 확인합니다.',
+    },
+  },
+  {
+    path: '/pay/:publicId/success',
+    name: 'public-checkout-success',
+    component: PublicCheckoutView,
+    meta: {
+      title: '결제 결과 확인',
+      description: 'Doro 모바일 결제 결과를 안전하게 확인합니다.',
+    },
+  },
+  {
+    path: '/pay/:publicId/fail',
+    name: 'public-checkout-fail',
+    component: PublicCheckoutView,
+    meta: {
+      title: '결제 결과 확인',
+      description: 'Doro 모바일 결제 결과를 안전하게 확인합니다.',
     },
   },
   {

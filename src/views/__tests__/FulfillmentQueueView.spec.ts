@@ -11,7 +11,6 @@ vi.mock('@/composables/useFulfillmentQueue', () => fulfillmentQueue)
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
-  useRouter: () => ({ push: vi.fn<() => void>() }),
 }))
 
 describe('FulfillmentQueueView', () => {
@@ -39,6 +38,7 @@ describe('FulfillmentQueueView', () => {
 
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('현재 조리 중인 주문이 없습니다.')
+    expect(wrapper.text()).not.toContain('입장 대기 보기')
   })
 })
 

@@ -262,7 +262,7 @@ describe('Phase 06 management views', () => {
     expect(row.text()).toContain('사용 중')
     expect(wrapper.text()).not.toContain('rotated-secret')
 
-    await row.findAll('button')[0]!.trigger('click')
+    await row.get('[data-test=rotate-kiosk]').trigger('click')
     await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
     await wrapper.get('[role=dialog] form').trigger('submit')
     await flushPromises()

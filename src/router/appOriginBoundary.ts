@@ -24,10 +24,24 @@ export function configuredAppOrigins(): AppOrigins {
   }
 }
 
+export function isPublicCheckoutPath(pathname: string): boolean {
+  const segments = pathname.split('/')
+  if (segments.length !== 3 && segments.length !== 4) return false
+  const publicIdSegment = segments[2]
+  if (segments[0] !== '' || segments[1] !== 'pay' || !publicIdSegment) return false
+
+  // Encoded path separators can be interpreted differently by proxies and routers.
+  if (typeof publicIdSegment !== 'string' || /%2f|%5c/i.test(publicIdSegment)) return false
+  if (segments.length === 4 && segments[3] !== 'success' && segments[3] !== 'fail') return false
+
+  return true
+}
+
 export function crossOriginTarget(current: URL, origins: AppOrigins): string | null {
   const kioskPath = current.pathname === '/kiosk' || current.pathname.startsWith('/kiosk/')
+  const publicCheckoutPath = isPublicCheckoutPath(current.pathname)
   if (origins.kioskOrigin && current.origin === origins.kioskOrigin) {
-    if (kioskPath) return null
+    if (kioskPath || publicCheckoutPath) return null
     const activation = new URL('/kiosk/activate', origins.kioskOrigin)
     if (current.pathname === '/') {
       activation.search = current.search
@@ -36,7 +50,7 @@ export function crossOriginTarget(current: URL, origins: AppOrigins): string | n
     return activation.href
   }
 
-  const targetOrigin = kioskPath ? origins.kioskOrigin : origins.publicOrigin
+  const targetOrigin = kioskPath || publicCheckoutPath ? origins.kioskOrigin : origins.publicOrigin
   if (!targetOrigin || current.origin === targetOrigin) return null
 
   const target = new URL(targetOrigin)

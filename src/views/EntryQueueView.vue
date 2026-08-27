@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import { useEntryQueue } from '@/composables/useEntryQueue'
 import { displayLabel } from '@/ui/displayLabels'
 
-const router = useRouter()
 const queue = useEntryQueue()
 const partySize = ref<number | null>(null)
 
@@ -27,7 +25,6 @@ async function submit() {
   <main class="queue-page">
     <header class="queue-header">
       <div><p>입장 대기</p><h1>입장 대기 관리</h1><span>영업일별 대기 등록과 입장 상태를 처리합니다.</span></div>
-      <button type="button" @click="router.push('/pos/queues/fulfillment')">조리 현황 보기</button>
     </header>
 
     <section class="queue-card" aria-labelledby="entry-register-title">

@@ -53,6 +53,26 @@ describe('PosOrdersView', () => {
     expect(failed.text()).toContain('다시 시도')
   })
 
+  it('filters order source snapshots locally without inventing a backend query', async () => {
+    api.getOrders.mockResolvedValue([
+      { ...order, sourceType: 'EMPLOYEE_POS' },
+      {
+        ...order,
+        orderId: 'order-kiosk',
+        displayNumber: 8,
+        sourceType: 'KIOSK',
+        sourceDeviceNameSnapshot: '입구 주문 Kiosk 01',
+      },
+    ])
+    const wrapper = await mountView()
+
+    await wrapper.get('select[name="source"]').setValue('KIOSK:입구 주문 Kiosk 01')
+
+    expect(wrapper.text()).toContain('#8')
+    expect(wrapper.text()).not.toContain('#7')
+    expect(api.getOrders).toHaveBeenCalledTimes(1)
+  })
+
   it('reports a rejected query filter as a request problem, not a connectivity problem', async () => {
     api.getOrders.mockRejectedValueOnce(
       new ApiError(400, {

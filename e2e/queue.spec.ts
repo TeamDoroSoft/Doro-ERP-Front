@@ -37,6 +37,7 @@ test('[mock-ui] registers an entry and handles enter, cancel, and no-show from W
   }
 
   await page.goto('/pos/queues/entry')
+  await expect(page.getByRole('button', { name: '조리 현황 보기' })).toHaveCount(0)
   await page.getByLabel('영업일').fill(businessDate)
   await page.getByRole('button', { name: '새로고침' }).click()
   await expect(page.getByText('#1', { exact: true })).toBeVisible()
@@ -73,6 +74,7 @@ test('[mock-ui] shows fulfillment event lag and moves only PREPARING to READY', 
     await fulfill(route, items[0])
   })
   await page.goto('/pos/queues/fulfillment')
+  await expect(page.getByRole('button', { name: '입장 대기 보기' })).toHaveCount(0)
   await expect(page.getByText('결제가 완료된 주문은 잠시 후 목록에 표시될 수 있습니다.', { exact: false })).toBeVisible()
   await row(page, '#7').getByRole('button', { name: '준비 완료' }).click()
   await expect(row(page, '#7').locator('td:nth-child(2)')).toHaveText('준비 완료')

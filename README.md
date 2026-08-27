@@ -213,7 +213,14 @@ Admin Nginx는 `/api/`를 같은 Namespace의 `edge-api:8080`으로 전달합니
   `/pos/catalog`, `/pos/tables`, `/pos/sales`, `/pos/settings`, `/pos/history`
 - 고객 Kiosk: `/kiosk/activate`, `/kiosk`, `/kiosk/cart`, `/kiosk/checkout`,
   `/kiosk/payments/:paymentId`, `/kiosk/orders/:orderId`
+- 고객 모바일 Checkout: `/pay/:publicId`, `/pay/:publicId/success`, `/pay/:publicId/fail`
 - DEV Preview는 개발 빌드에서만 제공되며 Production 인증 우회 수단이 아닙니다.
+
+Kiosk 다중 모드의 Runtime·입장 대기·결제 Handoff Adapter와 모드별 화면은 Front Preview로
+구현되어 있습니다. 관련 Store Access·Queue·Payment OpenAPI와 Edge Allowlist는 아직
+`IMPLEMENTATION_PENDING`이므로 `/kiosk/order`, `/kiosk/waiting`, `/kiosk/payment`에 연결하지
+않습니다. 공개 Checkout Route도 Token·Redirect 정보를 즉시 제거하고 안전하게 실패하지만,
+실제 Resolve·Start·Confirm·Status 연동 완료 판정은 Backend 계약 배포 후에만 수행합니다.
 
 ## 검증 경계와 현재 상태
 

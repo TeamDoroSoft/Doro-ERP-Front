@@ -23,6 +23,25 @@ describe('order query and detail panels', () => {
     expect(wrapper.emitted('select')).toEqual([['order-1']])
   })
 
+  it('distinguishes the order source device from the payment display device', () => {
+    const sourced = {
+      ...order,
+      sourceType: 'KIOSK' as const,
+      sourceDeviceNameSnapshot: '입구 주문 Kiosk 01',
+      paymentHandoffDeviceNameSnapshot: '카운터 결제 Kiosk 02',
+    }
+    const list = mount(OrderListPanel, { props: { orders: [sourced] } })
+    const detail = mount(OrderDetailPanel, {
+      props: { order: sourced, cancelling: false, completing: false },
+    })
+
+    expect(list.text()).toContain('Kiosk · 입구 주문 Kiosk 01')
+    expect(detail.text()).toContain('주문 생성')
+    expect(detail.text()).toContain('입구 주문 Kiosk 01')
+    expect(detail.text()).toContain('결제 QR 표시')
+    expect(detail.text()).toContain('카운터 결제 Kiosk 02')
+  })
+
   it('does not invent unavailable line, table, service-type, or ready fields', () => {
     const wrapper = mount(OrderDetailPanel, {
       props: { order, cancelling: false, completing: false },
