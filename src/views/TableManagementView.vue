@@ -4,6 +4,7 @@ import { ApiError } from '@/api/http'
 import {
   changeTableStatus,
   createTable,
+  getInactiveTables,
   getTables,
   updateTable,
   type TableDetailsRequest,
@@ -17,6 +18,9 @@ const session = useOperatorSessionStore()
 const tables = ref<TableResponse[]>([])
 const loading = ref(true)
 const listError = ref('')
+const inactiveTables = ref<TableResponse[]>([])
+const inactiveLoading = ref(false)
+const inactiveListError = ref('')
 const notice = ref('')
 const operationError = ref('')
 const formMode = ref<FormMode | null>(null)
@@ -27,7 +31,10 @@ const form = reactive<TableDetailsRequest>({ tableNumber: '', displayName: '' })
 
 const canManage = computed(() => session.canManageTables)
 
-onMounted(loadTables)
+onMounted(async () => {
+  await loadTables()
+  if (canManage.value) await loadInactiveTables()
+})
 
 async function loadTables() {
   loading.value = true
@@ -39,6 +46,23 @@ async function loadTables() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadInactiveTables() {
+  inactiveLoading.value = true
+  inactiveListError.value = ''
+  try {
+    inactiveTables.value = await getInactiveTables()
+  } catch {
+    inactiveListError.value = '이용 중지한 테이블을 불러오지 못했습니다. 다시 시도해 주세요.'
+  } finally {
+    inactiveLoading.value = false
+  }
+}
+
+async function reloadTableLists() {
+  await loadTables()
+  if (canManage.value) await loadInactiveTables()
 }
 
 function openCreateForm() {
@@ -95,7 +119,7 @@ async function submitForm() {
       notice.value = '테이블 정보를 수정했습니다.'
     }
     formMode.value = null
-    await loadTables()
+    await reloadTableLists()
   } catch (error) {
     await handleMutationError(error)
   } finally {
@@ -110,7 +134,20 @@ async function deactivate(table: TableResponse) {
   try {
     await changeTableStatus(table.id, 'INACTIVE')
     notice.value = '테이블 이용을 중지했습니다.'
-    await loadTables()
+    await reloadTableLists()
+  } catch (error) {
+    await handleMutationError(error)
+  }
+}
+
+async function reactivate(table: TableResponse) {
+  if (!window.confirm(`${table.displayName} 테이블을 다시 이용할까요?`)) return
+
+  resetOperationMessages()
+  try {
+    await changeTableStatus(table.id, 'ACTIVE')
+    notice.value = '테이블을 다시 이용할 수 있습니다.'
+    await reloadTableLists()
   } catch (error) {
     await handleMutationError(error)
   }
@@ -222,6 +259,24 @@ function messageFor(error: unknown, fallback: string): string {
       </div>
       <p v-else-if="tables.length === 0" class="state-message">이용 중인 테이블이 없습니다.</p>
       <div v-else class="operations-table-wrap"><table class="operations-table"><thead><tr><th>테이블 번호</th><th>표시 이름</th><th>운영 상태</th><th v-if="canManage" aria-label="작업" /></tr></thead><tbody><tr v-for="table in tables" :key="table.id"><td class="table-number">{{ table.tableNumber }}</td><td><strong>{{ table.displayName }}</strong></td><td><span class="table-status">운영 중</span></td><td v-if="canManage" class="row-actions"><button type="button" @click="openEditForm(table)">수정</button><button class="danger" type="button" @click="deactivate(table)">이용 중지</button></td></tr></tbody></table></div>
+    </section>
+
+    <section v-if="canManage" class="table-list" aria-labelledby="inactive-table-list-title" :aria-busy="inactiveLoading">
+      <div class="section-heading">
+        <div>
+          <h2 id="inactive-table-list-title">이용 중지한 테이블</h2>
+          <p>번호와 이력은 유지되며, 다시 이용으로 복구할 수 있습니다.</p>
+        </div>
+        <button class="text-button" type="button" :disabled="inactiveLoading" @click="loadInactiveTables">새로고침</button>
+      </div>
+
+      <p v-if="inactiveLoading" class="state-message" role="status">이용 중지한 테이블을 불러오는 중입니다…</p>
+      <div v-else-if="inactiveListError" class="state-message error-state" role="alert">
+        <p>{{ inactiveListError }}</p>
+        <button type="button" @click="loadInactiveTables">다시 시도</button>
+      </div>
+      <p v-else-if="inactiveTables.length === 0" class="state-message">이용 중지한 테이블이 없습니다.</p>
+      <div v-else class="operations-table-wrap"><table class="operations-table"><thead><tr><th>테이블 번호</th><th>표시 이름</th><th>운영 상태</th><th aria-label="작업" /></tr></thead><tbody><tr v-for="table in inactiveTables" :key="table.id"><td class="table-number">{{ table.tableNumber }}</td><td><strong>{{ table.displayName }}</strong></td><td><span class="table-status">이용 중지</span></td><td class="row-actions"><button type="button" @click="reactivate(table)">다시 이용</button></td></tr></tbody></table></div>
     </section>
   </main>
 </template>

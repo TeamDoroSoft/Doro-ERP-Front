@@ -23,6 +23,10 @@ export function getTables(): Promise<TableResponse[]> {
   return apiRequestExact<TableResponse[]>('/tables', {}, TABLE_INT64)
 }
 
+export function getInactiveTables(): Promise<TableResponse[]> {
+  return apiRequestExact<TableResponse[]>('/tables?status=INACTIVE', {}, TABLE_INT64)
+}
+
 export function createTable(request: TableDetailsRequest): Promise<TableResponse> {
   return apiRequestExact<TableResponse>(
     '/tables',

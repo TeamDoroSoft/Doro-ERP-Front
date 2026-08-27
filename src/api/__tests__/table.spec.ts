@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '@/api/http'
-import { changeTableStatus, createTable, getTables, updateTable } from '@/api/table'
+import { changeTableStatus, createTable, getInactiveTables, getTables, updateTable } from '@/api/table'
 
 /** Wire shape exactly as Store Access serialises `TableResponse`: `version` is a JSON int64. */
 const tableWire = {
@@ -45,6 +45,14 @@ describe('table API', () => {
     expect(options?.credentials).toBe('include')
     expect(url).not.toContain('tenantId')
     expect(url).not.toContain('storeId')
+  })
+
+  it('loads inactive tables through the management-only status query', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify([{ ...tableWire, status: 'INACTIVE' }]), { status: 200 }))
+
+    await expect(getInactiveTables()).resolves.toEqual([{ ...table, status: 'INACTIVE' }])
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/tables?status=INACTIVE')
   })
 
   it('uses the confirmed create, update, and status contracts with CSRF', async () => {
