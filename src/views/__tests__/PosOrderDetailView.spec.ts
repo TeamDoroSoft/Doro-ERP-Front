@@ -53,8 +53,45 @@ describe('PosOrderDetailView', () => {
     await flushPromises()
     expect(api.completeOrder).toHaveBeenCalledWith('order-1')
     expect(api.getOrder).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('조리 현황에서 먼저 ‘준비 완료’를 처리해 주세요.')
     expect(wrapper.text()).toContain('최신 주문 정보를 다시 확인했습니다.')
     expect(wrapper.text()).toContain('주문 확정')
+  })
+
+  it('explains a 503 dependency failure without exposing its raw detail', async () => {
+    api.getOrder.mockResolvedValueOnce({ ...created, status: 'ACCEPTED' })
+    api.completeOrder.mockRejectedValueOnce(
+      new ApiError(503, {
+        status: 503,
+        code: 'DEPENDENCY_UNAVAILABLE',
+        detail: 'internal queue host name',
+      }),
+    )
+    const wrapper = await mountView()
+    await findButton(wrapper, '주문 완료').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain(
+      '조리 준비 상태를 확인할 수 없어 주문을 완료하지 못했습니다.',
+    )
+    expect(wrapper.text()).not.toContain('internal queue host name')
+  })
+
+  it('uses the generic completion message for an internal server error', async () => {
+    api.getOrder.mockResolvedValueOnce({ ...created, status: 'ACCEPTED' })
+    api.completeOrder.mockRejectedValueOnce(
+      new ApiError(500, {
+        status: 500,
+        code: 'INTERNAL_SERVER_ERROR',
+        detail: 'internal stack trace',
+      }),
+    )
+    const wrapper = await mountView()
+    await findButton(wrapper, '주문 완료').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('주문 완료를 처리하지 못했습니다.')
+    expect(wrapper.text()).not.toContain('internal stack trace')
   })
 
   it('does not expose raw unavailable-service detail', async () => {
