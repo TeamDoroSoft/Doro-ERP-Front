@@ -8,7 +8,9 @@ export type TableSessionStatus = 'OPEN' | 'CHECKOUT_PENDING' | 'CLOSED'
 export interface TableSessionOrder {
   orderId: string
   displayNumber: number
+  itemSummary: string
   amount: Int64String
+  orderStatus: string
   paymentStatus: OrderPaymentStatus
 }
 
@@ -51,6 +53,11 @@ export function getTableSession(id: string): Promise<TableSession> {
     {},
     TABLE_SESSION_INT64,
   )
+}
+
+export function listActiveTableSessions(tableId?: string): Promise<TableSession[]> {
+  const query = tableId ? `?${new URLSearchParams({ tableId }).toString()}` : ''
+  return apiRequestExact<TableSession[]>(`/table-sessions${query}`, {}, TABLE_SESSION_INT64)
 }
 
 export function addOrderToTableSession(id: string, orderId: string): Promise<TableSession> {

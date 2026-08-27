@@ -74,14 +74,14 @@ describe('customer-facing kiosk modes', () => {
 
   it('renders an actual QR while keeping its token and internal IDs out of visible text', async () => {
     api.getCurrentPaymentHandoff.mockResolvedValue({
-      id: 'internal-handoff-id',
       publicId: 'public-handoff-id',
       displayCode: 'A7K9',
       status: 'DISPLAYED',
       expiresAt: '2026-08-27T10:05:00Z',
       amount: '12000',
       currency: 'KRW',
-      orderName: '아메리카노 외 1건',
+      orderDisplayNumber: 17,
+      orderSummary: '아메리카노 외 1건',
       oneTimeToken: 'one_time_token_1234',
     })
     const wrapper = mount(KioskPaymentModeView)

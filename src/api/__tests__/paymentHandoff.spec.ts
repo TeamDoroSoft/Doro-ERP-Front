@@ -3,6 +3,7 @@ import {
   cancelPaymentHandoff,
   createPaymentHandoff,
   getCurrentPaymentHandoff,
+  recoverPaymentHandoffByOrder,
   reassignPaymentHandoff,
   reissuePaymentHandoff,
 } from '@/api/paymentHandoff'
@@ -32,7 +33,8 @@ describe('payment handoff api', () => {
             '{"id":"11111111-1111-4111-8111-111111111111",' +
               '"publicId":"33333333-3333-4333-8333-333333333333","displayCode":"A7K9",' +
               '"status":"DISPLAYED","expiresAt":"2026-08-27T10:05:00Z",' +
-              '"amount":9007199254740993,"currency":"KRW","orderName":"주문 17",' +
+              '"amount":9007199254740993,"currency":"KRW","orderDisplayNumber":17,' +
+              '"orderSummary":"아메리카노 외 1건",' +
               '"oneTimeToken":null}',
             { status: 200 },
           ),
@@ -47,7 +49,8 @@ describe('payment handoff api', () => {
       expiresAt: '2026-08-27T10:05:00Z',
       amount: '9007199254740993',
       currency: 'KRW',
-      orderName: '주문 17',
+      orderDisplayNumber: 17,
+      orderSummary: '아메리카노 외 1건',
       oneTimeToken: null,
     })
     expect(fetch).toHaveBeenCalledWith(
@@ -109,10 +112,12 @@ describe('payment handoff api', () => {
       'fetch',
       vi.fn(async () => new Response(JSON.stringify(handoffWire), { status: 200 })),
     )
+    await recoverPaymentHandoffByOrder('order/id')
     await reissuePaymentHandoff('handoff/id')
     await reassignPaymentHandoff('handoff/id', handoffWire.targetPaymentDeviceId)
     await cancelPaymentHandoff('handoff/id')
     expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
+      '/api/v1/payment-handoffs/recovery?orderId=order%2Fid',
       '/api/v1/payment-handoffs/handoff%2Fid/reissue',
       '/api/v1/payment-handoffs/handoff%2Fid/reassign',
       '/api/v1/payment-handoffs/handoff%2Fid/cancel',

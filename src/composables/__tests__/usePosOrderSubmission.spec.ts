@@ -64,13 +64,23 @@ function api(): {
     createPaymentHandoff: vi
       .fn<PosOrderSubmissionApi['createPaymentHandoff']>()
       .mockResolvedValue(handoff),
+    recoverPaymentHandoffByOrder: vi
+      .fn<PosOrderSubmissionApi['recoverPaymentHandoffByOrder']>()
+      .mockResolvedValue(handoff),
     openTableSession: vi.fn<PosOrderSubmissionApi['openTableSession']>().mockResolvedValue(session),
     addOrderToTableSession: vi
       .fn<PosOrderSubmissionApi['addOrderToTableSession']>()
       .mockResolvedValue({
         ...session,
         orders: [
-          { orderId: 'order-1', displayNumber: 17, amount: '9000', paymentStatus: 'UNPAID' },
+          {
+            orderId: 'order-1',
+            displayNumber: 17,
+            itemSummary: '아메리카노 × 2',
+            amount: '9000',
+            orderStatus: 'ACCEPTED',
+            paymentStatus: 'UNPAID',
+          },
         ],
         unpaidTotal: '9000',
       }),
@@ -139,12 +149,41 @@ describe('usePosOrderSubmission', () => {
     expect(result?.payment).toEqual(payment)
   })
 
+  it.each([0, 409, 503])(
+    'recovers the canonical handoff by order after a create result %s',
+    async (status) => {
+      const { api: dependency, mocks } = api()
+      mocks.createPaymentHandoff.mockRejectedValue(new ApiError(status))
+      const result = await usePosOrderSubmission(dependency).submit({
+        request: {
+          orderChannel: 'POS',
+          serviceType: 'TAKEOUT',
+          paymentPolicy: 'PAY_NOW',
+          lines: [{ productId: 'product-1', quantity: 1 }],
+        },
+        orderIdempotencyKey: 'key',
+        payNowTarget: 'PAYMENT_KIOSK',
+        targetPaymentDeviceId: 'device-1',
+      })
+
+      expect(mocks.recoverPaymentHandoffByOrder).toHaveBeenCalledWith('order-1')
+      expect(result?.handoff).toEqual(handoff)
+    },
+  )
+
   it('opens the table before a PAY_LATER order and treats a lost attach response as recovered', async () => {
     const { api: dependency, mocks } = api()
     const attached = {
       ...session,
       orders: [
-        { orderId: 'order-1', displayNumber: 17, amount: '9000', paymentStatus: 'UNPAID' as const },
+        {
+          orderId: 'order-1',
+          displayNumber: 17,
+          itemSummary: '아메리카노 × 2',
+          amount: '9000',
+          orderStatus: 'ACCEPTED',
+          paymentStatus: 'UNPAID' as const,
+        },
       ],
       unpaidTotal: '9000',
     }

@@ -7,7 +7,11 @@ import {
   getPaymentByOrder,
   type PaymentView,
 } from '@/api/payment'
-import { createPaymentHandoff, type PaymentHandoff } from '@/api/paymentHandoff'
+import {
+  createPaymentHandoff,
+  recoverPaymentHandoffByOrder,
+  type PaymentHandoff,
+} from '@/api/paymentHandoff'
 import {
   addOrderToTableSession,
   getTableSession,
@@ -22,6 +26,7 @@ export interface PosOrderSubmissionApi {
   createPayment(orderId: string, key: string): Promise<PaymentView>
   getPaymentByOrder(orderId: string): Promise<PaymentView>
   createPaymentHandoff(paymentId: string, deviceId: string, key: string): Promise<PaymentHandoff>
+  recoverPaymentHandoffByOrder(orderId: string): Promise<PaymentHandoff>
   openTableSession(tableId: string): Promise<TableSession>
   addOrderToTableSession(sessionId: string, orderId: string): Promise<TableSession>
   getTableSession(sessionId: string): Promise<TableSession>
@@ -75,7 +80,8 @@ export function usePosOrderSubmission(
       if (options.payNowTarget === 'PAYMENT_KIOSK') {
         const deviceId = required(options.targetPaymentDeviceId, 'targetPaymentDeviceId')
         const payment = await createOrRecoverPayment(order, paymentIdempotencyKey.value)
-        const handoff = await api.createPaymentHandoff(
+        const handoff = await createOrRecoverHandoff(
+          order.orderId,
           payment.id,
           deviceId,
           handoffIdempotencyKey.value,
@@ -110,6 +116,27 @@ export function usePosOrderSubmission(
     }
   }
 
+  async function createOrRecoverHandoff(
+    orderId: string,
+    paymentId: string,
+    deviceId: string,
+    key: string,
+  ) {
+    try {
+      return await api.createPaymentHandoff(paymentId, deviceId, key)
+    } catch (error) {
+      if (
+        !(error instanceof ApiError) ||
+        (error.status !== 0 && error.status !== 409 && error.status !== 503)
+      ) {
+        throw error
+      }
+      const recovered = await api.recoverPaymentHandoffByOrder(orderId)
+      if (recovered.paymentId !== paymentId) throw error
+      return recovered
+    }
+  }
+
   function setResult(next: PosOrderSubmissionResult) {
     result.value = next
     return next
@@ -135,6 +162,7 @@ const defaultApi: PosOrderSubmissionApi = {
   createPayment,
   getPaymentByOrder,
   createPaymentHandoff,
+  recoverPaymentHandoffByOrder,
   openTableSession,
   addOrderToTableSession,
   getTableSession,

@@ -24,7 +24,7 @@ export const posNavigation: PosNavigationItem[] = [
     group: '운영',
   },
   { label: '상품·메뉴', to: '/pos/catalog', icon: 'catalog', roles: allEmployees, ready: true, group: '관리' },
-  { label: '테이블', to: '/pos/tables', icon: 'tables', roles: managersOnly, ready: true, group: '관리' },
+  { label: '테이블', to: '/pos/tables', icon: 'tables', roles: allEmployees, ready: true, group: '운영' },
   { label: '매출·마감', to: '/pos/sales', icon: 'sales', roles: allEmployees, ready: true, group: '분석' },
   {
     label: '매장·직원 설정',

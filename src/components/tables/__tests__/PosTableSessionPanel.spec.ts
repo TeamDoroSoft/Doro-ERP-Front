@@ -19,19 +19,22 @@ const session = {
   openedAt: '2026-08-27T10:00:00Z',
   closedAt: null,
   orders: [
-    { orderId: 'order-1', displayNumber: 17, amount: '9000', paymentStatus: 'UNPAID' as const },
+    {
+      orderId: 'order-1',
+      displayNumber: 17,
+      itemSummary: '아메리카노 × 2',
+      amount: '9000',
+      orderStatus: 'ACCEPTED',
+      paymentStatus: 'UNPAID' as const,
+    },
   ],
   unpaidTotal: '9000',
 }
 const device = {
-  id: 'device-1',
-  deviceCode: 'PAY-01',
-  status: 'ACTIVE' as const,
+  deviceId: 'device-1',
+  displayName: '카운터 결제 01',
   mode: 'PAYMENT' as const,
-  pairedPaymentDeviceId: null,
-  credentialVersion: 1,
-  createdAt: '2026-08-27T09:00:00Z',
-  updatedAt: '2026-08-27T09:00:00Z',
+  active: true as const,
 }
 
 describe('PosTableSessionPanel', () => {

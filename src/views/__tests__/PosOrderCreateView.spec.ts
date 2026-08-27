@@ -7,6 +7,7 @@ import PosOrderCreateView from '@/views/PosOrderCreateView.vue'
 import type * as CatalogApi from '@/api/catalog'
 import type * as OrderApi from '@/api/order'
 import type * as TableApi from '@/api/table'
+import type * as CandidateApi from '@/api/paymentKioskCandidates'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 
 const catalogApi = vi.hoisted(() => ({
@@ -14,9 +15,14 @@ const catalogApi = vi.hoisted(() => ({
 }))
 const orderApi = vi.hoisted(() => ({ createOrder: vi.fn<typeof OrderApi.createOrder>() }))
 const tableApi = vi.hoisted(() => ({ getTables: vi.fn<typeof TableApi.getTables>() }))
+const candidateApi = vi.hoisted(() => ({
+  listActivePaymentKioskCandidatesForStaff:
+    vi.fn<typeof CandidateApi.listActivePaymentKioskCandidatesForStaff>(),
+}))
 vi.mock('@/api/catalog', () => catalogApi)
 vi.mock('@/api/order', () => orderApi)
 vi.mock('@/api/table', () => tableApi)
+vi.mock('@/api/paymentKioskCandidates', () => candidateApi)
 
 const menu = {
   currency: 'KRW',
@@ -67,6 +73,9 @@ describe('PosOrderCreateView', () => {
     useOperatorSessionStore().setRole('OWNER')
     catalogApi.getSalesMenu.mockResolvedValue(menu)
     tableApi.getTables.mockResolvedValue([table])
+    candidateApi.listActivePaymentKioskCandidatesForStaff.mockResolvedValue([
+      { deviceId: 'device-1', displayName: '카운터 결제 01', mode: 'PAYMENT', active: true },
+    ])
     orderApi.createOrder.mockResolvedValue(createdOrder)
   })
 
@@ -112,14 +121,18 @@ describe('PosOrderCreateView', () => {
     expect(tableApi.getTables).not.toHaveBeenCalled()
   })
 
-  it('keeps direct payment available but hides manager-only payment-kiosk discovery for STAFF', async () => {
+  it('shows the employee-safe payment-kiosk choice to STAFF without auto-selecting one candidate', async () => {
     useOperatorSessionStore().setRole('STAFF')
     const wrapper = await mountView()
     await flushPromises()
 
     expect(wrapper.text()).toContain('직원 직접 결제')
-    expect(wrapper.text()).not.toContain('결제 Kiosk QR')
-    expect(wrapper.find('input[value="PAYMENT_KIOSK"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('결제 Kiosk QR')
+    await wrapper.get('input[value="PAYMENT_KIOSK"]').setValue(true)
+    await flushPromises()
+    expect(candidateApi.listActivePaymentKioskCandidatesForStaff).toHaveBeenCalledOnce()
+    expect(wrapper.get('#payment-device').element).toHaveProperty('value', '')
+    expect(wrapper.text()).toContain('카운터 결제 01')
   })
 
   it('keeps the same idempotency key for retry after a network failure', async () => {

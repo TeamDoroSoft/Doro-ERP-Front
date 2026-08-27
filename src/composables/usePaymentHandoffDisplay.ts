@@ -6,13 +6,25 @@ import {
 import { safeApiErrorMessage } from '@/api/http'
 
 const qrStatuses = new Set<PaymentKioskHandoff['status']>(['DISPLAYED', 'PROCESSING'])
+const terminalStatuses = new Set<PaymentKioskHandoff['status']>([
+  'PAID',
+  'FAILED',
+  'EXPIRED',
+  'CANCELLED',
+])
 
 export type PaymentHandoffPresentation = Pick<
   PaymentKioskHandoff,
-  'displayCode' | 'status' | 'expiresAt' | 'amount' | 'currency' | 'orderName'
+  | 'displayCode'
+  | 'status'
+  | 'expiresAt'
+  | 'amount'
+  | 'currency'
+  | 'orderDisplayNumber'
+  | 'orderSummary'
 >
 
-export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
+export function usePaymentHandoffDisplay(pollIntervalMs = 2_500, terminalDwellMs = 3_000) {
   const current = ref<PaymentHandoffPresentation | null>(null)
   const qrValue = ref('')
   const loading = ref(true)
@@ -23,7 +35,7 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
   let countdownTimer: ReturnType<typeof setInterval> | undefined
   let expiryRefreshRequested = false
   let started = false
-  let currentId = ''
+  let currentPublicId = ''
 
   const canDisplayQr = computed(
     () =>
@@ -41,15 +53,15 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
       errorMessage.value = ''
       if (!next) {
         current.value = null
-        currentId = ''
+        currentPublicId = ''
         qrValue.value = ''
         remainingSeconds.value = 0
         return
       }
 
-      const changed = next.id !== currentId
+      const changed = next.publicId !== currentPublicId
       if (changed) {
-        currentId = next.id
+        currentPublicId = next.publicId
         qrValue.value = next.oneTimeToken ? publicCheckoutUrl(next) : ''
       } else if (!qrValue.value && next.oneTimeToken) {
         qrValue.value = publicCheckoutUrl(next)
@@ -85,10 +97,13 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
   function schedulePoll() {
     clearTimeout(pollTimer)
     if (!started || document.visibilityState !== 'visible') return
+    const delay = current.value && terminalStatuses.has(current.value.status)
+      ? terminalDwellMs
+      : pollIntervalMs
     pollTimer = setTimeout(async () => {
       await refresh()
       schedulePoll()
-    }, pollIntervalMs)
+    }, delay)
   }
 
   function handleVisibility() {
@@ -142,7 +157,8 @@ function presentation(value: PaymentKioskHandoff): PaymentHandoffPresentation {
     expiresAt: value.expiresAt,
     amount: value.amount,
     currency: value.currency,
-    orderName: value.orderName,
+    orderDisplayNumber: value.orderDisplayNumber,
+    orderSummary: value.orderSummary,
   }
 }
 

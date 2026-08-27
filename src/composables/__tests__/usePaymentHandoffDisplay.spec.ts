@@ -11,14 +11,14 @@ vi.mock('@/api/paymentHandoff', () => ({ ...api }))
 describe('usePaymentHandoffDisplay', () => {
   let visibility: DocumentVisibilityState
   const handoff: PaymentKioskHandoff = {
-    id: 'internal-handoff',
     publicId: 'public-handoff',
     displayCode: 'A7K9',
     status: 'DISPLAYED',
     expiresAt: '2026-08-27T10:00:10Z',
     amount: '12000',
     currency: 'KRW',
-    orderName: '아메리카노 외 1건',
+    orderDisplayNumber: 17,
+    orderSummary: '아메리카노 외 1건',
     oneTimeToken: 'one_time_token_1234',
   }
 
@@ -114,6 +114,26 @@ describe('usePaymentHandoffDisplay', () => {
       scope.stop()
     },
   )
+
+  it('keeps a server terminal status for a short dwell before polling the next request', async () => {
+    api.getCurrentPaymentHandoff
+      .mockResolvedValueOnce({ ...handoff, status: 'PAID', oneTimeToken: null })
+      .mockResolvedValueOnce(null)
+    const scope = effectScope()
+    const display = scope.run(() => usePaymentHandoffDisplay(1_000, 3_000))!
+    display.start()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(display.current.value?.status).toBe('PAID')
+    await vi.advanceTimersByTimeAsync(2_999)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(1)
+    expect(display.current.value?.status).toBe('PAID')
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(2)
+    expect(display.current.value).toBeNull()
+    scope.stop()
+  })
 
   it('recovers immediately when the network returns', async () => {
     const scope = effectScope()

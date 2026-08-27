@@ -68,7 +68,15 @@ onMounted(display.start)
           </div>
         </div>
         <dl>
-          <div><dt>주문</dt><dd>{{ display.current.value.orderName }}</dd></div>
+          <div>
+            <dt>주문번호</dt>
+            <dd>
+              {{ display.current.value.orderDisplayNumber === null
+                ? '테이블 합산 결제'
+                : `#${display.current.value.orderDisplayNumber}` }}
+            </dd>
+          </div>
+          <div><dt>주문 요약</dt><dd>{{ display.current.value.orderSummary }}</dd></div>
           <div><dt>결제 금액</dt><dd>{{ formatKrw(display.current.value.amount) }}</dd></div>
           <div><dt>결제코드</dt><dd>{{ display.current.value.displayCode }}</dd></div>
           <div>

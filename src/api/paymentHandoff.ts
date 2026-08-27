@@ -20,15 +20,14 @@ export interface PaymentHandoff {
 }
 
 export interface PaymentKioskHandoff {
-  /** Used only to avoid regenerating the same QR; never render this value. */
-  id: string
   publicId: string
   displayCode: string
   status: PaymentHandoffStatus
   expiresAt: string
   amount: Int64String
   currency: 'KRW'
-  orderName: string
+  orderDisplayNumber: number | null
+  orderSummary: string
   /** Present only on the atomic first claim and must never be persisted. */
   oneTimeToken: string | null
 }
@@ -51,6 +50,15 @@ export function createPaymentHandoff(
     },
     HANDOFF_INT64,
     { handleUnauthorized: context === 'kiosk' ? 'kiosk' : true },
+  )
+}
+
+export function recoverPaymentHandoffByOrder(orderId: string): Promise<PaymentHandoff> {
+  const query = new URLSearchParams({ orderId })
+  return apiRequestExact<PaymentHandoff>(
+    `/payment-handoffs/recovery?${query.toString()}`,
+    {},
+    HANDOFF_INT64,
   )
 }
 
@@ -87,7 +95,10 @@ function handoffMutation(
 ): Promise<PaymentHandoff> {
   return apiRequestExact<PaymentHandoff>(
     `/payment-handoffs/${encodeURIComponent(id)}/${operation}`,
-    { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) },
+    {
+      method: 'POST',
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    },
     HANDOFF_INT64,
   )
 }

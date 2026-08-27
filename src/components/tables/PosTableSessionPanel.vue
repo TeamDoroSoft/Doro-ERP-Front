@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { KioskDeviceView } from '@/api/administration'
+import type { PaymentKioskCandidate } from '@/api/paymentKioskCandidates'
 import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { formatCurrencyInt64 } from '@/api/int64'
 import {
@@ -11,7 +11,7 @@ import {
 } from '@/api/tableSessions'
 import { displayLabel } from '@/ui/displayLabels'
 
-const props = defineProps<{ session: TableSession; paymentDevices: KioskDeviceView[] }>()
+const props = defineProps<{ session: TableSession; paymentDevices: PaymentKioskCandidate[] }>()
 const emit = defineEmits<{ updated: [session: TableSession] }>()
 const selectedDeviceId = ref('')
 const loading = ref(false)
@@ -93,7 +93,7 @@ function tableCheckoutMessage(error: unknown) {
     </p>
     <ul v-if="session.orders.length">
       <li v-for="order in session.orders" :key="order.orderId">
-        <span>주문 #{{ order.displayNumber }}</span>
+        <span><strong>주문 #{{ order.displayNumber }}</strong><small>{{ order.itemSummary }}</small></span>
         <span>{{ formatCurrencyInt64(order.amount, 'KRW') }}</span>
         <span>{{ displayLabel(order.paymentStatus) }}</span>
       </li>
@@ -103,8 +103,12 @@ function tableCheckoutMessage(error: unknown) {
       <label for="table-payment-device">합산 결제 Kiosk</label>
       <select id="table-payment-device" v-model="selectedDeviceId" :disabled="loading">
         <option value="">결제 Kiosk 선택</option>
-        <option v-for="device in paymentDevices" :key="device.id" :value="device.id">
-          {{ device.deviceCode }}
+        <option
+          v-for="device in paymentDevices"
+          :key="device.deviceId"
+          :value="device.deviceId"
+        >
+          {{ device.displayName }}
         </option>
       </select>
       <button type="button" :disabled="!canCheckout || loading" @click="checkout">
@@ -134,6 +138,8 @@ li {
   align-items: center;
   gap: 0.75rem;
 }
+li > span:first-child { display: grid; gap: .2rem; }
+li small { color: var(--color-muted); }
 .heading {
   justify-content: space-between;
 }

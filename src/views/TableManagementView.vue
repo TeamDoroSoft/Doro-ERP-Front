@@ -11,6 +11,7 @@ import {
   type TableResponse,
 } from '@/api/table'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import TableOperationsPanel from '@/components/tables/TableOperationsPanel.vue'
 
 type FormMode = 'create' | 'edit'
 
@@ -217,6 +218,8 @@ function messageFor(error: unknown, fallback: string): string {
         테이블 등록
       </button>
     </header>
+
+    <TableOperationsPanel />
 
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <p v-if="operationError" class="error-banner" role="alert">{{ operationError }}</p>

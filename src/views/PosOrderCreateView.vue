@@ -3,8 +3,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
 import { formatInt64 } from '@/api/int64'
-import { getKiosks, type KioskDeviceView } from '@/api/administration'
 import { getSalesMenu, type SalesMenuResponse } from '@/api/catalog'
+import {
+  listActivePaymentKioskCandidatesForStaff,
+  type PaymentKioskCandidate,
+} from '@/api/paymentKioskCandidates'
 import { getTables, type TableResponse } from '@/api/table'
 import OrderDraftSummary from '@/components/orders/OrderDraftSummary.vue'
 import OrderMenu, {
@@ -12,6 +15,7 @@ import OrderMenu, {
   type SalesMenuProduct,
 } from '@/components/orders/OrderMenu.vue'
 import OrderServiceTypeSelector from '@/components/orders/OrderServiceTypeSelector.vue'
+import PaymentHandoffOperationsPanel from '@/components/payments/PaymentHandoffOperationsPanel.vue'
 import PosTableSessionPanel from '@/components/tables/PosTableSessionPanel.vue'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -19,15 +23,13 @@ import LoadingState from '@/components/ui/LoadingState.vue'
 import { useOrderDraft } from '@/composables/useOrderDraft'
 import { usePosOrderSubmission, type PayNowTarget } from '@/composables/usePosOrderSubmission'
 import type { TableSession } from '@/api/tableSessions'
-import { useOperatorSessionStore } from '@/stores/operatorSession'
 
 const router = useRouter()
-const operatorSession = useOperatorSessionStore()
 const draft = useOrderDraft()
 const submission = usePosOrderSubmission()
 const menu = ref<SalesMenuResponse>()
 const tables = ref<TableResponse[]>([])
-const kiosks = ref<KioskDeviceView[]>([])
+const paymentDevices = ref<PaymentKioskCandidate[]>([])
 const loading = ref(true)
 const loadError = ref<ApiError>()
 const tableLoading = ref(false)
@@ -49,12 +51,6 @@ const categories = computed<SalesMenuCategory[]>(() =>
   })),
 )
 const safeTables = computed(() => tables.value.filter((table) => table.status === 'ACTIVE'))
-const paymentDevices = computed(() =>
-  kiosks.value.filter((kiosk) => kiosk.status === 'ACTIVE' && kiosk.mode === 'PAYMENT'),
-)
-const canDiscoverPaymentKiosks = computed(
-  () => operatorSession.role === 'OWNER' || operatorSession.role === 'MANAGER',
-)
 const estimatedTotal = computed(() => formatInt64(draft.estimatedTotal.value))
 const loadErrorMessage = computed(() => {
   if (!loadError.value) return ''
@@ -92,11 +88,9 @@ async function loadTables() {
 }
 
 async function loadPaymentDevices() {
-  if (!canDiscoverPaymentKiosks.value) return
-  if (kiosks.value.length > 0) return
   kioskError.value = undefined
   try {
-    kiosks.value = await getKiosks()
+    paymentDevices.value = await listActivePaymentKioskCandidatesForStaff()
   } catch (error) {
     kioskError.value = error instanceof ApiError ? error : new ApiError(0)
   }
@@ -137,7 +131,7 @@ function setServiceType(serviceType: 'DINE_IN' | 'TAKEOUT') {
 }
 function setPaymentPolicy(paymentPolicy: 'PAY_NOW' | 'PAY_LATER') {
   changedDraft(() => draft.setPaymentPolicy(paymentPolicy))
-  if (paymentPolicy === 'PAY_LATER' && canDiscoverPaymentKiosks.value) void loadPaymentDevices()
+  if (paymentPolicy === 'PAY_LATER') void loadPaymentDevices()
 }
 function setPayNowTarget(target: PayNowTarget) {
   payNowTarget.value = target
@@ -304,13 +298,6 @@ function createErrorMessage(error: unknown) {
         <p v-if="draft.paymentPolicy.value === 'PAY_LATER'" class="unpaid-notice">
           후불 주문은 미결제 상태로 테이블에 누적되며 조리는 바로 진행됩니다.
         </p>
-        <p
-          v-if="draft.paymentPolicy.value === 'PAY_LATER' && !canDiscoverPaymentKiosks"
-          class="unpaid-notice"
-        >
-          현재 직원 권한으로는 합산 결제 Kiosk 목록을 조회할 수 없습니다. 점주 또는 매니저에게
-          결제를 요청해 주세요.
-        </p>
         <fieldset v-if="draft.paymentPolicy.value === 'PAY_NOW'" class="choice-row">
           <legend>결제 방식</legend>
           <label
@@ -323,7 +310,7 @@ function createErrorMessage(error: unknown) {
               @change="setPayNowTarget('DIRECT')"
             />직원 직접 결제</label
           >
-          <label v-if="canDiscoverPaymentKiosks"
+          <label
             ><input
               type="radio"
               name="payNowTarget"
@@ -343,8 +330,12 @@ function createErrorMessage(error: unknown) {
             :disabled="creating || submitted"
           >
             <option value="">결제 Kiosk 선택</option>
-            <option v-for="device in paymentDevices" :key="device.id" :value="device.id">
-              {{ device.deviceCode }}
+            <option
+              v-for="device in paymentDevices"
+              :key="device.deviceId"
+              :value="device.deviceId"
+            >
+              {{ device.displayName }}
             </option>
           </select></label
         >
@@ -368,6 +359,12 @@ function createErrorMessage(error: unknown) {
         <span>{{ submission.result.value.handoff.targetPaymentDeviceName }}</span>
         <b>결제코드 {{ submission.result.value.handoff.displayCode }}</b>
       </section>
+      <PaymentHandoffOperationsPanel
+        v-if="submission.result.value?.handoff"
+        :order-id="submission.result.value.order.orderId"
+        :order-display-number="submission.result.value.order.displayNumber"
+        :initial-handoff="submission.result.value.handoff"
+      />
       <PosTableSessionPanel
         v-if="
           activeTableSession &&

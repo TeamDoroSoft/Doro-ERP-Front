@@ -50,14 +50,13 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/pos/account/change-password')
   })
 
-  it('restricts STAFF role from accessing manager-only routes (/pos/tables, /pos/settings)', async () => {
+  it('allows STAFF table operations but still restricts manager settings', async () => {
     useOperatorSessionStore().applyLogin(
       { employeeId: 'employee-1', role: 'STAFF', passwordChangeRequired: false },
       'doro',
     )
     await router.push('/pos/tables')
-    expect(router.currentRoute.value.path).toBe('/pos/orders')
-    expect(router.currentRoute.value.query.reason).toBe('forbidden')
+    expect(router.currentRoute.value.path).toBe('/pos/tables')
 
     await router.push('/pos/settings')
     expect(router.currentRoute.value.path).toBe('/pos/orders')

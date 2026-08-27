@@ -38,6 +38,8 @@ export interface OrderResponse {
   sourceType: OrderSourceType
   sourceDeviceId: string | null
   sourceDeviceNameSnapshot: string | null
+  /** Required by the table-assignment projection; older Commerce responses may omit it. */
+  serviceType?: OrderServiceType
   paymentPolicy: OrderPaymentPolicy
   paymentStatus: OrderPaymentStatus
   tableId: string | null
@@ -70,6 +72,13 @@ export function getOrders(query: OrderListQuery = {}): Promise<OrderResponse[]> 
 
 export function getOrder(orderId: string): Promise<OrderResponse> {
   return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}`)
+}
+
+export function assignOrderTable(orderId: string, tableId: string): Promise<OrderResponse> {
+  return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/table`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tableId }),
+  })
 }
 
 export function cancelOrder(orderId: string): Promise<OrderResponse> {

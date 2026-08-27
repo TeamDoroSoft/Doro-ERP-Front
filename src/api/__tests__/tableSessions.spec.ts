@@ -3,6 +3,7 @@ import {
   addOrderToTableSession,
   checkoutTableSession,
   getTableSession,
+  listActiveTableSessions,
   openTableSession,
 } from '@/api/tableSessions'
 
@@ -18,7 +19,9 @@ const sessionWire = {
     {
       orderId: '33333333-3333-4333-8333-333333333333',
       displayNumber: 17,
+      itemSummary: '아메리카노 × 2',
       amount: 9000,
+      orderStatus: 'ACCEPTED',
       paymentStatus: 'UNPAID',
     },
   ],
@@ -40,10 +43,12 @@ describe('table sessions API', () => {
     })
     await getTableSession(sessionWire.sessionId)
     await addOrderToTableSession(sessionWire.sessionId, sessionWire.orders[0]!.orderId)
+    await listActiveTableSessions(sessionWire.tableId)
     expect(fetchMock.mock.calls.map(([url, options]) => [url, options?.method])).toEqual([
       ['/api/v1/table-sessions', 'POST'],
       [`/api/v1/table-sessions/${sessionWire.sessionId}`, 'GET'],
       [`/api/v1/table-sessions/${sessionWire.sessionId}/orders`, 'POST'],
+      [`/api/v1/table-sessions?tableId=${sessionWire.tableId}`, 'GET'],
     ])
   })
 

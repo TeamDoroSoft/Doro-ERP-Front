@@ -215,9 +215,9 @@ const routes: RouteRecordRaw[] = [
         name: 'pos-tables',
         component: TableManagementView,
         meta: {
-          roles: ['OWNER', 'MANAGER'],
-          title: '테이블 관리',
-          description: '매장에서 사용하는 테이블 정보와 활성 상태를 관리합니다.',
+          roles: ['OWNER', 'MANAGER', 'STAFF'],
+          title: '테이블 운영',
+          description: '활성 테이블 세션과 미배정 주문을 확인하고 테이블을 운영합니다.',
         },
       },
       {
