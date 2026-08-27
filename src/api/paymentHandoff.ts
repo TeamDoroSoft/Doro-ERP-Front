@@ -1,28 +1,93 @@
-import { apiRequest } from './http'
+import { apiRequestExact } from './http'
+import type { Int64String } from './int64'
 
-export type PaymentHandoffDisplayStatus =
-  | 'QUEUED'
-  | 'DISPLAYED'
-  | 'PROCESSING'
-  | 'PAID'
-  | 'FAILED'
-  | 'EXPIRED'
-  | 'CANCELLED'
+export type PaymentHandoffStatus =
+  'QUEUED' | 'DISPLAYED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED'
+
+/** @deprecated Use PaymentHandoffStatus. */
+export type PaymentHandoffDisplayStatus = PaymentHandoffStatus
+
+export interface PaymentHandoff {
+  id: string
+  paymentId: string
+  publicId: string
+  displayCode: string
+  targetPaymentDeviceId: string
+  targetPaymentDeviceName: string
+  status: PaymentHandoffStatus
+  expiresAt: string
+  version: Int64String
+}
 
 export interface PaymentKioskHandoff {
   /** Used only to avoid regenerating the same QR; never render this value. */
   id: string
+  publicId: string
   displayCode: string
-  status: PaymentHandoffDisplayStatus
+  status: PaymentHandoffStatus
   expiresAt: string
+  amount: Int64String
+  currency: 'KRW'
+  orderName: string
+  /** Present only on the atomic first claim and must never be persisted. */
+  oneTimeToken: string | null
 }
 
-/** Payment candidate contract, isolated until the Payment OpenAPI is schema-approved. */
+const HANDOFF_INT64 = { fields: ['amount', 'version'] } as const
+export type PaymentHandoffRequestContext = 'employee' | 'kiosk'
+
+export function createPaymentHandoff(
+  paymentId: string,
+  targetPaymentDeviceId: string,
+  idempotencyKey: string,
+  context: PaymentHandoffRequestContext = 'employee',
+): Promise<PaymentHandoff> {
+  return apiRequestExact<PaymentHandoff>(
+    '/payment-handoffs',
+    {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ paymentId, targetPaymentDeviceId }),
+    },
+    HANDOFF_INT64,
+    { handleUnauthorized: context === 'kiosk' ? 'kiosk' : true },
+  )
+}
+
+export function reissuePaymentHandoff(id: string): Promise<PaymentHandoff> {
+  return handoffMutation(id, 'reissue')
+}
+
+export function reassignPaymentHandoff(
+  id: string,
+  targetPaymentDeviceId: string,
+): Promise<PaymentHandoff> {
+  return handoffMutation(id, 'reassign', { targetPaymentDeviceId })
+}
+
+export function cancelPaymentHandoff(id: string): Promise<PaymentHandoff> {
+  return handoffMutation(id, 'cancel')
+}
+
+/** A 204 response means the PAYMENT-mode kiosk currently has no assigned handoff. */
 export async function getCurrentPaymentHandoff(): Promise<PaymentKioskHandoff | null> {
-  const wire = await apiRequest<PaymentKioskHandoff | undefined>(
+  const wire = await apiRequestExact<PaymentKioskHandoff | undefined>(
     '/kiosk/payment-handoffs/current',
     {},
+    HANDOFF_INT64,
     { handleUnauthorized: 'kiosk' },
   )
   return wire ?? null
+}
+
+function handoffMutation(
+  id: string,
+  operation: 'reissue' | 'reassign' | 'cancel',
+  body?: object,
+): Promise<PaymentHandoff> {
+  return apiRequestExact<PaymentHandoff>(
+    `/payment-handoffs/${encodeURIComponent(id)}/${operation}`,
+    { method: 'POST', ...(body ? { body: JSON.stringify(body) } : {}) },
+    HANDOFF_INT64,
+  )
 }

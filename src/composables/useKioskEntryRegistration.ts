@@ -1,26 +1,32 @@
 import { computed, ref } from 'vue'
 import { safeApiErrorMessage } from '@/api/http'
 import { registerKioskEntryQueue } from '@/api/kioskQueue'
+import type { EntryQueueView } from '@/api/queue'
 
 export function useKioskEntryRegistration() {
   const partySize = ref<number | null>(null)
-  const registeredPartySize = ref<number | null>(null)
+  const registeredEntry = ref<EntryQueueView | null>(null)
   const submitting = ref(false)
   const errorMessage = ref('')
   let idempotencyKey = crypto.randomUUID()
 
   const valid = computed(
-    () => Number.isSafeInteger(partySize.value) && (partySize.value ?? 0) > 0,
+    () =>
+      Number.isSafeInteger(partySize.value) &&
+      (partySize.value ?? 0) > 0 &&
+      (partySize.value ?? 101) <= 100,
   )
 
   async function submit() {
-    if (!valid.value || partySize.value === null || submitting.value || registeredPartySize.value)
+    if (!valid.value || partySize.value === null || submitting.value || registeredEntry.value)
       return
     submitting.value = true
     errorMessage.value = ''
     try {
-      await registerKioskEntryQueue({ partySize: partySize.value }, idempotencyKey)
-      registeredPartySize.value = partySize.value
+      registeredEntry.value = await registerKioskEntryQueue(
+        { partySize: partySize.value },
+        idempotencyKey,
+      )
     } catch (error) {
       // Keep the key on failure: a lost response must be recovered as the same registration.
       errorMessage.value = safeApiErrorMessage(
@@ -34,10 +40,10 @@ export function useKioskEntryRegistration() {
 
   function beginAnother() {
     partySize.value = null
-    registeredPartySize.value = null
+    registeredEntry.value = null
     errorMessage.value = ''
     idempotencyKey = crypto.randomUUID()
   }
 
-  return { partySize, registeredPartySize, submitting, errorMessage, valid, submit, beginAnother }
+  return { partySize, registeredEntry, submitting, errorMessage, valid, submit, beginAnother }
 }

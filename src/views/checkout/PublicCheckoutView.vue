@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   confirmPublicCheckout,
@@ -25,8 +25,18 @@ const summary = ref<PublicCheckoutSummary | null>(null)
 const message = ref('결제 정보를 확인하고 있어요.')
 const isSuccessRoute = computed(() => route.path.endsWith('/success'))
 const isFailRoute = computed(() => route.path.endsWith('/fail'))
+let recoveryTimer: number | undefined
 
-onMounted(() => void initialize())
+onMounted(() => {
+  window.addEventListener('online', handleOnline)
+  document.addEventListener('visibilitychange', handleVisibility)
+  void initialize()
+})
+onBeforeUnmount(() => {
+  clearTimeout(recoveryTimer)
+  window.removeEventListener('online', handleOnline)
+  document.removeEventListener('visibilitychange', handleVisibility)
+})
 
 async function initialize() {
   if (!publicId.value) return unavailable()
@@ -67,8 +77,7 @@ async function pay() {
       successUrl: callbackUrl('success'),
       failUrl: callbackUrl('fail'),
     })
-    screen.value = 'ready'
-    message.value = '결제 수단을 선택해 주세요.'
+    message.value = '열린 결제창에서 결제 수단을 선택해 주세요.'
   } catch (error) {
     screen.value = 'ready'
     message.value =
@@ -83,16 +92,18 @@ async function confirmRedirect() {
   message.value = '결제 결과를 확인하고 있어요.'
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 10_000)
+  const input = {
+    paymentKey: captured.paymentKey,
+    providerOrderId: captured.providerOrderId,
+    amount: captured.amount,
+  }
+  // Query data was already removed from the address synchronously. Remove the second in-memory
+  // copy before crossing an asynchronous boundary as well.
+  captured.paymentKey = ''
+  captured.providerOrderId = ''
+  captured.amount = ''
   try {
-    const result = await confirmPublicCheckout(
-      publicId.value,
-      {
-        paymentKey: captured.paymentKey,
-        providerOrderId: captured.providerOrderId,
-        amount: captured.amount,
-      },
-      controller.signal,
-    )
+    const result = await confirmPublicCheckout(publicId.value, input, controller.signal)
     applyResult(result)
   } catch {
     // A provider approval and the Doro response can cross. Never infer success from this redirect.
@@ -103,6 +114,7 @@ async function confirmRedirect() {
 }
 
 async function recoverStatus(fallbackMessage?: string) {
+  clearTimeout(recoveryTimer)
   screen.value = 'checking'
   message.value = '결제 결과를 확인하고 있어요.'
   try {
@@ -110,6 +122,7 @@ async function recoverStatus(fallbackMessage?: string) {
   } catch {
     screen.value = 'checking'
     message.value = '결제 결과를 확인 중입니다. 잠시 후 다시 확인해 주세요.'
+    scheduleRecovery()
   }
 }
 
@@ -139,7 +152,23 @@ function applyResult(value: PublicCheckoutResult, fallbackMessage?: string) {
   } else {
     screen.value = 'checking'
     message.value = '결제 결과를 확인 중입니다. 잠시 후 다시 확인해 주세요.'
+    scheduleRecovery()
   }
+}
+
+function scheduleRecovery() {
+  clearTimeout(recoveryTimer)
+  if (document.visibilityState === 'hidden' || screen.value !== 'checking') return
+  recoveryTimer = window.setTimeout(() => void recoverStatus(), 2_500)
+}
+
+function handleOnline() {
+  if (screen.value === 'checking' && document.visibilityState !== 'hidden') void recoverStatus()
+}
+
+function handleVisibility() {
+  if (document.visibilityState === 'visible' && screen.value === 'checking') void recoverStatus()
+  else clearTimeout(recoveryTimer)
 }
 
 function redirectCanConfirm(): boolean {

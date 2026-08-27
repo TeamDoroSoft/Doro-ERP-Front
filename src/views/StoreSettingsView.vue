@@ -60,9 +60,6 @@ const kioskModeDrafts = reactive<Record<string, { mode: KioskMode; pairedPayment
 const activeOwnerCount = computed(
   () => employees.value.filter((e) => e.role === 'OWNER' && e.status === 'ACTIVE').length,
 )
-const kioskModeManagementAvailable = computed(() =>
-  kiosks.value.some((kiosk) => kiosk.mode !== undefined),
-)
 const employeeLoginIdError = computed(() =>
   employeeForm.loginId ? loginIdError(employeeForm.loginId) : '',
 )
@@ -270,7 +267,14 @@ function saveKioskMode(kiosk: KioskDeviceView) {
   const draft = kioskModeDrafts[kiosk.id]
   if (!draft) return
   return requireReauth(async () => {
-    await changeKioskMode(kiosk.id, draft.mode, draft.pairedPaymentDeviceId || null)
+    try {
+      await changeKioskMode(kiosk.id, draft.mode, draft.pairedPaymentDeviceId || null)
+    } catch (caught) {
+      // A mode/pair conflict usually means an active handoff or a concurrently changed device.
+      // Refresh the server projection before asking the operator to retry.
+      if (caught instanceof ApiError && caught.status === 409) await loadKiosks()
+      throw caught
+    }
     await loadKiosks()
   }, '키오스크 모드가 변경되었습니다.')
 }
@@ -553,9 +557,9 @@ function asError(e: unknown) {
             <table>
               <thead>
                 <tr>
-                  <th>기기 이름</th>
                   <th>기기 코드</th>
-                  <th v-if="kioskModeManagementAvailable">모드·연결</th>
+                  <th>기기 ID</th>
+                  <th>모드·연결</th>
                   <th>상태</th>
                   <th>인증 버전</th>
                   <th>등록 일시</th>
@@ -565,16 +569,13 @@ function asError(e: unknown) {
               </thead>
               <tbody>
                 <tr v-for="kiosk in kiosks" :key="kiosk.id" data-test="kiosk-device-row">
-                  <td><strong>{{ kiosk.deviceName || kiosk.deviceCode }}</strong></td>
-                  <td v-if="kioskModeManagementAvailable">
-                    <strong>{{ kiosk.deviceCode }}</strong
-                    ><small>{{ kiosk.id }}</small>
-                  </td>
+                  <td><strong>{{ kiosk.deviceCode }}</strong></td>
+                  <td><small>{{ kiosk.id }}</small></td>
                   <td>
                     <div v-if="kioskModeDrafts[kiosk.id]" class="kiosk-mode-editor">
                       <select
                         v-model="kioskModeDrafts[kiosk.id]!.mode"
-                        :aria-label="`${kiosk.deviceName || kiosk.deviceCode} 모드`"
+                        :aria-label="`${kiosk.deviceCode} 모드`"
                         :disabled="busy || kiosk.status !== 'ACTIVE'"
                       >
                         <option value="ORDER">상품 주문</option>
@@ -584,7 +585,7 @@ function asError(e: unknown) {
                       <select
                         v-if="kioskModeDrafts[kiosk.id]!.mode === 'ORDER'"
                         v-model="kioskModeDrafts[kiosk.id]!.pairedPaymentDeviceId"
-                        :aria-label="`${kiosk.deviceName || kiosk.deviceCode} 결제 Kiosk 연결`"
+                        :aria-label="`${kiosk.deviceCode} 결제 Kiosk 연결`"
                         :disabled="busy || kiosk.status !== 'ACTIVE'"
                       >
                         <option value="">자동 선택</option>
@@ -593,7 +594,7 @@ function asError(e: unknown) {
                           :key="candidate.id"
                           :value="candidate.id"
                         >
-                          {{ candidate.deviceName || candidate.deviceCode }}
+                          {{ candidate.deviceCode }}
                         </option>
                       </select>
                       <span v-else>{{ kioskModeLabel(kioskModeDrafts[kiosk.id]!.mode) }}</span>

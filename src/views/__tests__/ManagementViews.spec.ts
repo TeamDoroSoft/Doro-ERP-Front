@@ -314,6 +314,57 @@ describe('Phase 06 management views', () => {
       '등록된 키오스크 기기가 없습니다',
     )
   })
+
+  it('refreshes kiosk modes after an active payment handoff blocks a mode change', async () => {
+    let kioskReads = 0
+    const paymentDevice = {
+      id: '11111111-1111-4111-8111-111111111111',
+      deviceCode: 'PAY-01',
+      status: 'ACTIVE',
+      credentialVersion: 1,
+      mode: 'PAYMENT',
+      pairedPaymentDeviceId: null,
+      createdAt: '2026-08-25T09:00:00Z',
+      updatedAt: '2026-08-25T09:00:00Z',
+    }
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const path = String(input)
+        if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
+        if (path.endsWith('/kiosk-devices') && (!init?.method || init.method === 'GET')) {
+          kioskReads += 1
+          return new Response(JSON.stringify([paymentDevice]), { status: 200 })
+        }
+        if (path.endsWith('/kiosk-devices/11111111-1111-4111-8111-111111111111/mode')) {
+          return new Response(
+            JSON.stringify({
+              status: 409,
+              code: 'KIOSK_PAYMENT_HANDOFF_ACTIVE',
+              detail: 'internal handoff identifier',
+            }),
+            { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
+          )
+        }
+        const body = path.endsWith('/store') ? storeResponse : []
+        return new Response(JSON.stringify(body), { status: 200 })
+      }),
+    )
+
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[2]!.trigger('click')
+    await flushPromises()
+    await wrapper.get('.kiosk-mode-editor select').setValue('ORDER')
+    await wrapper.get('.kiosk-mode-editor button').trigger('click')
+    await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
+    await wrapper.get('[role=dialog] form').trigger('submit')
+    await flushPromises()
+
+    expect(kioskReads).toBeGreaterThanOrEqual(2)
+    expect(wrapper.text()).toContain('재배정하거나 취소')
+    expect(wrapper.text()).not.toContain('internal handoff identifier')
+  })
 })
 
 const storeResponse = {

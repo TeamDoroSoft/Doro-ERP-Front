@@ -12,6 +12,12 @@ const order: OrderResponse = {
   status: 'CREATED',
   businessDate: '2026-08-17',
   orderAccessToken: null,
+  sourceType: 'EMPLOYEE_POS',
+  sourceDeviceId: null,
+  sourceDeviceNameSnapshot: null,
+  paymentPolicy: 'PAY_NOW',
+  paymentStatus: 'PENDING',
+  tableId: null,
 }
 const pending: PaymentResponse = {
   id: 'payment-1',

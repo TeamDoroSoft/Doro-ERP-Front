@@ -18,7 +18,8 @@ export interface CreateOrderLineRequest {
 export interface CreateOrderRequest {
   orderChannel: OrderChannel
   serviceType: OrderServiceType
-  tableId?: string
+  paymentPolicy: OrderPaymentPolicy
+  tableId?: string | null
   lines: CreateOrderLineRequest[]
 }
 
@@ -34,13 +35,12 @@ export interface OrderResponse {
   status: OrderStatus
   businessDate: string
   orderAccessToken: string | null
-  /** Target-contract fields are optional until the Commerce response migration is deployed. */
-  sourceType?: OrderSourceType | null
-  sourceDeviceId?: string | null
-  sourceDeviceNameSnapshot?: string | null
-  paymentPolicy?: OrderPaymentPolicy
-  paymentStatus?: OrderPaymentStatus
-  paymentHandoffDeviceNameSnapshot?: string | null
+  sourceType: OrderSourceType
+  sourceDeviceId: string | null
+  sourceDeviceNameSnapshot: string | null
+  paymentPolicy: OrderPaymentPolicy
+  paymentStatus: OrderPaymentStatus
+  tableId: string | null
 }
 
 export interface OrderListQuery {

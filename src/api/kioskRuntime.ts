@@ -6,19 +6,13 @@ export interface KioskRuntime {
   deviceId: string
   deviceName: string
   mode: KioskMode
-  pairedPaymentDevice?: {
+  pairedPaymentDevice: {
     id: string
     name: string
-  }
+  } | null
 }
 
-/**
- * Candidate runtime contract. Keep this module as the single adaptation point until the
- * Store Access OpenAPI is approved.
- *
- * A 401 is delegated to the kiosk session boundary. A 403 is deliberately surfaced so the
- * caller can refresh runtime/mode rather than treating the device as unauthenticated.
- */
+/** A 401 ends the kiosk session; a mode 403 remains available to the caller for recovery. */
 export const getKioskRuntime = () =>
   apiRequest<KioskRuntime>('/kiosk/runtime', {}, { handleUnauthorized: 'kiosk' })
 

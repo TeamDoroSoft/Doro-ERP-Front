@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { multiplyInt64, sumInt64, type Int64String } from '@/api/int64'
 
 export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
+export type OrderPaymentPolicy = 'PAY_NOW' | 'PAY_LATER'
 export interface DraftProduct {
   productId: string
   name: string
@@ -13,6 +14,7 @@ export interface OrderDraftLine extends DraftProduct {
 export interface CreateOrderPayload {
   orderChannel: 'POS'
   serviceType: OrderServiceType
+  paymentPolicy: OrderPaymentPolicy
   tableId?: string
   lines: Array<{ productId: string; quantity: number }>
 }
@@ -26,6 +28,7 @@ const MAX_QUANTITY = 999
 
 export function useOrderDraft(createKey: () => string = () => crypto.randomUUID()) {
   const serviceType = ref<OrderServiceType>('TAKEOUT')
+  const paymentPolicy = ref<OrderPaymentPolicy>('PAY_NOW')
   const tableId = ref<string>()
   const lines = ref<OrderDraftLine[]>([])
   const idempotencyKey = ref(createKey())
@@ -35,7 +38,13 @@ export function useOrderDraft(createKey: () => string = () => crypto.randomUUID(
 
   function setServiceType(next: OrderServiceType) {
     serviceType.value = next
-    if (next === 'TAKEOUT') tableId.value = undefined
+    if (next === 'TAKEOUT') {
+      tableId.value = undefined
+      paymentPolicy.value = 'PAY_NOW'
+    }
+  }
+  function setPaymentPolicy(next: OrderPaymentPolicy) {
+    paymentPolicy.value = serviceType.value === 'TAKEOUT' ? 'PAY_NOW' : next
   }
   function addProduct(product: DraftProduct) {
     const existing = lines.value.find((line) => line.productId === product.productId)
@@ -72,13 +81,19 @@ export function useOrderDraft(createKey: () => string = () => crypto.randomUUID(
     return {
       orderChannel: 'POS',
       serviceType: serviceType.value,
+      paymentPolicy: paymentPolicy.value,
       ...(serviceType.value === 'DINE_IN' ? { tableId: tableId.value } : {}),
       lines: lines.value.map(({ productId, quantity }) => ({ productId, quantity })),
     }
   }
   function startNewDraft() {
     serviceType.value = 'TAKEOUT'
+    paymentPolicy.value = 'PAY_NOW'
     tableId.value = undefined
+    lines.value = []
+    idempotencyKey.value = createKey()
+  }
+  function clearLinesForAdditionalOrder() {
     lines.value = []
     idempotencyKey.value = createKey()
   }
@@ -87,17 +102,20 @@ export function useOrderDraft(createKey: () => string = () => crypto.randomUUID(
   }
   return {
     serviceType,
+    paymentPolicy,
     tableId,
     lines,
     idempotencyKey,
     estimatedTotal,
     setServiceType,
+    setPaymentPolicy,
     addProduct,
     decrementProduct,
     removeProduct,
     validate,
     payload,
     startNewDraft,
+    clearLinesForAdditionalOrder,
     replaceAfterPayloadChange,
   }
 }

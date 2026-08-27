@@ -40,6 +40,7 @@ const summary = {
 
 describe('PublicCheckoutView', () => {
   afterEach(() => {
+    vi.useRealTimers()
     vi.clearAllMocks()
     window.history.replaceState({}, '', '/')
   })
@@ -95,6 +96,22 @@ describe('PublicCheckoutView', () => {
 
     expect(wrapper.text()).toContain('결제 링크가 만료되었거나 사용할 수 없어요')
     expect(resolvePublicCheckout).not.toHaveBeenCalled()
+  })
+
+  it('automatically recovers an uncertain redirect result from the checkout cookie', async () => {
+    vi.useFakeTimers()
+    vi.mocked(getPublicCheckoutStatus)
+      .mockResolvedValueOnce({ status: 'PROCESSING' })
+      .mockResolvedValueOnce({ status: 'PAID' })
+    const wrapper = await mountAt('/pay/public-1/success', '/pay/public-1/success')
+
+    expect(wrapper.text()).toContain('결제 결과 확인 중')
+    await vi.advanceTimersByTimeAsync(2_500)
+    await flushPromises()
+
+    expect(getPublicCheckoutStatus).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('결제가 완료되었습니다')
+    wrapper.unmount()
   })
 })
 

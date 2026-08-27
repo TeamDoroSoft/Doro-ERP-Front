@@ -7,8 +7,14 @@ import { safeApiErrorMessage } from '@/api/http'
 
 const qrStatuses = new Set<PaymentKioskHandoff['status']>(['DISPLAYED', 'PROCESSING'])
 
+export type PaymentHandoffPresentation = Pick<
+  PaymentKioskHandoff,
+  'displayCode' | 'status' | 'expiresAt' | 'amount' | 'currency' | 'orderName'
+>
+
 export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
-  const current = ref<PaymentKioskHandoff | null>(null)
+  const current = ref<PaymentHandoffPresentation | null>(null)
+  const qrValue = ref('')
   const loading = ref(true)
   const refreshing = ref(false)
   const errorMessage = ref('')
@@ -17,11 +23,13 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
   let countdownTimer: ReturnType<typeof setInterval> | undefined
   let expiryRefreshRequested = false
   let started = false
+  let currentId = ''
 
   const canDisplayQr = computed(
     () =>
       !!current.value &&
       qrStatuses.has(current.value.status) &&
+      !!qrValue.value &&
       remainingSeconds.value > 0,
   )
 
@@ -33,11 +41,21 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
       errorMessage.value = ''
       if (!next) {
         current.value = null
+        currentId = ''
+        qrValue.value = ''
         remainingSeconds.value = 0
         return
       }
 
-      current.value = next
+      const changed = next.id !== currentId
+      if (changed) {
+        currentId = next.id
+        qrValue.value = next.oneTimeToken ? publicCheckoutUrl(next) : ''
+      } else if (!qrValue.value && next.oneTimeToken) {
+        qrValue.value = publicCheckoutUrl(next)
+      }
+      current.value = presentation(next)
+      if (!qrStatuses.has(next.status)) qrValue.value = ''
       expiryRefreshRequested = false
       updateCountdown()
     } catch (error) {
@@ -110,8 +128,24 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500) {
     errorMessage,
     remainingSeconds,
     canDisplayQr,
+    qrValue,
     refresh,
     start,
     stop,
   }
+}
+
+function presentation(value: PaymentKioskHandoff): PaymentHandoffPresentation {
+  return {
+    displayCode: value.displayCode,
+    status: value.status,
+    expiresAt: value.expiresAt,
+    amount: value.amount,
+    currency: value.currency,
+    orderName: value.orderName,
+  }
+}
+
+function publicCheckoutUrl(value: PaymentKioskHandoff): string {
+  return `${location.origin}/pay/${encodeURIComponent(value.publicId)}#token=${encodeURIComponent(value.oneTimeToken ?? '')}`
 }

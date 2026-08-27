@@ -6,12 +6,14 @@ const registration = useKioskEntryRegistration()
 
 <template>
   <section class="entry-page">
-    <div v-if="registration.registeredPartySize.value" class="entry-panel result" aria-live="polite">
+    <div v-if="registration.registeredEntry.value" class="entry-panel result" aria-live="polite">
       <p>입장 대기 등록 완료</p>
-      <h1>직원의 안내를 기다려 주세요</h1>
+      <h1>대기번호 {{ registration.registeredEntry.value.queueNumber }}</h1>
       <dl>
-        <div><dt>인원수</dt><dd>{{ registration.registeredPartySize.value }}명</dd></div>
+        <div><dt>인원수</dt><dd>{{ registration.registeredEntry.value.partySize }}명</dd></div>
+        <div><dt>등록일</dt><dd>{{ registration.registeredEntry.value.businessDate }}</dd></div>
       </dl>
+      <p class="result-help">직원의 안내를 기다려 주세요.</p>
       <button type="button" @click="registration.beginAnother">새 대기 등록</button>
     </div>
 
@@ -26,6 +28,7 @@ const registration = useKioskEntryRegistration()
           type="number"
           inputmode="numeric"
           min="1"
+          max="100"
           step="1"
           autocomplete="off"
           autofocus
@@ -63,4 +66,5 @@ const registration = useKioskEntryRegistration()
 .result dl { display: grid; gap: 12px; margin: 0; }
 .result dl div { display: flex; justify-content: space-between; border-bottom: 1px solid #e4e8e5; padding: 13px 0; }
 .result dt { color: #657068; }.result dd { margin: 0; font-weight: 800; }
+.result-help { margin: 0; color: #657068; }
 </style>

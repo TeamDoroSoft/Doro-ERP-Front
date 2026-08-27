@@ -9,6 +9,8 @@ import {
 import { registerKioskUnauthorizedHandler, registerUnauthorizedHandler } from '@/api/http'
 
 describe('public checkout API boundary', () => {
+  const publicId = '77000000-0000-4000-8000-000000000001'
+
   afterEach(() => {
     registerUnauthorizedHandler(() => undefined)
     registerKioskUnauthorizedHandler(() => undefined)
@@ -29,16 +31,16 @@ describe('public checkout API boundary', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(resolvePublicCheckout('public/1', 'one-time-secret')).resolves.toMatchObject({
+    await expect(resolvePublicCheckout(publicId, 'one-time-secret-1')).resolves.toMatchObject({
       amount: '12000',
       status: 'DISPLAYED',
     })
 
     const [url, options] = fetchMock.mock.calls[0]!
     const headers = new Headers(options?.headers)
-    expect(url).toBe('/api/v1/public/payment-handoffs/public%2F1/resolve')
+    expect(url).toBe(`/api/v1/public/payment-handoffs/${publicId}/resolve`)
     expect(options?.credentials).toBe('include')
-    expect(headers.get('Authorization')).toBe('Bearer one-time-secret')
+    expect(headers.get('Authorization')).toBe('Bearer one-time-secret-1')
     expect(headers.has('X-XSRF-TOKEN')).toBe(false)
   })
 
@@ -47,17 +49,17 @@ describe('public checkout API boundary', () => {
     const kiosk = vi.fn<() => void>()
     registerUnauthorizedHandler(employee)
     registerKioskUnauthorizedHandler(kiosk)
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(problem(401, 'PUBLIC_CHECKOUT_INVALID')))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(problem(401, 'UNAUTHENTICATED')))
 
-    await expect(resolvePublicCheckout('public-1', 'expired')).rejects.toMatchObject({
+    await expect(resolvePublicCheckout(publicId, 'expired-secret-1')).rejects.toMatchObject({
       status: 401,
-      code: 'PUBLIC_CHECKOUT_INVALID',
+      code: 'UNAUTHENTICATED',
     })
     expect(employee).not.toHaveBeenCalled()
     expect(kiosk).not.toHaveBeenCalled()
   })
 
-  it('uses the candidate start, confirm and status operations with exact amounts', async () => {
+  it('uses the approved start, confirm and status operations with exact amounts', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(
@@ -69,49 +71,74 @@ describe('public checkout API boundary', () => {
           currency: 'KRW',
         }),
       )
-      .mockResolvedValueOnce(
-        json({ status: 'PROCESSING' }),
-      )
-      .mockResolvedValueOnce(
-        json({ status: 'PAID' }),
-      )
+      .mockResolvedValueOnce(json({ status: 'PROCESSING' }))
+      .mockResolvedValueOnce(json({ status: 'PAID' }))
     vi.stubGlobal('fetch', fetchMock)
 
-    await expect(startPublicCheckout('public-1', 'secret')).resolves.toMatchObject({
+    await expect(startPublicCheckout(publicId, 'one-time-secret-1')).resolves.toMatchObject({
       amount: '9007199254740991',
     })
-    await confirmPublicCheckout('public-1', {
+    await confirmPublicCheckout(publicId, {
       paymentKey: 'payment-key',
       providerOrderId: 'provider-1',
       amount: '12000',
     })
-    await expect(getPublicCheckoutStatus('public-1')).resolves.toMatchObject({ status: 'PAID' })
+    await expect(getPublicCheckoutStatus(publicId)).resolves.toMatchObject({ status: 'PAID' })
 
     const [, confirmOptions] = fetchMock.mock.calls[1]!
     expect(confirmOptions?.body).toBe(
       '{"paymentKey":"payment-key","providerOrderId":"provider-1","amount":12000}',
     )
-    expect(fetchMock.mock.calls[2]?.[0]).toBe(
-      '/api/v1/public/payment-handoffs/public-1/status',
+    expect(fetchMock.mock.calls[2]?.[0]).toBe(`/api/v1/public/payment-handoffs/${publicId}/status`)
+  })
+
+  it('fails closed when the backend wire differs from the approved contract', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(json({ amount: 12000, currency: 'KRW', status: 'UNKNOWN' })),
+    )
+
+    await expect(resolvePublicCheckout(publicId, 'one-time-secret-1')).rejects.toBeInstanceOf(
+      PublicCheckoutContractError,
     )
   })
 
-  it('fails closed when the pending backend wire differs from the candidate contract', async () => {
+  it('rejects response fields outside the public checkout projection', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue(
-        json({ amount: 12000, currency: 'KRW', status: 'UNKNOWN' }),
+        json({
+          orderName: '주문 결제',
+          amount: 12000,
+          currency: 'KRW',
+          expiresAt: '2026-08-27T12:30:00Z',
+          status: 'DISPLAYED',
+          oneTimeToken: 'must-never-be-returned',
+        }),
       ),
     )
 
-    await expect(resolvePublicCheckout('public-1', 'secret')).rejects.toBeInstanceOf(
+    await expect(resolvePublicCheckout(publicId, 'one-time-secret-1')).rejects.toBeInstanceOf(
       PublicCheckoutContractError,
     )
+  })
+
+  it('rejects a malformed one-time token without issuing a request', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(resolvePublicCheckout(publicId, ' one-time-secret-1 ')).rejects.toBeInstanceOf(
+      PublicCheckoutContractError,
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 })
 
 function json(body: object) {
-  return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } })
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  })
 }
 
 function problem(status: number, code: string) {

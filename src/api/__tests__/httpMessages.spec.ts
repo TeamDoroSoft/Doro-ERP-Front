@@ -17,6 +17,20 @@ describe('safeApiErrorMessage', () => {
     expect(message).toContain('아이디 또는 비밀번호')
     expect(message).not.toContain('현재 비밀번호')
   })
+
+  it.each([
+    ['KIOSK_PAYMENT_HANDOFF_ACTIVE', '재배정하거나 취소'],
+    ['KIOSK_PAYMENT_PAIR_INVALID', '결제 Kiosk'],
+    ['PUBLIC_CHECKOUT_UNAVAILABLE', '결제 링크'],
+    ['IDEMPOTENCY_REQUEST_IN_PROGRESS', '처리하고 있습니다'],
+    ['TABLE_CONCURRENT_MODIFICATION', '최신 상태'],
+  ])('maps %s to safe workflow guidance', (code, expected) => {
+    const message = safeApiErrorMessage(
+      new ApiError(409, { code, detail: 'upstream implementation detail' }),
+    )
+    expect(message).toContain(expected)
+    expect(message).not.toContain('upstream implementation detail')
+  })
 })
 
 describe('Catalog Product messages', () => {

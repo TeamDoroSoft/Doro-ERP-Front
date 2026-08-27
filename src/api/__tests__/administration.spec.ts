@@ -68,6 +68,8 @@ describe('administration API', () => {
         id: '88000000-0000-0000-0000-000000000001',
         deviceCode: 'KIOSK-01',
         status: 'ACTIVE',
+        mode: 'ORDER',
+        pairedPaymentDeviceId: null,
         credentialVersion: 2,
         createdAt: '2026-08-25T09:00:00Z',
         updatedAt: '2026-08-26T09:00:00Z',
@@ -83,6 +85,7 @@ describe('administration API', () => {
     expect(init?.credentials).toBe('include')
     expect(result).toEqual(devices)
     expect(result[0]).not.toHaveProperty('credential')
+    expect(result[0]).not.toHaveProperty('deviceName')
   })
 
   it('updates a kiosk mode and clears pairing outside ORDER mode', async () => {
@@ -93,6 +96,7 @@ describe('administration API', () => {
           deviceCode: 'KIOSK-01',
           status: 'ACTIVE',
           mode: 'PAYMENT',
+          pairedPaymentDeviceId: null,
           credentialVersion: 2,
           createdAt: '2026-08-25T09:00:00Z',
           updatedAt: '2026-08-26T09:00:00Z',
@@ -111,6 +115,32 @@ describe('administration API', () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       mode: 'PAYMENT',
       pairedPaymentDeviceId: null,
+    })
+  })
+
+  it('sends the selected payment device only for ORDER mode', async () => {
+    const pairedPaymentDeviceId = '88000000-0000-4000-8000-000000000002'
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: '88000000-0000-0000-0000-000000000001',
+          deviceCode: 'KIOSK-01',
+          status: 'ACTIVE',
+          mode: 'ORDER',
+          pairedPaymentDeviceId,
+          credentialVersion: 2,
+          createdAt: '2026-08-25T09:00:00Z',
+          updatedAt: '2026-08-26T09:00:00Z',
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await changeKioskMode('88000000-0000-0000-0000-000000000001', 'ORDER', pairedPaymentDeviceId)
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      mode: 'ORDER',
+      pairedPaymentDeviceId,
     })
   })
 })

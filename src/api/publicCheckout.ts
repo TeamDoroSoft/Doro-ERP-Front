@@ -2,23 +2,13 @@ import { resolveApiBaseUrl } from './baseUrl'
 import { ApiError, type ProblemDetails } from './http'
 import { parseJsonPreservingInt64, stringifyWithInt64, type Int64String } from './int64'
 
-/**
- * These paths and the token scheme are the candidates approved by the kiosk multi-mode decision
- * record. Keep them here until the Payment OpenAPI reaches SCHEMA_APPROVED.
- */
 export const PUBLIC_CHECKOUT_CONTRACT = {
   handoffPath: '/public/payment-handoffs',
   tokenScheme: 'Bearer',
 } as const
 
 export type PublicCheckoutStatus =
-  | 'QUEUED'
-  | 'DISPLAYED'
-  | 'PROCESSING'
-  | 'PAID'
-  | 'FAILED'
-  | 'EXPIRED'
-  | 'CANCELLED'
+  'QUEUED' | 'DISPLAYED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED'
 
 export interface PublicCheckoutSummary {
   orderName: string
@@ -48,7 +38,7 @@ export interface PublicCheckoutResult {
 
 export class PublicCheckoutContractError extends Error {
   constructor() {
-    super('The public checkout response does not match the candidate contract.')
+    super('The public checkout value does not match the approved contract.')
     this.name = 'PublicCheckoutContractError'
   }
 }
@@ -112,9 +102,8 @@ function handoffPath(publicId: string): string {
 }
 
 function tokenHeader(token: string): HeadersInit {
-  const normalized = token.trim()
-  if (!normalized) throw new PublicCheckoutContractError()
-  return { Authorization: `${PUBLIC_CHECKOUT_CONTRACT.tokenScheme} ${normalized}` }
+  if (!/^[A-Za-z0-9_-]{16,512}$/.test(token)) throw new PublicCheckoutContractError()
+  return { Authorization: `${PUBLIC_CHECKOUT_CONTRACT.tokenScheme} ${token}` }
 }
 
 const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
@@ -156,7 +145,7 @@ async function readProblem(response: Response): Promise<ProblemDetails> {
 }
 
 function readSummary(value: unknown): PublicCheckoutSummary {
-  const record = checkoutRecord(value)
+  const record = checkoutRecord(value, ['orderName', 'amount', 'currency', 'expiresAt', 'status'])
   return {
     orderName: stringField(record, 'orderName'),
     amount: int64Field(record, 'amount'),
@@ -167,7 +156,13 @@ function readSummary(value: unknown): PublicCheckoutSummary {
 }
 
 function readStart(value: unknown): PublicCheckoutStart {
-  const record = checkoutRecord(value)
+  const record = checkoutRecord(value, [
+    'clientKey',
+    'providerOrderId',
+    'orderName',
+    'amount',
+    'currency',
+  ])
   return {
     clientKey: stringField(record, 'clientKey'),
     providerOrderId: stringField(record, 'providerOrderId'),
@@ -178,17 +173,21 @@ function readStart(value: unknown): PublicCheckoutStart {
 }
 
 function readResult(value: unknown): PublicCheckoutResult {
-  const record = checkoutRecord(value)
+  const record = checkoutRecord(value, ['status'])
   return {
     status: statusField(record),
   }
 }
 
-function checkoutRecord(value: unknown): Record<string, unknown> {
+function checkoutRecord(value: unknown, fields: readonly string[]): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     throw new PublicCheckoutContractError()
   }
-  return value as Record<string, unknown>
+  const record = value as Record<string, unknown>
+  if (Object.keys(record).some((key) => !fields.includes(key))) {
+    throw new PublicCheckoutContractError()
+  }
+  return record
 }
 
 function stringField(record: Record<string, unknown>, key: string): string {

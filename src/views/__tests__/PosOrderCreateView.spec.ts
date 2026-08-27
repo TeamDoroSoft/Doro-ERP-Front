@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
 import { ApiError } from '@/api/http'
 import PosOrderCreateView from '@/views/PosOrderCreateView.vue'
 import type * as CatalogApi from '@/api/catalog'
 import type * as OrderApi from '@/api/order'
 import type * as TableApi from '@/api/table'
+import { useOperatorSessionStore } from '@/stores/operatorSession'
 
 const catalogApi = vi.hoisted(() => ({
   getSalesMenu: vi.fn<typeof CatalogApi.getSalesMenu>(),
@@ -50,11 +52,19 @@ const createdOrder = {
   status: 'CREATED' as const,
   businessDate: '2026-08-17',
   orderAccessToken: null,
+  sourceType: 'EMPLOYEE_POS' as const,
+  sourceDeviceId: null,
+  sourceDeviceNameSnapshot: null,
+  paymentPolicy: 'PAY_NOW' as const,
+  paymentStatus: 'PENDING' as const,
+  tableId: null,
 }
 
 describe('PosOrderCreateView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setActivePinia(createPinia())
+    useOperatorSessionStore().setRole('OWNER')
     catalogApi.getSalesMenu.mockResolvedValue(menu)
     tableApi.getTables.mockResolvedValue([table])
     orderApi.createOrder.mockResolvedValue(createdOrder)
@@ -75,6 +85,7 @@ describe('PosOrderCreateView', () => {
       {
         orderChannel: 'POS',
         serviceType: 'DINE_IN',
+        paymentPolicy: 'PAY_NOW',
         tableId: 'table-1',
         lines: [{ productId: 'product-1', quantity: 1 }],
       },
@@ -93,11 +104,22 @@ describe('PosOrderCreateView', () => {
       {
         orderChannel: 'POS',
         serviceType: 'TAKEOUT',
+        paymentPolicy: 'PAY_NOW',
         lines: [{ productId: 'product-1', quantity: 1 }],
       },
       expect.any(String),
     )
     expect(tableApi.getTables).not.toHaveBeenCalled()
+  })
+
+  it('keeps direct payment available but hides manager-only payment-kiosk discovery for STAFF', async () => {
+    useOperatorSessionStore().setRole('STAFF')
+    const wrapper = await mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('직원 직접 결제')
+    expect(wrapper.text()).not.toContain('결제 Kiosk QR')
+    expect(wrapper.find('input[value="PAYMENT_KIOSK"]').exists()).toBe(false)
   })
 
   it('keeps the same idempotency key for retry after a network failure', async () => {

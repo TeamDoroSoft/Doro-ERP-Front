@@ -32,12 +32,9 @@ export type KioskMode = 'ORDER' | 'ENTRY_QUEUE' | 'PAYMENT'
 export interface KioskDeviceView {
   id: string
   deviceCode: string
-  deviceName?: string
   status: KioskDeviceStatus
-  mode?: KioskMode
-  pairedPaymentDeviceId?: string | null
-  pairedPaymentDeviceName?: string | null
-  lastSeenAt?: string | null
+  mode: KioskMode
+  pairedPaymentDeviceId: string | null
   credentialVersion: number
   createdAt: string
   updatedAt: string

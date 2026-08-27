@@ -10,6 +10,17 @@ vi.mock('@/api/paymentHandoff', () => ({ ...api }))
 
 describe('usePaymentHandoffDisplay', () => {
   let visibility: DocumentVisibilityState
+  const handoff: PaymentKioskHandoff = {
+    id: 'internal-handoff',
+    publicId: 'public-handoff',
+    displayCode: 'A7K9',
+    status: 'DISPLAYED',
+    expiresAt: '2026-08-27T10:00:10Z',
+    amount: '12000',
+    currency: 'KRW',
+    orderName: '아메리카노 외 1건',
+    oneTimeToken: 'one_time_token_1234',
+  }
 
   beforeEach(() => {
     vi.useFakeTimers()
@@ -48,9 +59,7 @@ describe('usePaymentHandoffDisplay', () => {
 
   it('does not turn a local countdown into a paid or expired server status', async () => {
     api.getCurrentPaymentHandoff.mockResolvedValue({
-      id: 'internal-handoff',
-      displayCode: 'A7K9',
-      status: 'DISPLAYED',
+      ...handoff,
       expiresAt: '2026-08-27T10:00:01Z',
     })
     const scope = effectScope()
@@ -62,6 +71,59 @@ describe('usePaymentHandoffDisplay', () => {
     expect(display.remainingSeconds.value).toBe(0)
     expect(display.current.value?.status).toBe('DISPLAYED')
     expect(display.canDisplayQr.value).toBe(false)
+    scope.stop()
+  })
+
+  it('keeps the first-claim QR only in memory and never exposes IDs or the token as presentation data', async () => {
+    api.getCurrentPaymentHandoff
+      .mockResolvedValueOnce(handoff)
+      .mockResolvedValueOnce({ ...handoff, oneTimeToken: null })
+    const scope = effectScope()
+    const display = scope.run(() => usePaymentHandoffDisplay(2_500))!
+    display.start()
+    await vi.advanceTimersByTimeAsync(0)
+    const qr = display.qrValue.value
+
+    expect(qr).toBe(
+      `${location.origin}/pay/public-handoff#token=one_time_token_1234`,
+    )
+    expect(JSON.stringify(display.current.value)).not.toContain('internal-handoff')
+    expect(JSON.stringify(display.current.value)).not.toContain('public-handoff')
+    expect(JSON.stringify(display.current.value)).not.toContain('one_time_token_1234')
+
+    await vi.advanceTimersByTimeAsync(2_500)
+    expect(display.qrValue.value).toBe(qr)
+    scope.stop()
+  })
+
+  it.each(['PAID', 'FAILED', 'EXPIRED', 'CANCELLED'] as const)(
+    'removes the QR immediately when the server reports %s',
+    async (status) => {
+      api.getCurrentPaymentHandoff
+        .mockResolvedValueOnce(handoff)
+        .mockResolvedValueOnce({ ...handoff, status, oneTimeToken: null })
+      const scope = effectScope()
+      const display = scope.run(() => usePaymentHandoffDisplay(2_500))!
+      display.start()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(display.qrValue.value).not.toBe('')
+
+      await vi.advanceTimersByTimeAsync(2_500)
+      expect(display.current.value?.status).toBe(status)
+      expect(display.qrValue.value).toBe('')
+      scope.stop()
+    },
+  )
+
+  it('recovers immediately when the network returns', async () => {
+    const scope = effectScope()
+    const display = scope.run(() => usePaymentHandoffDisplay(60_000))!
+    display.start()
+    await vi.advanceTimersByTimeAsync(0)
+    window.dispatchEvent(new Event('online'))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(2)
     scope.stop()
   })
 })

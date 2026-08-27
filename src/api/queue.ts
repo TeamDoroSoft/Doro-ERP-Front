@@ -24,9 +24,9 @@ export interface FulfillmentQueueView {
   orderId: string
   displayNumber: number
   status: FulfillmentStatus
-  /** Order source projection is populated by OrderAccepted V2. */
-  sourceType?: 'KIOSK' | 'EMPLOYEE_POS' | null
-  sourceDeviceNameSnapshot?: string | null
+  /** Required projection fields remain nullable for legacy orders. */
+  sourceType: 'KIOSK' | 'EMPLOYEE_POS' | null
+  sourceDeviceNameSnapshot: string | null
   /** Queue optimistic-lock counter (Java `long`). */
   version: Int64String
 }

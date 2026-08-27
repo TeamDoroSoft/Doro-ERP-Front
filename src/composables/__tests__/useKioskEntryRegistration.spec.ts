@@ -1,14 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useKioskEntryRegistration } from '@/composables/useKioskEntryRegistration'
 import type { RegisterKioskEntryQueueRequest } from '@/api/kioskQueue'
+import type { EntryQueueView } from '@/api/queue'
 
 const api = vi.hoisted(() => ({
   registerKioskEntryQueue:
-    vi.fn<(body: RegisterKioskEntryQueueRequest, key: string) => Promise<void>>(),
+    vi.fn<(body: RegisterKioskEntryQueueRequest, key: string) => Promise<EntryQueueView>>(),
 }))
 vi.mock('@/api/kioskQueue', () => ({ ...api }))
 
 describe('useKioskEntryRegistration', () => {
+  const entry = {
+    entryId: 'entry-1',
+    businessDate: '2026-08-27',
+    queueNumber: 12,
+    partySize: 4,
+    status: 'WAITING' as const,
+    version: '0',
+  }
   beforeEach(() => {
     vi.restoreAllMocks()
     vi.clearAllMocks()
@@ -20,7 +29,7 @@ describe('useKioskEntryRegistration', () => {
   it('retries an uncertain result with the same idempotency key', async () => {
     api.registerKioskEntryQueue
       .mockRejectedValueOnce(new Error('network'))
-      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(entry)
     const queue = useKioskEntryRegistration()
     queue.partySize.value = 4
 
@@ -40,7 +49,10 @@ describe('useKioskEntryRegistration', () => {
   })
 
   it('blocks duplicate success submission and rotates the key only for another party', async () => {
-    api.registerKioskEntryQueue.mockResolvedValue(undefined)
+    api.registerKioskEntryQueue.mockImplementation(async ({ partySize }) => ({
+      ...entry,
+      partySize,
+    }))
     const queue = useKioskEntryRegistration()
     queue.partySize.value = 2
     await queue.submit()
@@ -54,5 +66,17 @@ describe('useKioskEntryRegistration', () => {
       { partySize: 3 },
       '22222222-2222-4222-8222-222222222222',
     )
+    expect(queue.registeredEntry.value?.partySize).toBe(3)
+  })
+
+  it('accepts only the Backend party-size range', () => {
+    const queue = useKioskEntryRegistration()
+
+    queue.partySize.value = 0
+    expect(queue.valid.value).toBe(false)
+    queue.partySize.value = 100
+    expect(queue.valid.value).toBe(true)
+    queue.partySize.value = 101
+    expect(queue.valid.value).toBe(false)
   })
 })

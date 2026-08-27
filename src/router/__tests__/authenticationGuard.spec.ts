@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import router from '@/router'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
@@ -6,6 +6,8 @@ import { useKioskSessionStore } from '@/stores/kioskSession'
 
 describe('POS authentication & role guard', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     sessionStorage.clear()
     setActivePinia(createPinia())
     await router.push('/pos/login')
@@ -172,10 +174,32 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/kiosk/activate')
     useKioskSessionStore().deviceState = 'ACTIVE'
     await router.push('/kiosk')
-    expect(router.currentRoute.value.name).toBe('kiosk-menu')
+    expect(router.currentRoute.value.name).toBe('kiosk-order-home')
     useOperatorSessionStore().clearSession()
     await router.push('/kiosk/cart')
     expect(router.currentRoute.value.path).toBe('/kiosk/cart')
+  })
+
+  it('uses the authenticated runtime mode as the only kiosk home', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            deviceId: 'device-1',
+            deviceName: '입구 대기',
+            mode: 'ENTRY_QUEUE',
+            pairedPaymentDevice: null,
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+    useKioskSessionStore().markAuthenticated()
+
+    await router.push('/kiosk/order')
+
+    expect(router.currentRoute.value.path).toBe('/kiosk/waiting')
   })
 
   it.each([

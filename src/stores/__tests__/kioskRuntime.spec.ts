@@ -23,6 +23,7 @@ describe('kiosk runtime store', () => {
       deviceId: 'device-1',
       deviceName: '입구 대기',
       mode: 'ENTRY_QUEUE',
+      pairedPaymentDevice: null,
     })
     const store = useKioskRuntimeStore()
 
@@ -36,6 +37,7 @@ describe('kiosk runtime store', () => {
       deviceId: 'device-1',
       deviceName: '결제 1',
       mode: 'PAYMENT',
+      pairedPaymentDevice: null,
     })
     const store = useKioskRuntimeStore()
 
@@ -49,7 +51,12 @@ describe('kiosk runtime store', () => {
 
   it('clears cached runtime when runtime authentication is rejected', async () => {
     api.getKioskRuntime
-      .mockResolvedValueOnce({ deviceId: 'device-1', deviceName: '주문 1', mode: 'ORDER' })
+      .mockResolvedValueOnce({
+        deviceId: 'device-1',
+        deviceName: '주문 1',
+        mode: 'ORDER',
+        pairedPaymentDevice: null,
+      })
       .mockRejectedValueOnce(new ApiError(401, { status: 401, code: 'UNAUTHENTICATED' }))
     const store = useKioskRuntimeStore()
     await store.load()

@@ -1,67 +1,74 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { createKioskOrder, getKioskTables, type KioskTable } from '@/api/kiosk'
+import { createKioskOrder } from '@/api/kiosk'
 import { createPayment } from '@/api/payment'
+import { createPaymentHandoff, type PaymentHandoff } from '@/api/paymentHandoff'
+import KioskOrderHandoffGuide from '@/components/kiosk/KioskOrderHandoffGuide.vue'
 import { useKioskCartStore } from '@/stores/kioskCart'
 import { useKioskFlowStore } from '@/stores/kioskFlow'
+import { useKioskRuntimeStore } from '@/stores/kioskRuntime'
 const cart = useKioskCartStore(),
   flow = useKioskFlowStore(),
+  runtime = useKioskRuntimeStore(),
   router = useRouter(),
   serviceType = ref<'DINE_IN' | 'TAKEOUT'>('TAKEOUT'),
-  tableId = ref(''),
-  tables = ref<KioskTable[]>([]),
-  loadingTables = ref(false),
+  handoff = ref<PaymentHandoff | null>(null),
   busy = ref(false),
   error = ref(''),
-  valid = computed(
-    () => cart.lines.length > 0 && (serviceType.value === 'TAKEOUT' || !!tableId.value),
-  )
+  valid = computed(() => cart.lines.length > 0),
+  draftLocked = computed(() => !!flow.order)
 onMounted(() => {
   if (!cart.lines.length) router.replace('/kiosk/cart')
 })
-async function selectType(type: 'DINE_IN' | 'TAKEOUT') {
-  serviceType.value = type
-  if (type === 'TAKEOUT') {
-    tableId.value = ''
-    return
-  }
-  loadingTables.value = true
-  try {
-    tables.value = await getKioskTables()
-  } catch {
-    error.value = '테이블을 불러올 수 없습니다. 잠시 후 다시 시도해 주세요.'
-  } finally {
-    loadingTables.value = false
-  }
-}
 async function submit() {
   if (!valid.value || busy.value) return
+  const paymentDevice = runtime.runtime?.pairedPaymentDevice
+  if (runtime.runtime?.mode !== 'ORDER' || !paymentDevice) {
+    error.value = '연결된 결제 Kiosk가 없습니다. 직원을 호출해 주세요.'
+    return
+  }
   busy.value = true
   error.value = ''
   try {
-    flow.order = await createKioskOrder(
+    flow.order ??= await createKioskOrder(
       {
         orderChannel: 'KIOSK',
         serviceType: serviceType.value,
-        ...(serviceType.value === 'DINE_IN' ? { tableId: tableId.value } : {}),
+        paymentPolicy: 'PAY_NOW',
         lines: cart.lines.map((x) => ({ productId: x.productId, quantity: x.quantity })),
       },
       flow.orderKey,
     )
-    if (!flow.order.orderAccessToken) throw new Error('missing access token')
-    flow.payment = await createPayment(flow.order.orderId, flow.paymentCreateKey, 'kiosk')
-    if (!flow.persistPaymentFlow()) throw new Error('payment recovery unavailable')
-    await router.push(`/kiosk/payments/${flow.payment.id}`)
+    flow.payment ??= await createPayment(flow.order.orderId, flow.paymentCreateKey, 'kiosk')
+    handoff.value = await createPaymentHandoff(
+      flow.payment.id,
+      paymentDevice.id,
+      flow.handoffCreateKey,
+      'kiosk',
+    )
   } catch {
-    error.value = '주문을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.'
+    error.value = '주문 처리를 확인하지 못했습니다. 같은 요청으로 다시 시도해 주세요.'
   } finally {
     busy.value = false
   }
 }
+async function beginAnother() {
+  flow.beginNewDraft()
+  handoff.value = null
+  await router.replace('/kiosk/order')
+}
 </script>
 <template>
-  <section class="checkout-page">
+  <section v-if="handoff && flow.order" class="checkout-page handoff-result">
+    <KioskOrderHandoffGuide
+      :order-display-number="flow.order.displayNumber"
+      :payment-device-name="handoff.targetPaymentDeviceName"
+      :display-code="handoff.displayCode"
+    />
+    <button type="button" class="another" @click="beginAnother">새 주문 시작</button>
+  </section>
+  <section v-else class="checkout-page">
     <header class="page-heading">
       <p>이용 방법</p>
       <h1>어떻게 이용하시나요?</h1>
@@ -72,33 +79,22 @@ async function submit() {
           v-model="serviceType"
           type="radio"
           value="DINE_IN"
-          @change="selectType('DINE_IN')"
-        /><strong>매장에서 먹기</strong><span>테이블을 선택하고 매장에서 이용합니다</span></label
+          :disabled="draftLocked"
+        /><strong>매장에서 먹기</strong><span>매장에서 이용합니다</span></label
       ><label
         ><input
           v-model="serviceType"
           type="radio"
           value="TAKEOUT"
-          @change="selectType('TAKEOUT')"
+          :disabled="draftLocked"
         /><strong>포장하기</strong><span>포장 주문으로 준비합니다</span></label
       >
     </div>
-    <section v-if="serviceType === 'DINE_IN'" class="tables">
-      <h2>테이블을 선택해 주세요</h2>
-      <p v-if="loadingTables">테이블을 확인하고 있어요…</p>
-      <div>
-        <label v-for="table in tables" :key="table.id"
-          ><input v-model="tableId" type="radio" :value="table.id" /><span>{{
-            table.displayName
-          }}</span></label
-        >
-      </div>
-    </section>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
     <footer>
-      <RouterLink to="/kiosk/cart">이전</RouterLink
+      <RouterLink v-if="!draftLocked" to="/kiosk/cart">이전</RouterLink
       ><button :disabled="!valid || busy" @click="submit">
-        {{ busy ? '주문 처리 중…' : '주문하고 결제하기' }}
+        {{ busy ? '주문 처리 중…' : draftLocked ? '같은 요청으로 다시 확인' : '주문하고 결제하기' }}
       </button>
     </footer>
   </section>
@@ -133,25 +129,6 @@ async function submit() {
 .types span {
   color: #68766f;
 }
-.tables {
-  border: 1px solid #d9ddda; border-radius: 6px; background: #fff; padding: 22px;
-}
-.tables h2 { margin: 0 0 16px; font-size: 18px; }
-.tables > div {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.tables label {
-  min-height: 50px; border: 1px solid #d4dad6; border-radius: 4px; padding: 14px 16px; font-weight: 700;
-}
-.tables label:has(input:checked) {
-  border: 2px solid #087f5b; color: #087f5b;
-}
-.tables input {
-  position: absolute;
-  opacity: 0;
-}
 .error {
   border: 1px solid #f1c4bd; border-radius: 4px; background: #fff6f4; padding: 14px; color: #a13b32;
   color: #b42318;
@@ -177,6 +154,8 @@ footer button {
 button:disabled {
   opacity: 0.45;
 }
+.handoff-result { display: grid; justify-items: center; }
+.another { min-height: 52px; margin-top: 22px; border: 1px solid #087f5b; border-radius: 5px; background: #fff; padding: 0 24px; color: #087f5b; font-weight: 800; }
 @media (max-width: 600px) {
   .types {
     grid-template-columns: 1fr;

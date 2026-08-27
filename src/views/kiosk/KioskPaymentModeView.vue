@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import type { PaymentHandoffDisplayStatus } from '@/api/paymentHandoff'
+import QrcodeVue from 'qrcode.vue'
+import type { PaymentHandoffStatus } from '@/api/paymentHandoff'
+import { formatKrw } from '@/api/int64'
 import { usePaymentHandoffDisplay } from '@/composables/usePaymentHandoffDisplay'
 
 const display = usePaymentHandoffDisplay()
 
-const statusCopy: Record<PaymentHandoffDisplayStatus, string> = {
+const statusCopy: Record<PaymentHandoffStatus, string> = {
   QUEUED: '결제 요청을 준비하고 있어요',
   DISPLAYED: '휴대전화로 QR을 스캔해 주세요',
   PROCESSING: '휴대전화에서 결제를 진행하고 있어요',
@@ -25,6 +27,10 @@ const terminalHelp = computed(() => {
     ? '직원에게 결제 요청을 다시 보내 달라고 말씀해 주세요.'
     : ''
 })
+const missingQr = computed(() => {
+  const status = display.current.value?.status
+  return (status === 'DISPLAYED' || status === 'PROCESSING') && !display.qrValue.value
+})
 
 onMounted(display.start)
 </script>
@@ -42,16 +48,28 @@ onMounted(display.start)
       </header>
       <div class="content">
         <div class="qr-area">
-          <div class="qr-placeholder">
+          <div v-if="display.canDisplayQr.value && display.qrValue.value" class="qr-code">
+            <QrcodeVue
+              :value="display.qrValue.value"
+              :size="300"
+              level="M"
+              render-as="svg"
+              aria-label="휴대전화 결제 QR 코드"
+            />
+            <small>QR을 휴대전화 카메라로 스캔해 주세요.</small>
+          </div>
+          <div v-else class="qr-placeholder">
             <strong>{{ display.current.value.displayCode }}</strong>
             <span v-if="terminalHelp">{{ terminalHelp }}</span>
-            <span v-else-if="display.canDisplayQr.value">
-              QR 표시 계약이 준비되면 이 영역에 안전하게 표시됩니다.
+            <span v-else-if="missingQr">
+              결제 QR을 다시 표시할 수 없습니다. 직원에게 재발급을 요청해 주세요.
             </span>
             <span v-else>결제 화면을 준비하고 있어요.</span>
           </div>
         </div>
         <dl>
+          <div><dt>주문</dt><dd>{{ display.current.value.orderName }}</dd></div>
+          <div><dt>결제 금액</dt><dd>{{ formatKrw(display.current.value.amount) }}</dd></div>
           <div><dt>결제코드</dt><dd>{{ display.current.value.displayCode }}</dd></div>
           <div>
             <dt>남은 시간</dt>
@@ -86,6 +104,9 @@ onMounted(display.start)
 .content { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: clamp(24px, 5vw, 56px); align-items: center; }
 .qr-area { display: grid; aspect-ratio: 1; place-items: center; border: 1px solid #dce2de; border-radius: 6px; padding: 18px; }
 .qr-placeholder { display: grid; gap: 12px; text-align: center; }.qr-placeholder strong { font-size: 46px; letter-spacing: .12em; }.qr-placeholder span { color: #657068; line-height: 1.5; }
+.qr-code { display: grid; max-width: 100%; gap: 12px; place-items: center; text-align: center; }
+.qr-code :deep(svg) { display: block; width: min(300px, 100%); height: auto; }
+.qr-code small { color: #657068; }
 dl { display: grid; gap: 2px; margin: 0; }dl div { display: grid; gap: 5px; border-bottom: 1px solid #e2e6e3; padding: 15px 0; }dt { color: #68716c; font-size: 14px; }dd { margin: 0; font-size: 22px; font-weight: 850; overflow-wrap: anywhere; }
 .waiting { display: grid; min-height: 360px; place-items: center; align-content: center; text-align: center; }.waiting p { color: #657068; }
 .spinner { width: 42px; height: 42px; border: 4px solid #d7dfda; border-top-color: #087f5b; border-radius: 50%; animation: spin .8s linear infinite; }

@@ -4,7 +4,6 @@ import { useKioskCartStore } from '@/stores/kioskCart'
 import { useKioskFlowStore } from '@/stores/kioskFlow'
 import { useKioskSessionStore } from '@/stores/kioskSession'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
-import { saveKioskPaymentFlow } from '@/payments/kioskPaymentFlow'
 describe('Kiosk stores', () => {
   beforeEach(() => {
     sessionStorage.clear()
@@ -74,45 +73,26 @@ describe('Kiosk stores', () => {
     device.deviceState = 'ACTIVE'
     cart.addItem({ productId: 'p1', name: '커피', description: '', price: '1', displayOrder: 1 })
     const oldOrder = flow.orderKey,
-      oldPayment = flow.paymentCreateKey
+      oldPayment = flow.paymentCreateKey,
+      oldHandoff = flow.handoffCreateKey
     flow.resetCustomer()
     expect(cart.lines).toHaveLength(0)
     expect(flow.orderKey).not.toBe(oldOrder)
     expect(flow.paymentCreateKey).not.toBe(oldPayment)
+    expect(flow.handoffCreateKey).not.toBe(oldHandoff)
     expect(flow.orderKey).not.toBe(flow.paymentCreateKey)
     expect(device.deviceState).toBe('ACTIVE')
   })
 
-  it('restores the current payment and confirm key after a document reload', () => {
-    saveKioskPaymentFlow({
-      order: {
-        orderId: '11111111-1111-4111-8111-111111111111',
-        displayNumber: 17,
-        totalAmount: '9000',
-        currency: 'KRW',
-        status: 'CREATED',
-        businessDate: '2026-08-27',
-        orderAccessToken: 'short-token',
-      },
-      payment: {
-        id: '33333333-3333-4333-8333-333333333333',
-        orderId: '11111111-1111-4111-8111-111111111111',
-        providerOrderId: 'kiosk-provider-1',
-        amount: '9000',
-        currency: 'KRW',
-        status: 'PENDING',
-      },
-      confirmIdempotencyKey: '44444444-4444-4444-8444-444444444444',
-      createdAt: Date.now(),
-    })
-    setActivePinia(createPinia())
+  it('never restores customer order credentials from browser storage', () => {
+    sessionStorage.setItem(
+      'doro.kiosk-payment-flow',
+      JSON.stringify({ order: { orderAccessToken: 'legacy-token' } }),
+    )
+    const flow = useKioskFlowStore()
 
-    const restored = useKioskFlowStore()
-    expect(restored.order?.orderAccessToken).toBe('short-token')
-    expect(restored.payment?.id).toBe('33333333-3333-4333-8333-333333333333')
-    expect(restored.paymentConfirmKey).toBe('44444444-4444-4444-8444-444444444444')
-
-    restored.resetCustomer()
+    expect(flow.order).toBeNull()
+    expect(flow.payment).toBeNull()
     expect(sessionStorage.getItem('doro.kiosk-payment-flow')).toBeNull()
   })
 })
