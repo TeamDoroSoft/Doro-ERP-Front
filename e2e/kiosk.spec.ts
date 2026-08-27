@@ -7,7 +7,7 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
   page, browserName,
 }) => {
   let orderBody: unknown
-  await mocks(page, (b) => (orderBody = b))
+  const requests = await mocks(page, (b) => (orderBody = b))
   await mockTossSdk(page)
   await page.goto('/kiosk')
   await expect(page).toHaveURL(/kiosk\/activate/)
@@ -57,11 +57,16 @@ test('[mock-ui] activates a separate kiosk and reaches the option-free TAKEOUT c
     lines: [{ productId: 'p1', quantity: 2 }],
   })
   await expect(page.getByText('9,000원')).toBeVisible()
+  const callbackNavigation = page.waitForRequest(
+    (request) => request.isNavigationRequest() && request.url().includes('paymentKey=e2e-key'),
+  )
   await page.getByRole('button', { name: '결제하기' }).click()
+  await callbackNavigation
   await expect(page).toHaveURL(new RegExp(`/kiosk/orders/${orderId}`))
   await expect(page.getByText('주문 확정')).toBeVisible()
   await expect(page.getByText('결제 완료')).toBeVisible()
   await expect(page.getByText('조리 중')).toBeVisible()
+  expect(requests.confirmCalls).toBe(1)
   await page.getByRole('button', { name: '상태 새로고침' }).click()
   await expect(page.getByText('준비 완료')).toBeVisible()
   await expect(page.getByText(/초 후 다음 고객 화면/)).toBeVisible()
@@ -137,6 +142,7 @@ test('[mock-ui] a kiosk payment 401 never touches the employee POS session', asy
 })
 
 async function mocks(page: Page, capture: (body: unknown) => void) {
+  const requests = { confirmCalls: 0 }
   let statusReads = 0
   await page.route('**/api/v1/kiosk-auth/activate', async (r) => {
     expect(r.request().postDataJSON()).toEqual({
@@ -196,16 +202,29 @@ async function mocks(page: Page, capture: (body: unknown) => void) {
       201,
     ),
   )
-  await page.route(`**/api/v1/payments/${paymentId}/confirm`, (r) =>
+  await page.route(`**/api/v1/payments/${paymentId}`, (r) =>
     json(r, {
       id: paymentId,
       orderId,
       providerOrderId,
       amount: 9000,
       currency: 'KRW',
-      status: 'PAID',
+      status: 'PENDING',
     }),
   )
+  await page.route(`**/api/v1/payments/${paymentId}/confirm`, (r) => {
+    requests.confirmCalls += 1
+    expect(r.request().postDataJSON()).toEqual({ paymentKey: 'e2e-key', amount: 9000 })
+    expect(r.request().headers()['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/)
+    return json(r, {
+      id: paymentId,
+      orderId,
+      providerOrderId,
+      amount: 9000,
+      currency: 'KRW',
+      status: 'PAID',
+    })
+  })
   await page.route(`**/api/v1/orders/${orderId}`, (r) => {
     expect(r.request().headers()['x-order-access-token']).toBe('short-token')
     statusReads += 1
@@ -217,13 +236,14 @@ async function mocks(page: Page, capture: (body: unknown) => void) {
       fulfillmentStatus: statusReads > 1 ? 'READY' : 'PREPARING',
     })
   })
+  return requests
 }
 async function mockTossSdk(page: Page) {
   await page.route('https://js.tosspayments.com/v2/standard**', (route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/javascript',
-      body: `window.TossPayments=function(){return{widgets:function(){let amount;return{setAmount:async function(v){amount=v},renderPaymentWindow:async function(){return{on:function(n,cb){if(n==='paymentRequest')Promise.resolve().then(cb)}}},requestPayment:async function(r){const u=new URL(r.successUrl);u.searchParams.set('paymentKey','e2e-key');u.searchParams.set('orderId',r.orderId);u.searchParams.set('amount',String(amount.value));history.pushState({},'',u.toString());window.dispatchEvent(new PopStateEvent('popstate'))}}}}}`,
+      body: `window.TossPayments=function(){return{widgets:function(){let amount;return{setAmount:async function(v){amount=v},renderPaymentWindow:async function(){return{on:function(n,cb){if(n==='paymentRequest')Promise.resolve().then(cb)}}},requestPayment:async function(r){const u=new URL(r.successUrl);u.searchParams.set('paymentKey','e2e-key');u.searchParams.set('orderId',r.orderId);u.searchParams.set('amount',String(amount.value));window.location.assign(u.toString())}}}}}`,
     }),
   )
 }

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onBeforeMount, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useKioskSessionStore } from '@/stores/kioskSession'
+import { useKioskFlowStore } from '@/stores/kioskFlow'
 import { activationSecret } from '@/security/kioskCredential'
 const session = useKioskSessionStore(),
+  flow = useKioskFlowStore(),
   router = useRouter(),
   form = reactive({ tenantCode: '', deviceCode: '', secret: '' }),
   message = ref(
@@ -11,6 +13,7 @@ const session = useKioskSessionStore(),
       ? '기기 정보를 다시 확인해 주세요.'
       : '',
   )
+onBeforeMount(() => flow.resetCustomer())
 async function activate() {
   message.value = ''
   const secret = activationSecret(form.secret)

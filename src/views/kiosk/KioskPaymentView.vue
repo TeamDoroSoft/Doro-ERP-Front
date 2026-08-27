@@ -1,31 +1,88 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError } from '@/api/http'
-import { confirmPayment } from '@/api/payment'
+import { confirmPayment, getPayment, type PaymentView } from '@/api/payment'
 import { formatKrw } from '@/api/int64'
 import { requestTossPayment, tossPaymentErrorMessage } from '@/payments/tossPayment'
 import { useKioskFlowStore } from '@/stores/kioskFlow'
 const route = useRoute(),
   router = useRouter(),
   flow = useKioskFlowStore(),
+  loading = ref(true),
+  verified = ref(false),
   busy = ref(false),
   message = ref('결제 버튼을 누르면 결제 화면으로 이동합니다.'),
   review = ref(false),
-  payment = computed(() =>
-    flow.payment?.id === String(route.params.paymentId) ? flow.payment : null,
-  )
-onMounted(() => {
-  if (route.query.paymentKey || route.query.orderId || route.query.amount) void approve()
-})
+  terminal = ref(false),
+  paymentId = computed(() => String(route.params.paymentId ?? '')),
+  payment = computed(() => (flow.payment?.id === paymentId.value ? flow.payment : null))
+let initializing = false
 watch(
   () => route.fullPath,
-  () => {
-    if (route.query.paymentKey || route.query.orderId || route.query.amount) void approve()
-  },
+  () => void initialize(),
+  { immediate: true },
 )
+
+async function initialize() {
+  if (initializing) return
+  initializing = true
+  loading.value = true
+  verified.value = false
+  const redirect = captureRedirect()
+  try {
+    if (redirect.hasProviderQuery) await router.replace({ path: route.path })
+    const stored = payment.value
+    if (!stored || flow.order?.orderId !== stored.orderId) {
+      if (flow.order || flow.payment) flow.resetCustomer()
+      return
+    }
+
+    const canonical = await getPayment(stored.id, 'kiosk')
+    if (!samePayment(canonical, stored)) {
+      flow.resetCustomer()
+      message.value = '결제 정보를 확인할 수 없습니다.'
+      return
+    }
+    flow.payment = canonical
+    verified.value = true
+
+    if (canonical.status === 'PAID') {
+      await moveToOrder(canonical)
+      return
+    }
+    if (canonical.status === 'REVIEW_REQUIRED') {
+      review.value = true
+      message.value = '결제 확인이 필요합니다. 직원의 안내를 기다려 주세요.'
+      return
+    }
+    if (canonical.status === 'FAILED' || canonical.status === 'CANCELLED') {
+      terminal.value = true
+      message.value = '이 결제는 더 이상 진행할 수 없습니다. 직원에게 문의해 주세요.'
+      return
+    }
+    if (redirect.outcome === 'fail') {
+      message.value = '결제가 취소되었습니다. 다시 결제할 수 있습니다.'
+      return
+    }
+    if (redirect.hasSuccessQuery) await approve(redirect, canonical)
+  } catch (error) {
+    if (error instanceof ApiError && error.status > 0 && error.status < 500) flow.resetCustomer()
+    message.value =
+      error instanceof ApiError && error.status >= 500
+        ? '결제 상태를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.'
+        : '결제 정보를 확인할 수 없습니다.'
+  } finally {
+    loading.value = false
+    initializing = false
+  }
+}
 async function start() {
-  if (!payment.value || busy.value) return
+  if (!payment.value || payment.value.status !== 'PENDING' || !verified.value || busy.value) return
+  if (!flow.persistPaymentFlow()) {
+    message.value = '결제를 안전하게 시작할 수 없습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.'
+    return
+  }
   busy.value = true
   try {
     await requestTossPayment({
@@ -43,17 +100,13 @@ async function start() {
     busy.value = false
   }
 }
-async function approve() {
-  const paymentKey = String(route.query.paymentKey ?? ''),
-    providerId = String(route.query.orderId ?? ''),
-    amount = String(route.query.amount ?? '')
-  await router.replace({ path: route.path })
+async function approve(redirect: PaymentRedirect, canonical: PaymentView) {
   if (
-    !payment.value ||
-    !paymentKey ||
-    providerId !== payment.value.providerOrderId ||
-    amount !== payment.value.amount
+    !redirect.paymentKey ||
+    redirect.providerOrderId !== canonical.providerOrderId ||
+    redirect.amount !== canonical.amount
   ) {
+    flow.resetCustomer()
     message.value = '결제 정보를 확인할 수 없습니다.'
     return
   }
@@ -61,20 +114,32 @@ async function approve() {
   busy.value = true
   try {
     const result = await confirmPayment(
-      payment.value.id,
-      paymentKey,
-      amount,
+      canonical.id,
+      redirect.paymentKey,
+      redirect.amount,
       flow.paymentConfirmKey,
       'kiosk',
     )
+    if (
+      !samePayment(result, canonical) ||
+      !['PAID', 'FAILED', 'REVIEW_REQUIRED'].includes(result.status)
+    ) {
+      flow.resetCustomer()
+      message.value = '결제 정보를 확인할 수 없습니다.'
+      return
+    }
     flow.payment = result
     if (result.status === 'PAID') {
-      await router.replace(`/kiosk/orders/${flow.order?.orderId}`)
+      await moveToOrder(result)
     } else if (result.status === 'REVIEW_REQUIRED') {
       review.value = true
       message.value = '결제 확인이 필요합니다. 직원의 안내를 기다려 주세요.'
-    } else message.value = '결제가 완료되지 않았습니다.'
+    } else {
+      terminal.value = result.status === 'FAILED' || result.status === 'CANCELLED'
+      message.value = '결제가 완료되지 않았습니다.'
+    }
   } catch (e) {
+    if (e instanceof ApiError && e.status >= 500) review.value = true
     message.value =
       e instanceof ApiError && e.status >= 500
         ? '결제 결과를 바로 확인할 수 없습니다. 직원의 안내를 기다려 주세요.'
@@ -84,6 +149,59 @@ async function approve() {
     busy.value = false
   }
 }
+
+async function moveToOrder(confirmed: PaymentView) {
+  if (flow.order?.orderId !== confirmed.orderId || !flow.accessToken) {
+    message.value = '주문 정보를 확인할 수 없습니다.'
+    return
+  }
+  await router.replace(`/kiosk/orders/${confirmed.orderId}`)
+}
+
+function samePayment(canonical: PaymentView, stored: PaymentView): boolean {
+  return (
+    canonical.id === stored.id &&
+    canonical.orderId === stored.orderId &&
+    canonical.providerOrderId === stored.providerOrderId &&
+    canonical.amount === stored.amount &&
+    canonical.currency === stored.currency
+  )
+}
+
+interface PaymentRedirect {
+  outcome: string
+  paymentKey: string
+  providerOrderId: string
+  amount: string
+  hasSuccessQuery: boolean
+  hasProviderQuery: boolean
+}
+
+function captureRedirect(): PaymentRedirect {
+  const outcome = queryValue('outcome'),
+    paymentKey = queryValue('paymentKey'),
+    providerOrderId = queryValue('orderId'),
+    amount = queryValue('amount')
+  return {
+    outcome,
+    paymentKey,
+    providerOrderId,
+    amount,
+    hasSuccessQuery: outcome === 'success' || !!paymentKey || !!providerOrderId || !!amount,
+    hasProviderQuery:
+      !!outcome ||
+      !!paymentKey ||
+      !!providerOrderId ||
+      !!amount ||
+      !!queryValue('code') ||
+      !!queryValue('message'),
+  }
+}
+
+function queryValue(key: string): string {
+  const value = route.query[key]
+  return Array.isArray(value) ? (value[0] ?? '') : (value ?? '')
+}
 function callback(outcome: string) {
   const url = new URL(route.path, location.origin)
   url.searchParams.set('outcome', outcome)
@@ -92,12 +210,16 @@ function callback(outcome: string) {
 </script>
 <template>
   <section class="payment-page">
-    <div v-if="payment" class="payment-panel">
+    <div v-if="loading" class="payment-panel">
+      <h1>결제 정보를 확인하고 있어요</h1>
+      <span>잠시만 기다려 주세요.</span>
+    </div>
+    <div v-else-if="payment" class="payment-panel">
       <p class="eyebrow">주문 {{ flow.order?.displayNumber }}</p>
       <h1>{{ review ? '결제 확인이 필요합니다' : '결제를 진행해 주세요' }}</h1>
       <span>{{ message }}</span>
       <div class="amount"><small>결제 금액</small><strong>{{ formatKrw(payment.amount) }}</strong></div>
-      <button v-if="!review" :disabled="busy" @click="start">
+      <button v-if="!review && !terminal" :disabled="busy || !verified" @click="start">
         {{ busy ? '결제 중…' : '결제하기' }}
       </button>
     </div>

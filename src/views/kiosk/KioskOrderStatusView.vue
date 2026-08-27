@@ -17,11 +17,10 @@ let poll: number | undefined, countdown: number | undefined
 onMounted(async () => {
   await load()
   poll = window.setInterval(load, 5000)
-  if (!flow.approving)
-    countdown = window.setInterval(() => {
-      remaining.value--
-      if (remaining.value <= 0) void finish()
-    }, 1000)
+  countdown = window.setInterval(() => {
+    remaining.value--
+    if (remaining.value <= 0) void finish()
+  }, 1000)
 })
 onUnmounted(() => {
   clearInterval(poll)
@@ -29,6 +28,7 @@ onUnmounted(() => {
 })
 async function load() {
   if (flow.order?.orderId !== orderId.value || !flow.accessToken) {
+    if (flow.order || flow.payment) flow.resetCustomer()
     error.value = true
     return
   }

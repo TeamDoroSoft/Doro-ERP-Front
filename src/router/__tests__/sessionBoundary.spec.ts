@@ -1,7 +1,7 @@
 import { flushPromises } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia, type Pinia } from 'pinia'
-import { createPayment, confirmPayment } from '@/api/payment'
+import { createPayment, confirmPayment, getPayment } from '@/api/payment'
 import { getKioskMenu } from '@/api/kiosk'
 import { getOrders } from '@/api/order'
 import { registerKioskUnauthorizedHandler, registerUnauthorizedHandler } from '@/api/http'
@@ -113,6 +113,25 @@ describe('401 boundaries for the two independent sessions', () => {
 
     expect(kiosk.deviceState).toBe('AUTH_FAILED')
     expect(kiosk.deviceState).not.toBe('REVOKED')
+  })
+
+  it('ends only the kiosk session for the Payment Edge UNAUTHENTICATED response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async () => unauthorized('UNAUTHENTICATED')),
+    )
+    await signIn('STAFF')
+    const kiosk = useKioskSessionStore(pinia)
+    kiosk.markAuthenticated()
+    await router.push('/kiosk')
+
+    await expect(getPayment('payment-1', 'kiosk')).rejects.toMatchObject({ status: 401 })
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/kiosk/activate')
+    expect(useOperatorSessionStore(pinia).authenticated).toBe(true)
+    expect(kiosk.deviceState).toBe('AUTH_FAILED')
+    expect(sessionStorage.getItem(ACTIVE_MARKER)).toBeNull()
   })
 })
 
