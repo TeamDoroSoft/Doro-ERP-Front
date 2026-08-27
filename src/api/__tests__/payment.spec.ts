@@ -6,6 +6,7 @@ import {
   createPayment,
   createPaymentIdempotencyKey,
   getPayment,
+  getPaymentByOrder,
   paymentProblemMessage,
 } from '@/api/payment'
 
@@ -41,6 +42,18 @@ describe('payment api client', () => {
     await getPayment('payment/id?retry=1')
 
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/payments/payment%2Fid%3Fretry%3D1')
+  })
+
+  it('gets an employee payment by its encoded order ID', async () => {
+    const fetchMock = vi.fn<FetchMock>().mockImplementation(async () => jsonResponse(paymentView()))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await getPaymentByOrder('order/id?retry=1')
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/v1/payments/by-order/order%2Fid%3Fretry%3D1')
+    expect(fetchMock.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({ credentials: 'include' }),
+    )
   })
 
   it('confirms and cancels using their exact command bodies and independent UUID keys', async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { formatCurrencyInt64, type Int64String } from '@/api/int64'
 import type { OrderResponse } from '@/api/order'
 import { createPaymentIdempotencyKey } from '@/api/payment'
@@ -28,8 +28,12 @@ const model = useOrderPayment(() => props.order, {
 })
 const tossError = computed(() => model.errorMessage.value)
 const orderName = computed(() => `주문 ${props.order.displayNumber}`.slice(0, 100))
+const openingToss = ref(false)
 
 watch(model.payment, (payment, previousPayment) => {
+  if (payment) {
+    saveRecentPaymentId(props.order.orderId, payment.id)
+  }
   if (
     payment &&
     previousPayment &&
@@ -40,32 +44,38 @@ watch(model.payment, (payment, previousPayment) => {
   }
 })
 async function startTossPayment() {
+  if (openingToss.value) return
   const clientKey = import.meta.env.VITE_TOSS_CLIENT_KEY?.trim()
   if (!clientKey) {
     model.errorMessage.value = '결제를 시작할 수 없습니다. 결제 설정을 확인해 주세요.'
     return
   }
-  const created = await model.create()
-  if (!created) return
-
-  const flowId = createPaymentIdempotencyKey()
-  saveRecentPaymentId(props.order.orderId, created.id)
-  savePendingPayment(flowId, {
-    payment: created,
-    confirmIdempotencyKey: createPaymentIdempotencyKey(),
-  })
+  openingToss.value = true
   try {
-    await requestTossPayment({
-      clientKey,
-      amount: created.amount,
-      currency: 'KRW',
-      providerOrderId: created.providerOrderId,
-      orderName: orderName.value,
-      successUrl: redirectUrl('success', flowId),
-      failUrl: redirectUrl('fail', flowId),
+    const checkoutPayment = model.canResume.value ? model.payment.value : await model.create()
+    if (!checkoutPayment || checkoutPayment.status !== 'PENDING') return
+
+    const flowId = createPaymentIdempotencyKey()
+    saveRecentPaymentId(props.order.orderId, checkoutPayment.id)
+    savePendingPayment(flowId, {
+      payment: checkoutPayment,
+      confirmIdempotencyKey: createPaymentIdempotencyKey(),
     })
-  } catch (error) {
-    model.errorMessage.value = tossPaymentErrorMessage(error)
+    try {
+      await requestTossPayment({
+        clientKey,
+        amount: checkoutPayment.amount,
+        currency: 'KRW',
+        providerOrderId: checkoutPayment.providerOrderId,
+        orderName: orderName.value,
+        successUrl: redirectUrl('success', flowId),
+        failUrl: redirectUrl('fail', flowId),
+      })
+    } catch (error) {
+      model.errorMessage.value = tossPaymentErrorMessage(error)
+    }
+  } finally {
+    openingToss.value = false
   }
 }
 
@@ -91,7 +101,7 @@ function formatAmount(amount: Int64String, currency: string) {
       <button
         v-if="model.payment.value"
         type="button"
-        :disabled="model.isBusy.value"
+        :disabled="model.isBusy.value || openingToss"
         @click="model.refresh()"
       >
         새로고침
@@ -126,18 +136,24 @@ function formatAmount(amount: Int64String, currency: string) {
 
     <div class="payment-panel__actions">
       <button
-        v-if="model.canCreate.value"
+        v-if="model.canCreate.value || model.canResume.value"
         type="button"
         class="payment-panel__primary"
-        :disabled="model.isBusy.value"
+        :disabled="model.isBusy.value || openingToss"
         @click="startTossPayment"
       >
-        {{ model.loading.value ? '결제 준비 중…' : '결제하기' }}
+        {{
+          model.loading.value || openingToss
+            ? '결제 화면 여는 중…'
+            : model.canResume.value
+              ? '결제 계속하기'
+              : '결제하기'
+        }}
       </button>
       <button
         v-if="model.canCancel.value"
         type="button"
-        :disabled="model.isBusy.value"
+        :disabled="model.isBusy.value || openingToss"
         @click="model.cancel()"
       >
         {{ model.cancelling.value ? '전액 취소 중…' : '전액 취소' }}
@@ -149,7 +165,7 @@ function formatAmount(amount: Int64String, currency: string) {
             model.payment.value.status === 'REVIEW_REQUIRED')
         "
         type="button"
-        :disabled="model.isBusy.value"
+        :disabled="model.isBusy.value || openingToss"
         @click="model.startPolling()"
       >
         {{ model.polling.value ? '상태 확인 중' : '결제 상태 확인' }}
