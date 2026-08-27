@@ -8,6 +8,7 @@ defineProps<{ name: string; size?: number }>()
     <template v-else-if="name === 'orders'"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></template>
     <template v-else-if="name === 'tables'"><rect x="4" y="5" width="16" height="11" rx="2"/><path d="M7 16v4M17 16v4M4 10h16"/></template>
     <template v-else-if="name === 'queue'"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></template>
+    <template v-else-if="name === 'fulfillment'"><path d="M4 15h16M6 15a6 6 0 0112 0M12 7V4M9 4h6M3 19h18"/></template>
     <template v-else-if="name === 'catalog'"><path d="M4 6h16M6 6l1-3h10l1 3M6 10v10h12V10"/><path d="M10 14h4"/></template>
     <template v-else-if="name === 'payment'"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/></template>
     <template v-else-if="name === 'sales'"><path d="M4 19V9M10 19V5M16 19v-7M22 19H2"/></template>

@@ -20,15 +20,24 @@ describe('PosSidebar', () => {
     }
   })
 
-  it('keeps STAFF navigation focused on operational menus without table/settings/history', async () => {
+  it('gives STAFF the table operations menu without manager settings or history', async () => {
     const wrapper = await mountSidebar('STAFF')
     expect(wrapper.text()).toContain('주문 관리')
-    expect(wrapper.text()).toContain('대기·조리')
+    expect(wrapper.text()).toContain('입장 대기')
+    expect(wrapper.text()).toContain('조리 현황')
     expect(wrapper.text()).toContain('상품·메뉴')
     expect(wrapper.text()).toContain('매출·마감')
-    expect(wrapper.text()).not.toContain('테이블')
+    expect(wrapper.text()).toContain('테이블')
     expect(wrapper.text()).not.toContain('매장·직원 설정')
     expect(wrapper.text()).not.toContain('운영·보안 기록')
+  })
+
+  it('shows separate entry and fulfillment queue destinations', async () => {
+    const wrapper = await mountSidebar('STAFF')
+
+    expect(wrapper.get('a[href="/pos/queues/entry"]').text()).toContain('입장 대기')
+    expect(wrapper.get('a[href="/pos/queues/fulfillment"]').text()).toContain('조리 현황')
+    expect(wrapper.text()).not.toContain('대기·조리')
   })
 
   it('marks only currently implemented destinations as ready', async () => {

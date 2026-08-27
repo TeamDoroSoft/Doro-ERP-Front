@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import router from '@/router'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
@@ -6,6 +6,8 @@ import { useKioskSessionStore } from '@/stores/kioskSession'
 
 describe('POS authentication & role guard', () => {
   beforeEach(async () => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     sessionStorage.clear()
     setActivePinia(createPinia())
     await router.push('/pos/login')
@@ -48,14 +50,13 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/pos/account/change-password')
   })
 
-  it('restricts STAFF role from accessing manager-only routes (/pos/tables, /pos/settings)', async () => {
+  it('allows STAFF table operations but still restricts manager settings', async () => {
     useOperatorSessionStore().applyLogin(
       { employeeId: 'employee-1', role: 'STAFF', passwordChangeRequired: false },
       'doro',
     )
     await router.push('/pos/tables')
-    expect(router.currentRoute.value.path).toBe('/pos/orders')
-    expect(router.currentRoute.value.query.reason).toBe('forbidden')
+    expect(router.currentRoute.value.path).toBe('/pos/tables')
 
     await router.push('/pos/settings')
     expect(router.currentRoute.value.path).toBe('/pos/orders')
@@ -172,9 +173,54 @@ describe('POS authentication & role guard', () => {
     expect(router.currentRoute.value.path).toBe('/kiosk/activate')
     useKioskSessionStore().deviceState = 'ACTIVE'
     await router.push('/kiosk')
-    expect(router.currentRoute.value.name).toBe('kiosk-menu')
+    expect(router.currentRoute.value.name).toBe('kiosk-order-home')
     useOperatorSessionStore().clearSession()
     await router.push('/kiosk/cart')
     expect(router.currentRoute.value.path).toBe('/kiosk/cart')
+  })
+
+  it('uses the authenticated runtime mode as the only kiosk home', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            deviceId: 'device-1',
+            deviceName: '입구 대기',
+            mode: 'ENTRY_QUEUE',
+            pairedPaymentDevice: null,
+          }),
+          { status: 200 },
+        ),
+      ),
+    )
+    useKioskSessionStore().markAuthenticated()
+
+    await router.push('/kiosk/order')
+
+    expect(router.currentRoute.value.path).toBe('/kiosk/waiting')
+  })
+
+  it.each([
+    ['/pay/public-id', 'public-checkout'],
+    ['/pay/public-id/success', 'public-checkout-success'],
+    ['/pay/public-id/fail', 'public-checkout-fail'],
+  ])('keeps %s outside employee and kiosk authentication guards', async (path, name) => {
+    await router.push(path)
+
+    expect(router.currentRoute.value.name).toBe(name)
+    expect(router.currentRoute.value.meta.requiresAuth).not.toBe(true)
+    expect(router.currentRoute.value.meta.kiosk).not.toBe(true)
+    expect(router.currentRoute.value.meta.kioskActivation).not.toBe(true)
+
+    useKioskSessionStore().markAuthenticated()
+    useOperatorSessionStore().applyLogin(
+      { employeeId: 'owner', role: 'OWNER', passwordChangeRequired: false },
+      'doro',
+    )
+    await router.push('/pos/orders')
+    await router.push(path)
+
+    expect(router.currentRoute.value.name).toBe(name)
   })
 })

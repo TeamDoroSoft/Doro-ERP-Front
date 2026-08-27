@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { getOrders, type OrderResponse, type OrderStatus } from '@/api/order'
@@ -14,6 +14,27 @@ const loading = ref(false)
 const error = ref<ApiError | null>(null)
 const businessDate = ref('')
 const status = ref<OrderStatus | ''>('')
+const source = ref('')
+const kioskSources = computed(() =>
+  Array.from(
+    new Set(
+      orders.value
+        .filter((order) => order.sourceType === 'KIOSK' && order.sourceDeviceNameSnapshot)
+        .map((order) => order.sourceDeviceNameSnapshot as string),
+    ),
+  ).sort((a, b) => a.localeCompare(b, 'ko')),
+)
+const visibleOrders = computed(() => {
+  if (!source.value) return orders.value
+  if (source.value === 'EMPLOYEE_POS')
+    return orders.value.filter((order) => order.sourceType === 'EMPLOYEE_POS')
+  if (source.value === 'KIOSK') return orders.value.filter((order) => order.sourceType === 'KIOSK')
+  if (source.value === 'UNKNOWN') return orders.value.filter((order) => !order.sourceType)
+  return orders.value.filter(
+    (order) =>
+      order.sourceType === 'KIOSK' && order.sourceDeviceNameSnapshot === source.value.slice(6),
+  )
+})
 
 onMounted(loadOrders)
 watch([businessDate, status], loadOrders)
@@ -89,14 +110,14 @@ function openOrder(orderId: string) {
         <button :class="{ active: status === 'ACCEPTED' }" type="button" @click="status = 'ACCEPTED'">주문 확정</button>
         <button :class="{ active: status === 'COMPLETED' }" type="button" @click="status = 'COMPLETED'">주문 완료</button>
       </div>
-      <div class="filter-actions"><label><span>영업일</span><input v-model="businessDate" type="date" name="businessDate" /></label><label><span>상태</span><select v-model="status" name="status"><option value="">전체</option><option value="CREATED">결제 대기</option><option value="ACCEPTED">주문 확정</option><option value="COMPLETED">주문 완료</option><option value="CANCELLED">취소</option></select></label></div>
+      <div class="filter-actions"><label><span>영업일</span><input v-model="businessDate" type="date" name="businessDate" /></label><label><span>상태</span><select v-model="status" name="status"><option value="">전체</option><option value="CREATED">결제 대기</option><option value="ACCEPTED">주문 확정</option><option value="COMPLETED">주문 완료</option><option value="CANCELLED">취소</option></select></label><label><span>주문 생성</span><select v-model="source" name="source"><option value="">전체</option><option value="EMPLOYEE_POS">직원 POS</option><option value="KIOSK">모든 Kiosk</option><option v-for="name in kioskSources" :key="name" :value="`KIOSK:${name}`">{{ name }}</option><option value="UNKNOWN">출처 정보 없음</option></select></label></div>
     </section>
     <section class="orders-list-area" aria-label="주문 목록">
       <div class="list-caption"><strong>주문 목록</strong><span v-if="!loading">{{ orders.length }}건</span><span v-else>불러오는 중</span></div>
       <LoadingState v-if="loading" />
       <ApiErrorNotice v-else-if="error" :message="safeApiErrorMessage(error)" :request-id="error.requestId" retryable @retry="loadOrders" />
-      <EmptyState v-else-if="orders.length === 0" title="주문이 없습니다" description="선택한 조건에 해당하는 주문이 없습니다." />
-      <OrderListPanel v-else :orders="orders" @select="openOrder" />
+      <EmptyState v-else-if="visibleOrders.length === 0" title="주문이 없습니다" description="선택한 조건에 해당하는 주문이 없습니다." />
+      <OrderListPanel v-else :orders="visibleOrders" @select="openOrder" />
     </section>
   </main>
 </template>

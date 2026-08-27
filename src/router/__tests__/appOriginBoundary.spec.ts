@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { crossOriginTarget, parseAppOrigin } from '@/router/appOriginBoundary'
+import { crossOriginTarget, isPublicCheckoutPath, parseAppOrigin } from '@/router/appOriginBoundary'
 
 describe('public application origin boundary', () => {
   const origins = {
@@ -32,6 +32,47 @@ describe('public application origin boundary', () => {
     expect(
       crossOriginTarget(new URL('https://kiosk.minseok.click/kiosk/activate'), origins),
     ).toBeNull()
+  })
+
+  it.each(['/pay/public-id', '/pay/public-id/success', '/pay/public-id/fail', '/pay/%E3%85%87'])(
+    'allows only a structurally valid public checkout path: %s',
+    (path) => {
+      expect(isPublicCheckoutPath(path)).toBe(true)
+      expect(crossOriginTarget(new URL(`https://kiosk.minseok.click${path}`), origins)).toBeNull()
+    },
+  )
+
+  it.each([
+    '/pay',
+    '/pay/',
+    '/pay/public-id/',
+    '/pay/public-id/unknown',
+    '/pay/public-id/success/extra',
+    '/pay/public%2Fid',
+    '/payments/public-id',
+  ])('rejects an invalid public checkout path on the kiosk origin: %s', (path) => {
+    expect(isPublicCheckoutPath(path)).toBe(false)
+    expect(crossOriginTarget(new URL(`https://kiosk.minseok.click${path}`), origins)).toBe(
+      'https://kiosk.minseok.click/kiosk/activate',
+    )
+  })
+
+  it('moves public checkout routes to the kiosk origin without losing query or fragment data', () => {
+    expect(
+      crossOriginTarget(
+        new URL(
+          'https://doro.minseok.click/pay/public-id?paymentKey=provider-value#token=one-time',
+        ),
+        origins,
+      ),
+    ).toBe('https://kiosk.minseok.click/pay/public-id?paymentKey=provider-value#token=one-time')
+  })
+
+  it('keeps employee routes on the public origin when checkout routing is enabled', () => {
+    expect(crossOriginTarget(new URL('https://kiosk.minseok.click/pos/orders'), origins)).toBe(
+      'https://kiosk.minseok.click/kiosk/activate',
+    )
+    expect(crossOriginTarget(new URL('https://doro.minseok.click/pos/orders'), origins)).toBeNull()
   })
 
   it.each([

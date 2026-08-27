@@ -17,7 +17,8 @@ test.beforeEach(async ({ page }) => {
 test('[mock-ui] navigates every Phase 1 POS destination from the sidebar', async ({ page, browserName }) => {
   const screens = [
     ['주문 관리', '주문'],
-    ['대기·조리', '입장 대기 관리'],
+    ['입장 대기', '입장 대기 관리'],
+    ['조리 현황', '조리 목록'],
     ['상품·메뉴', '상품·메뉴 관리'],
     ['테이블', '테이블 관리'],
     ['매출·마감', '일별 매출과 마감'],

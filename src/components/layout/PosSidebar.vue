@@ -13,7 +13,10 @@ const items = computed(() => navigationForRole(session.role))
 const groups = computed(() => {
   const byPath = new Map(items.value.map((item) => [item.to, item]))
   return [
-    { label: 'OPERATIONS', paths: ['/pos/orders', '/pos/tables', '/pos/queues/entry'] },
+    {
+      label: 'OPERATIONS',
+      paths: ['/pos/orders', '/pos/tables', '/pos/queues/entry', '/pos/queues/fulfillment'],
+    },
     { label: 'CATALOG', paths: ['/pos/catalog'] },
     { label: 'FINANCIALS', paths: ['/pos/sales'] },
     { label: 'ADMIN', paths: ['/pos/settings', '/pos/history'] },

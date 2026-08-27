@@ -18,6 +18,14 @@ const order: OrderResponse = {
   status: 'CREATED',
   businessDate: '2026-08-17',
   orderAccessToken: null,
+  sourceType: 'EMPLOYEE_POS',
+  sourceDeviceId: null,
+  sourceDeviceNameSnapshot: null,
+  paymentHandoffDeviceIdSnapshot: null,
+  paymentHandoffDeviceNameSnapshot: null,
+  paymentPolicy: 'PAY_NOW',
+  paymentStatus: 'PENDING',
+  tableId: null,
 }
 
 describe('PosOrdersView', () => {
@@ -51,6 +59,26 @@ describe('PosOrdersView', () => {
     expect(failed.get('[role="alert"]').text()).toContain('일시적으로 사용할 수 없습니다.')
     expect(failed.text()).not.toContain('internal upstream detail')
     expect(failed.text()).toContain('다시 시도')
+  })
+
+  it('filters order source snapshots locally without inventing a backend query', async () => {
+    api.getOrders.mockResolvedValue([
+      { ...order, sourceType: 'EMPLOYEE_POS' },
+      {
+        ...order,
+        orderId: 'order-kiosk',
+        displayNumber: 8,
+        sourceType: 'KIOSK',
+        sourceDeviceNameSnapshot: '입구 주문 Kiosk 01',
+      },
+    ])
+    const wrapper = await mountView()
+
+    await wrapper.get('select[name="source"]').setValue('KIOSK:입구 주문 Kiosk 01')
+
+    expect(wrapper.text()).toContain('#8')
+    expect(wrapper.text()).not.toContain('#7')
+    expect(api.getOrders).toHaveBeenCalledTimes(1)
   })
 
   it('reports a rejected query filter as a request problem, not a connectivity problem', async () => {

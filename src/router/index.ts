@@ -15,13 +15,19 @@ import SalesClosingView from '@/views/SalesClosingView.vue'
 import StoreSettingsView from '@/views/StoreSettingsView.vue'
 import KioskLayout from '@/layouts/KioskLayout.vue'
 import KioskActivationView from '@/views/kiosk/KioskActivationView.vue'
-import KioskMenuView from '@/views/kiosk/KioskMenuView.vue'
 import KioskCartView from '@/views/kiosk/KioskCartView.vue'
 import KioskCheckoutView from '@/views/kiosk/KioskCheckoutView.vue'
 import KioskPaymentView from '@/views/kiosk/KioskPaymentView.vue'
 import KioskOrderStatusView from '@/views/kiosk/KioskOrderStatusView.vue'
+import KioskOrderModeHomeView from '@/views/kiosk/KioskOrderModeHomeView.vue'
+import KioskEntryQueueModeView from '@/views/kiosk/KioskEntryQueueModeView.vue'
+import KioskPaymentModeView from '@/views/kiosk/KioskPaymentModeView.vue'
+import PublicCheckoutView from '@/views/checkout/PublicCheckoutView.vue'
 import { useOperatorSessionStore, type EmployeeRole } from '@/stores/operatorSession'
 import { useKioskSessionStore } from '@/stores/kioskSession'
+import { useKioskRuntimeStore } from '@/stores/kioskRuntime'
+import type { KioskMode } from '@/api/kioskRuntime'
+import { ApiError } from '@/api/http'
 import { applyPageMetadata } from '@/router/pageMetadata'
 import { configuredAppOrigins, crossOriginTarget } from '@/router/appOriginBoundary'
 
@@ -33,6 +39,7 @@ declare module 'vue-router' {
     roles?: EmployeeRole[]
     kiosk?: boolean
     kioskActivation?: boolean
+    kioskModes?: KioskMode[]
     title?: string
     description?: string
   }
@@ -208,9 +215,9 @@ const routes: RouteRecordRaw[] = [
         name: 'pos-tables',
         component: TableManagementView,
         meta: {
-          roles: ['OWNER', 'MANAGER'],
-          title: '테이블 관리',
-          description: '매장에서 사용하는 테이블 정보와 활성 상태를 관리합니다.',
+          roles: ['OWNER', 'MANAGER', 'STAFF'],
+          title: '테이블 운영',
+          description: '활성 테이블 세션과 미배정 주문을 확인하고 테이블을 운영합니다.',
         },
       },
       {
@@ -267,6 +274,34 @@ const routes: RouteRecordRaw[] = [
       description: '결제 실패 사유를 확인하고 원래 주문 화면으로 돌아갑니다.',
     },
   },
+  // Public mobile checkout routes have neither employee nor kiosk authentication metadata.
+  {
+    path: '/pay/:publicId',
+    name: 'public-checkout',
+    component: PublicCheckoutView,
+    meta: {
+      title: '모바일 결제',
+      description: 'Doro 모바일 결제 링크의 유효성을 안전하게 확인합니다.',
+    },
+  },
+  {
+    path: '/pay/:publicId/success',
+    name: 'public-checkout-success',
+    component: PublicCheckoutView,
+    meta: {
+      title: '결제 결과 확인',
+      description: 'Doro 모바일 결제 결과를 안전하게 확인합니다.',
+    },
+  },
+  {
+    path: '/pay/:publicId/fail',
+    name: 'public-checkout-fail',
+    component: PublicCheckoutView,
+    meta: {
+      title: '결제 결과 확인',
+      description: 'Doro 모바일 결제 결과를 안전하게 확인합니다.',
+    },
+  },
   {
     path: '/kiosk',
     component: KioskLayout,
@@ -284,18 +319,48 @@ const routes: RouteRecordRaw[] = [
       },
       {
         path: '',
-        name: 'kiosk-menu',
-        component: KioskMenuView,
+        redirect: redirectWithoutLocation('/kiosk/order'),
+      },
+      {
+        path: 'order',
+        name: 'kiosk-order-home',
+        component: KioskOrderModeHomeView,
         meta: {
+          kioskModes: ['ORDER'],
           title: '메뉴 주문',
           description: '매장에서 판매 중인 메뉴를 살펴보고 주문할 상품을 선택합니다.',
         },
+      },
+      {
+        path: 'waiting',
+        name: 'kiosk-entry-queue',
+        component: KioskEntryQueueModeView,
+        meta: {
+          kioskModes: ['ENTRY_QUEUE'],
+          title: '입장 대기 등록',
+          description: '매장 입장 대기 인원수를 등록하고 대기번호를 확인합니다.',
+        },
+      },
+      {
+        path: 'payment',
+        name: 'kiosk-payment-display',
+        component: KioskPaymentModeView,
+        meta: {
+          kioskModes: ['PAYMENT'],
+          title: '모바일 결제 QR',
+          description: '이 기기에 배정된 모바일 결제 QR을 표시합니다.',
+        },
+      },
+      {
+        path: 'menu',
+        redirect: redirectWithoutLocation('/kiosk/order'),
       },
       {
         path: 'cart',
         name: 'kiosk-cart',
         component: KioskCartView,
         meta: {
+          kioskModes: ['ORDER'],
           title: '장바구니',
           description: '키오스크에서 선택한 메뉴와 수량 및 주문 금액을 확인합니다.',
         },
@@ -305,8 +370,9 @@ const routes: RouteRecordRaw[] = [
         name: 'kiosk-checkout',
         component: KioskCheckoutView,
         meta: {
+          kioskModes: ['ORDER'],
           title: '주문 확인',
-          description: '주문 유형과 테이블 및 결제할 메뉴를 최종 확인합니다.',
+          description: '주문 유형과 결제할 메뉴를 최종 확인합니다.',
         },
       },
       {
@@ -314,8 +380,9 @@ const routes: RouteRecordRaw[] = [
         name: 'kiosk-payment',
         component: KioskPaymentView,
         meta: {
-          title: '키오스크 결제',
-          description: '고객 주문의 결제를 안전하게 진행합니다.',
+          kioskModes: ['ORDER'],
+          title: '결제 Kiosk 안내',
+          description: '주문을 연결된 결제 Kiosk로 안전하게 인계합니다.',
         },
       },
       {
@@ -323,8 +390,9 @@ const routes: RouteRecordRaw[] = [
         name: 'kiosk-order',
         component: KioskOrderStatusView,
         meta: {
+          kioskModes: ['ORDER'],
           title: '주문 상태',
-          description: '주문 번호와 결제 및 조리 진행 상태를 확인합니다.',
+          description: '고객에게 필요한 주문 번호를 확인합니다.',
         },
       },
     ],
@@ -348,7 +416,7 @@ const router = createRouter({
 
 router.afterEach((to) => applyPageMetadata(to))
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const originTarget = crossOriginTarget(
     new URL(to.fullPath, window.location.origin),
     configuredAppOrigins(),
@@ -359,11 +427,25 @@ router.beforeEach((to) => {
   }
   const session = useOperatorSessionStore()
   const kioskSession = useKioskSessionStore()
+  const kioskRuntime = useKioskRuntimeStore()
   const kioskRoute = to.matched.some((record) => record.meta.kiosk)
   const kioskActivation = to.matched.some((record) => record.meta.kioskActivation)
   if (kioskRoute) {
     if (!kioskSession.canAccessProtected && !kioskActivation) return '/kiosk/activate'
-    if (kioskSession.canAccessProtected && kioskActivation) return '/kiosk'
+    if (kioskSession.canAccessProtected && kioskActivation) return kioskRuntime.homePath ?? '/kiosk'
+    const allowedModes = to.matched.flatMap((record) => record.meta.kioskModes ?? [])
+    if (allowedModes.length > 0) {
+      try {
+        // Revalidate on navigation so an operator-side mode change cannot leave a stale ORDER
+        // screen mounted until the next full reload.
+        const runtime = await kioskRuntime.load()
+        if (!allowedModes.includes(runtime.mode)) return kioskRuntime.homePath ?? '/kiosk'
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) return '/kiosk/activate'
+        // The Backend mode boundary remains fail-closed. Keep the route mounted so it can show a
+        // retryable dependency error instead of incorrectly treating an outage as deactivation.
+      }
+    }
     return true
   }
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)

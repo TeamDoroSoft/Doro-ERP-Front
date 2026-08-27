@@ -223,7 +223,9 @@ describe('TableManagementView', () => {
 
   function mountView(role: EmployeeRole) {
     useOperatorSessionStore().setRole(role)
-    return mount(TableManagementView)
+    return mount(TableManagementView, {
+      global: { stubs: { TableOperationsPanel: { template: '<section>테이블 운영</section>' } } },
+    })
   }
 
   function findButton(wrapper: ReturnType<typeof mount>, label: string) {

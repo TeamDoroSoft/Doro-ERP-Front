@@ -11,7 +11,6 @@ vi.mock('@/composables/useFulfillmentQueue', () => fulfillmentQueue)
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
-  useRouter: () => ({ push: vi.fn<() => void>() }),
 }))
 
 describe('FulfillmentQueueView', () => {
@@ -39,6 +38,23 @@ describe('FulfillmentQueueView', () => {
 
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('현재 조리 중인 주문이 없습니다.')
+    expect(wrapper.text()).not.toContain('입장 대기 보기')
+  })
+
+  it('shows the server item summary and a clear legacy-null fallback', async () => {
+    fulfillmentQueue.useFulfillmentQueue.mockReturnValue({
+      ...queueState(),
+      fulfillments: ref([
+        fulfillment('fulfillment-1', '아메리카노 × 2'),
+        fulfillment('fulfillment-2', null),
+      ]),
+    })
+
+    const wrapper = mount(FulfillmentQueueView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('아메리카노 × 2')
+    expect(wrapper.text()).toContain('품목 정보 없음')
   })
 })
 
@@ -51,5 +67,18 @@ function queueState(errorMessage = '') {
     load: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     ready: vi.fn<() => void>(),
     polling: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() },
+  }
+}
+
+function fulfillment(fulfillmentId: string, itemSummary: string | null) {
+  return {
+    fulfillmentId,
+    orderId: `order-${fulfillmentId}`,
+    displayNumber: 17,
+    status: 'PREPARING' as const,
+    sourceType: 'EMPLOYEE_POS' as const,
+    sourceDeviceNameSnapshot: null,
+    itemSummary,
+    version: '3',
   }
 }

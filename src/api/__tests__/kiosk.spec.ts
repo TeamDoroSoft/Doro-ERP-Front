@@ -33,7 +33,12 @@ describe('kiosk api', () => {
       ),
     )
     await createKioskOrder(
-      { orderChannel: 'KIOSK', serviceType: 'TAKEOUT', lines: [{ productId: 'p1', quantity: 1 }] },
+      {
+        orderChannel: 'KIOSK',
+        serviceType: 'TAKEOUT',
+        paymentPolicy: 'PAY_NOW',
+        lines: [{ productId: 'p1', quantity: 1 }],
+      },
       'order-key',
     )
     const init = vi.mocked(fetch).mock.calls[0]?.[1] as RequestInit
@@ -42,6 +47,7 @@ describe('kiosk api', () => {
       JSON.stringify({
         orderChannel: 'KIOSK',
         serviceType: 'TAKEOUT',
+        paymentPolicy: 'PAY_NOW',
         lines: [{ productId: 'p1', quantity: 1 }],
       }),
     )
@@ -70,7 +76,12 @@ describe('kiosk api', () => {
 
     const menu = await getKioskMenu()
     const order = await createKioskOrder(
-      { orderChannel: 'KIOSK', serviceType: 'TAKEOUT', lines: [{ productId: 'p1', quantity: 1 }] },
+      {
+        orderChannel: 'KIOSK',
+        serviceType: 'TAKEOUT',
+        paymentPolicy: 'PAY_NOW',
+        lines: [{ productId: 'p1', quantity: 1 }],
+      },
       'order-key',
     )
 

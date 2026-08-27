@@ -4,6 +4,9 @@ import type { Int64String } from './int64'
 export type OrderChannel = 'POS' | 'KIOSK'
 export type OrderServiceType = 'DINE_IN' | 'TAKEOUT'
 export type OrderStatus = 'CREATED' | 'ACCEPTED' | 'COMPLETED' | 'CANCELLED'
+export type OrderSourceType = 'KIOSK' | 'EMPLOYEE_POS'
+export type OrderPaymentPolicy = 'PAY_NOW' | 'PAY_LATER'
+export type OrderPaymentStatus = 'UNPAID' | 'PENDING' | 'PAID' | 'CANCELLED'
 
 /** A request can contain at most 100 lines; each quantity must be between 1 and 999. */
 export interface CreateOrderLineRequest {
@@ -15,7 +18,8 @@ export interface CreateOrderLineRequest {
 export interface CreateOrderRequest {
   orderChannel: OrderChannel
   serviceType: OrderServiceType
-  tableId?: string
+  paymentPolicy: OrderPaymentPolicy
+  tableId?: string | null
   lines: CreateOrderLineRequest[]
 }
 
@@ -31,6 +35,16 @@ export interface OrderResponse {
   status: OrderStatus
   businessDate: string
   orderAccessToken: string | null
+  sourceType: OrderSourceType
+  sourceDeviceId: string | null
+  sourceDeviceNameSnapshot: string | null
+  paymentHandoffDeviceIdSnapshot: string | null
+  paymentHandoffDeviceNameSnapshot: string | null
+  /** Required by the table-assignment projection; older Commerce responses may omit it. */
+  serviceType?: OrderServiceType
+  paymentPolicy: OrderPaymentPolicy
+  paymentStatus: OrderPaymentStatus
+  tableId: string | null
 }
 
 export interface OrderListQuery {
@@ -60,6 +74,13 @@ export function getOrders(query: OrderListQuery = {}): Promise<OrderResponse[]> 
 
 export function getOrder(orderId: string): Promise<OrderResponse> {
   return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}`)
+}
+
+export function assignOrderTable(orderId: string, tableId: string): Promise<OrderResponse> {
+  return exactOrderRequest<OrderResponse>(`/orders/${encodeURIComponent(orderId)}/table`, {
+    method: 'PATCH',
+    body: JSON.stringify({ tableId }),
+  })
 }
 
 export function cancelOrder(orderId: string): Promise<OrderResponse> {

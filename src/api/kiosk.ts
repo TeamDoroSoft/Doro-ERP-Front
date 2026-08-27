@@ -48,7 +48,7 @@ export interface KioskOrderStatus {
 export interface KioskOrderRequest {
   orderChannel: 'KIOSK'
   serviceType: OrderServiceType
-  tableId?: string
+  paymentPolicy: 'PAY_NOW'
   lines: Array<{ productId: string; quantity: number }>
 }
 

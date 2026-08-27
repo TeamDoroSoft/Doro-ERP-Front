@@ -20,6 +20,14 @@ const created: OrderResponse = {
   status: 'CREATED',
   businessDate: '2026-08-17',
   orderAccessToken: null,
+  sourceType: 'EMPLOYEE_POS',
+  sourceDeviceId: null,
+  sourceDeviceNameSnapshot: null,
+  paymentHandoffDeviceIdSnapshot: null,
+  paymentHandoffDeviceNameSnapshot: null,
+  paymentPolicy: 'PAY_NOW',
+  paymentStatus: 'PENDING',
+  tableId: null,
 }
 
 describe('PosOrderDetailView', () => {

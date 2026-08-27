@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { displayLabel } from '@/ui/displayLabels'
-import type { OrderStatus } from '@/api/order'
+import type { OrderPaymentStatus, OrderSourceType, OrderStatus } from '@/api/order'
 import { formatInt64, type Int64String } from '@/api/int64'
 
 export interface OrderDetail {
@@ -11,6 +11,10 @@ export interface OrderDetail {
   currency: string
   status: OrderStatus
   businessDate: string
+  sourceType?: OrderSourceType | null
+  sourceDeviceNameSnapshot?: string | null
+  paymentHandoffDeviceNameSnapshot?: string | null
+  paymentStatus?: OrderPaymentStatus
 }
 
 defineProps<{ order: OrderDetail; cancelling: boolean; completing: boolean }>()
@@ -23,6 +27,12 @@ function formatAmount(amount: Int64String, currency: string): string {
 
 function tone(status: OrderStatus) {
   return status === 'COMPLETED' ? 'success' : status === 'CANCELLED' ? 'danger' : 'warning'
+}
+
+function sourceLabel(order: OrderDetail): string {
+  if (order.sourceType === 'KIOSK') return order.sourceDeviceNameSnapshot || 'Kiosk'
+  if (order.sourceType === 'EMPLOYEE_POS') return '직원 POS'
+  return '출처 정보 없음'
 }
 </script>
 
@@ -43,6 +53,14 @@ function tone(status: OrderStatus) {
       <div>
         <dt>주문 금액</dt>
         <dd>{{ formatAmount(order.totalAmount, order.currency) }}</dd>
+      </div>
+      <div>
+        <dt>주문 생성</dt>
+        <dd>{{ sourceLabel(order) }}</dd>
+      </div>
+      <div v-if="order.paymentHandoffDeviceNameSnapshot">
+        <dt>결제 QR 표시</dt>
+        <dd>{{ order.paymentHandoffDeviceNameSnapshot }}</dd>
       </div>
     </dl>
     <section class="contract-notice" aria-label="주문 상세 정보 안내">

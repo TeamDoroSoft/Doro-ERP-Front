@@ -28,10 +28,15 @@ export interface KioskCredentialView {
   credential: string
 }
 export type KioskDeviceStatus = 'ACTIVE' | 'REVOKED'
+export type KioskMode = 'ORDER' | 'ENTRY_QUEUE' | 'PAYMENT'
 export interface KioskDeviceView {
   id: string
   deviceCode: string
+  displayName: string
+  lastSeenAt: string | null
   status: KioskDeviceStatus
+  mode: KioskMode
+  pairedPaymentDeviceId: string | null
   credentialVersion: number
   createdAt: string
   updatedAt: string
@@ -89,10 +94,10 @@ export const resetEmployeePassword = (id: string, newTemporaryPassword: string, 
     headers: { 'Idempotency-Key': key },
     body: JSON.stringify({ newTemporaryPassword }),
   })
-export const registerKiosk = (deviceCode: string) =>
+export const registerKiosk = (deviceCode: string, displayName: string) =>
   apiRequest<KioskCredentialView>('/kiosk-devices', {
     method: 'POST',
-    body: JSON.stringify({ deviceCode }),
+    body: JSON.stringify({ deviceCode, displayName }),
   })
 export const getKiosks = () => apiRequest<KioskDeviceView[]>('/kiosk-devices')
 export const rotateKiosk = (id: string) =>
@@ -101,6 +106,18 @@ export const rotateKiosk = (id: string) =>
   })
 export const revokeKiosk = (id: string) =>
   apiRequest<void>(`/kiosk-devices/${encodeURIComponent(id)}/revoke`, { method: 'POST' })
+export const changeKioskMode = (
+  id: string,
+  mode: KioskMode,
+  pairedPaymentDeviceId?: string | null,
+) =>
+  apiRequest<KioskDeviceView>(`/kiosk-devices/${encodeURIComponent(id)}/mode`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      mode,
+      pairedPaymentDeviceId: mode === 'ORDER' ? pairedPaymentDeviceId || null : null,
+    }),
+  })
 export function getSecurityHistory(query: {
   from: string
   to: string

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getKiosks, getSecurityHistory } from '@/api/administration'
+import { changeKioskMode, getKiosks, getSecurityHistory, registerKiosk } from '@/api/administration'
 
 describe('administration API', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -67,7 +67,11 @@ describe('administration API', () => {
       {
         id: '88000000-0000-0000-0000-000000000001',
         deviceCode: 'KIOSK-01',
+        displayName: '입구 주문 Kiosk 01',
+        lastSeenAt: '2026-08-26T08:30:00Z',
         status: 'ACTIVE',
+        mode: 'ORDER',
+        pairedPaymentDeviceId: null,
         credentialVersion: 2,
         createdAt: '2026-08-25T09:00:00Z',
         updatedAt: '2026-08-26T09:00:00Z',
@@ -83,5 +87,83 @@ describe('administration API', () => {
     expect(init?.credentials).toBe('include')
     expect(result).toEqual(devices)
     expect(result[0]).not.toHaveProperty('credential')
+    expect(result[0]?.displayName).toBe('입구 주문 Kiosk 01')
+    expect(result[0]?.lastSeenAt).toBe('2026-08-26T08:30:00Z')
+  })
+
+  it('updates a kiosk mode and clears pairing outside ORDER mode', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: '88000000-0000-0000-0000-000000000001',
+          deviceCode: 'KIOSK-01',
+          displayName: '카운터 결제 Kiosk 01',
+          lastSeenAt: null,
+          status: 'ACTIVE',
+          mode: 'PAYMENT',
+          pairedPaymentDeviceId: null,
+          credentialVersion: 2,
+          createdAt: '2026-08-25T09:00:00Z',
+          updatedAt: '2026-08-26T09:00:00Z',
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await changeKioskMode('88000000-0000-0000-0000-000000000001', 'PAYMENT', 'ignored-pair')
+
+    const [input, init] = fetchMock.mock.calls[0]!
+    expect(new URL(String(input), 'http://local').pathname).toBe(
+      '/api/v1/kiosk-devices/88000000-0000-0000-0000-000000000001/mode',
+    )
+    expect(init?.method).toBe('PATCH')
+    expect(JSON.parse(String(init?.body))).toEqual({
+      mode: 'PAYMENT',
+      pairedPaymentDeviceId: null,
+    })
+  })
+
+  it('sends the selected payment device only for ORDER mode', async () => {
+    const pairedPaymentDeviceId = '88000000-0000-4000-8000-000000000002'
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: '88000000-0000-0000-0000-000000000001',
+          deviceCode: 'KIOSK-01',
+          displayName: '입구 주문 Kiosk 01',
+          lastSeenAt: null,
+          status: 'ACTIVE',
+          mode: 'ORDER',
+          pairedPaymentDeviceId,
+          credentialVersion: 2,
+          createdAt: '2026-08-25T09:00:00Z',
+          updatedAt: '2026-08-26T09:00:00Z',
+        }),
+        { status: 200 },
+      ),
+    )
+
+    await changeKioskMode('88000000-0000-0000-0000-000000000001', 'ORDER', pairedPaymentDeviceId)
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      mode: 'ORDER',
+      pairedPaymentDeviceId,
+    })
+  })
+
+  it('registers a device code and a separate friendly display name', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ kioskDeviceId: '88000000-0000-0000-0000-000000000001', credential: 'secret' }),
+        { status: 200 },
+      ),
+    )
+
+    await registerKiosk('KIOSK-01', '입구 주문 Kiosk 01')
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      deviceCode: 'KIOSK-01',
+      displayName: '입구 주문 Kiosk 01',
+    })
   })
 })

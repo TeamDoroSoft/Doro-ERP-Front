@@ -10,6 +10,8 @@ export interface EntryQueueView {
   queueNumber: number
   partySize: number
   status: EntryStatus
+  /** Server-owned registration time; never reconstructed from the browser clock. */
+  registeredAt: string
   /** Queue optimistic-lock counter (Java `long`). */
   version: Int64String
 }
@@ -24,6 +26,11 @@ export interface FulfillmentQueueView {
   orderId: string
   displayNumber: number
   status: FulfillmentStatus
+  /** Required projection fields remain nullable for legacy orders. */
+  sourceType: 'KIOSK' | 'EMPLOYEE_POS' | null
+  sourceDeviceNameSnapshot: string | null
+  /** Server-created compact item/quantity snapshot; nullable only for legacy events. */
+  itemSummary: string | null
   /** Queue optimistic-lock counter (Java `long`). */
   version: Int64String
 }

@@ -154,10 +154,10 @@ Doro-ERP-Front/
 | `VITE_PUBLIC_APP_ORIGIN` | 운영 POS Origin. 경로 없는 HTTPS Origin만 허용 (`https://doro.minseok.click`)                                       |
 | `VITE_KIOSK_APP_ORIGIN`  | 운영 Kiosk 전용 Origin. 경로 없는 HTTPS Origin만 허용 (`https://kiosk.minseok.click`)                               |
 
-운영 Build에서는 두 Origin을 모두 설정합니다. Kiosk Origin의 `/`는 `/kiosk`로 연결하고, POS Origin의
-`/kiosk/**` 접근은 같은 경로·Query·Hash를 Kiosk Origin으로 이동시킵니다. Kiosk Origin의 다른 경로는
-POS Origin으로 이동시켜 두 Host의 인증 Cookie가 한 요청에 섞이지 않게 합니다. 로컬 단일 Origin
-개발에서는 두 값을 비울 수 있습니다.
+운영 Build에서는 두 Origin을 모두 설정합니다. Kiosk Origin의 `/`와 허용되지 않은 경로는
+`/kiosk/activate`로 정규화하고, POS Origin의 `/kiosk/**` 접근은 같은 경로·Query·Hash를 Kiosk
+Origin으로 이동시킵니다. 공개 `/pay/**`도 Kiosk Origin에서 열리지만 직원·기기 인증 Guard와는
+분리됩니다. 로컬 단일 Origin 개발에서는 두 값을 비울 수 있습니다.
 
 Toss Secret Key, Kiosk Secret·Credential, HMAC Key는 `VITE_*` 환경 변수에 넣지 않습니다.
 
@@ -211,9 +211,17 @@ Admin Nginx는 `/api/`를 같은 Namespace의 `edge-api:8080`으로 전달합니
 
 - 직원 POS: `/pos/login`, `/pos/orders`, `/pos/queues/entry`, `/pos/queues/fulfillment`,
   `/pos/catalog`, `/pos/tables`, `/pos/sales`, `/pos/settings`, `/pos/history`
-- 고객 Kiosk: `/kiosk/activate`, `/kiosk`, `/kiosk/cart`, `/kiosk/checkout`,
-  `/kiosk/payments/:paymentId`, `/kiosk/orders/:orderId`
+- 고객 Kiosk: `/kiosk/activate`, `/kiosk/order`, `/kiosk/waiting`, `/kiosk/payment`
+- 주문 Kiosk 내부 흐름: `/kiosk/cart`, `/kiosk/checkout` (기기 내 Toss 직접 결제는 폐기)
+- 고객 모바일 Checkout: `/pay/:publicId`, `/pay/:publicId/success`, `/pay/:publicId/fail`
 - DEV Preview는 개발 빌드에서만 제공되며 Production 인증 우회 수단이 아닙니다.
+
+Kiosk Runtime을 서버에서 다시 확인해 `ORDER`, `ENTRY_QUEUE`, `PAYMENT` 전용 Route로 분기합니다.
+주문 Kiosk는 테이블이나 내부 상태를 노출하지 않고 페어링된 결제 Kiosk로 Handoff하며, 결제
+Kiosk는 일회용 Token을 저장하지 않고 실제 QR만 표시합니다. 공개 Checkout Route는 Fragment와
+Toss Redirect Query를 즉시 제거한 뒤 Resolve·Start·Confirm·Status 계약을 사용합니다. 직원 주문의
+`PAY_NOW`·`PAY_LATER`, 결제 Kiosk 인계와 Table Session 서버 합계도 연결되어 있습니다. 이 구현과
+Browser Mock 통과는 실제 배포 Cookie·Edge·Toss Test Mode 종단 검증 완료를 의미하지 않습니다.
 
 ## 검증 경계와 현재 상태
 

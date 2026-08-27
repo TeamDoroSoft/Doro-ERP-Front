@@ -17,6 +17,7 @@ describe('useOrderDraft', () => {
     expect(draft.payload()).toEqual({
       orderChannel: 'POS',
       serviceType: 'DINE_IN',
+      paymentPolicy: 'PAY_NOW',
       tableId: 'table-1',
       lines: [{ productId: product.productId, quantity: 1 }],
     })
@@ -24,6 +25,7 @@ describe('useOrderDraft', () => {
     expect(draft.payload()).toEqual({
       orderChannel: 'POS',
       serviceType: 'TAKEOUT',
+      paymentPolicy: 'PAY_NOW',
       lines: [{ productId: product.productId, quantity: 1 }],
     })
   })

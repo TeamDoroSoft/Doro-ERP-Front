@@ -17,6 +17,12 @@ const orderWire = {
   status: 'CREATED' as const,
   businessDate: '2026-08-17',
   orderAccessToken: null,
+  sourceType: 'EMPLOYEE_POS' as const,
+  sourceDeviceId: null,
+  sourceDeviceNameSnapshot: null,
+  paymentPolicy: 'PAY_NOW' as const,
+  paymentStatus: 'PENDING' as const,
+  tableId: null,
 }
 
 const order = { ...orderWire, totalAmount: '9000' }
@@ -24,6 +30,7 @@ const order = { ...orderWire, totalAmount: '9000' }
 const createRequest: CreateOrderRequest = {
   orderChannel: 'POS',
   serviceType: 'DINE_IN',
+  paymentPolicy: 'PAY_NOW',
   tableId: '22222222-2222-4222-8222-222222222222',
   lines: [{ productId: '33333333-3333-4333-8333-333333333333', quantity: 2 }],
 }
@@ -65,7 +72,9 @@ describe('order API', () => {
   })
 
   it('gets, cancels, and completes an opaque order id with the confirmed paths', async () => {
-    fetchMock.mockImplementation(async () => new Response(JSON.stringify(orderWire), { status: 200 }))
+    fetchMock.mockImplementation(
+      async () => new Response(JSON.stringify(orderWire), { status: 200 }),
+    )
 
     await getOrder('order/id')
     await cancelOrder('order/id')
@@ -108,7 +117,11 @@ describe('order API', () => {
   it('exposes idempotency payload conflicts as Problem Details', async () => {
     fetchMock.mockResolvedValue(
       new Response(
-        JSON.stringify({ status: 409, code: 'IDP_CONFLICT', detail: 'key reused for another request' }),
+        JSON.stringify({
+          status: 409,
+          code: 'IDP_CONFLICT',
+          detail: 'key reused for another request',
+        }),
         { status: 409, headers: { 'Content-Type': 'application/problem+json' } },
       ),
     )
