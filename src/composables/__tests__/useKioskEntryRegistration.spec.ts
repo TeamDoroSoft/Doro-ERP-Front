@@ -17,6 +17,7 @@ describe('useKioskEntryRegistration', () => {
     partySize: 4,
     status: 'WAITING' as const,
     version: '0',
+    registeredAt: '2026-08-27T09:00:00Z',
   }
   beforeEach(() => {
     vi.restoreAllMocks()

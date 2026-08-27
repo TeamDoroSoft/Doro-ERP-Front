@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { changeKioskMode, getKiosks, getSecurityHistory } from '@/api/administration'
+import { changeKioskMode, getKiosks, getSecurityHistory, registerKiosk } from '@/api/administration'
 
 describe('administration API', () => {
   const fetchMock = vi.fn<typeof fetch>()
@@ -67,6 +67,8 @@ describe('administration API', () => {
       {
         id: '88000000-0000-0000-0000-000000000001',
         deviceCode: 'KIOSK-01',
+        displayName: '입구 주문 Kiosk 01',
+        lastSeenAt: '2026-08-26T08:30:00Z',
         status: 'ACTIVE',
         mode: 'ORDER',
         pairedPaymentDeviceId: null,
@@ -85,7 +87,8 @@ describe('administration API', () => {
     expect(init?.credentials).toBe('include')
     expect(result).toEqual(devices)
     expect(result[0]).not.toHaveProperty('credential')
-    expect(result[0]).not.toHaveProperty('deviceName')
+    expect(result[0]?.displayName).toBe('입구 주문 Kiosk 01')
+    expect(result[0]?.lastSeenAt).toBe('2026-08-26T08:30:00Z')
   })
 
   it('updates a kiosk mode and clears pairing outside ORDER mode', async () => {
@@ -94,6 +97,8 @@ describe('administration API', () => {
         JSON.stringify({
           id: '88000000-0000-0000-0000-000000000001',
           deviceCode: 'KIOSK-01',
+          displayName: '카운터 결제 Kiosk 01',
+          lastSeenAt: null,
           status: 'ACTIVE',
           mode: 'PAYMENT',
           pairedPaymentDeviceId: null,
@@ -125,6 +130,8 @@ describe('administration API', () => {
         JSON.stringify({
           id: '88000000-0000-0000-0000-000000000001',
           deviceCode: 'KIOSK-01',
+          displayName: '입구 주문 Kiosk 01',
+          lastSeenAt: null,
           status: 'ACTIVE',
           mode: 'ORDER',
           pairedPaymentDeviceId,
@@ -141,6 +148,22 @@ describe('administration API', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       mode: 'ORDER',
       pairedPaymentDeviceId,
+    })
+  })
+
+  it('registers a device code and a separate friendly display name', async () => {
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ kioskDeviceId: '88000000-0000-0000-0000-000000000001', credential: 'secret' }),
+        { status: 200 },
+      ),
+    )
+
+    await registerKiosk('KIOSK-01', '입구 주문 Kiosk 01')
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      deviceCode: 'KIOSK-01',
+      displayName: '입구 주문 Kiosk 01',
     })
   })
 })

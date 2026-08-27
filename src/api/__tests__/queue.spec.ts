@@ -22,7 +22,7 @@ describe('queue API', () => {
       .mockResolvedValueOnce(
         new Response(
           `[{"entryId":"${entryId}","businessDate":"2026-08-18","queueNumber":1,"partySize":2,` +
-            '"status":"WAITING","version":9007199254740993}]',
+            '"status":"WAITING","registeredAt":"2026-08-18T09:00:00Z","version":9007199254740993}]',
           { status: 200 },
         ),
       )
@@ -30,7 +30,8 @@ describe('queue API', () => {
         new Response(
           `[{"fulfillmentId":"${fulfillmentId}","orderId":"66000000-0000-4000-8000-000000000001","displayNumber":7,` +
             '"status":"PREPARING","version":9007199254740993,' +
-            '"sourceType":"KIOSK","sourceDeviceNameSnapshot":"입구 주문 Kiosk 01"}]',
+            '"sourceType":"KIOSK","sourceDeviceNameSnapshot":"입구 주문 Kiosk 01",' +
+            '"itemSummary":"아메리카노 × 2"}]',
           { status: 200 },
         ),
       )
@@ -40,10 +41,12 @@ describe('queue API', () => {
 
     expect(entry?.version).toBe('9007199254740993')
     expect(entry?.queueNumber).toBe(1)
+    expect(entry?.registeredAt).toBe('2026-08-18T09:00:00Z')
     expect(fulfillment?.version).toBe('9007199254740993')
     expect(fulfillment?.displayNumber).toBe(7)
     expect(fulfillment?.sourceType).toBe('KIOSK')
     expect(fulfillment?.sourceDeviceNameSnapshot).toBe('입구 주문 Kiosk 01')
+    expect(fulfillment?.itemSummary).toBe('아메리카노 × 2')
   })
 
   it('uses the exact entry registration and list contract', async () => {

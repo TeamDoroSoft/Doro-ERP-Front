@@ -145,7 +145,8 @@ describe('Phase 06 management views', () => {
     const wrapper = mount(StoreSettingsView)
     await flushPromises()
     await wrapper.findAll('.tabs button')[2]!.trigger('click')
-    await wrapper.get('.panel input').setValue('KIOSK-01')
+    await wrapper.get('[data-test=kiosk-display-name]').setValue('입구 주문 Kiosk 01')
+    await wrapper.get('[data-test=kiosk-device-code]').setValue('KIOSK-01')
     await wrapper.get('.panel form').trigger('submit')
     await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
     await wrapper.get('[role=dialog] form').trigger('submit')
@@ -200,7 +201,8 @@ describe('Phase 06 management views', () => {
     const wrapper = mount(StoreSettingsView)
     await flushPromises()
     await wrapper.findAll('.tabs button')[2]!.trigger('click')
-    await wrapper.get('.panel input').setValue('KIOSK-01')
+    await wrapper.get('[data-test=kiosk-display-name]').setValue('입구 주문 Kiosk 01')
+    await wrapper.get('[data-test=kiosk-device-code]').setValue('KIOSK-01')
     await wrapper.get('.panel form').trigger('submit')
     await wrapper.get('[data-test=reauth-password]').setValue('operator-password')
     await wrapper.get('[role=dialog] form').trigger('submit')
@@ -220,7 +222,11 @@ describe('Phase 06 management views', () => {
     const device = {
       id: 'device-id-1',
       deviceCode: 'KIOSK-01',
+      displayName: '입구 주문 Kiosk 01',
+      lastSeenAt: '2026-08-25T09:05:00Z',
       status: 'ACTIVE',
+      mode: 'ORDER',
+      pairedPaymentDeviceId: null,
       credentialVersion: 1,
       createdAt: '2026-08-25T09:00:00Z',
       updatedAt: '2026-08-25T09:00:00Z',
@@ -259,7 +265,9 @@ describe('Phase 06 management views', () => {
 
     const row = wrapper.get('[data-test=kiosk-device-row]')
     expect(row.text()).toContain('KIOSK-01')
+    expect(row.text()).toContain('입구 주문 Kiosk 01')
     expect(row.text()).toContain('사용 중')
+    expect(row.text()).not.toContain('접속 기록 없음')
     expect(wrapper.text()).not.toContain('rotated-secret')
 
     await row.get('[data-test=rotate-kiosk]').trigger('click')
@@ -320,12 +328,22 @@ describe('Phase 06 management views', () => {
     const paymentDevice = {
       id: '11111111-1111-4111-8111-111111111111',
       deviceCode: 'PAY-01',
+      displayName: '카운터 결제 Kiosk 01',
+      lastSeenAt: null,
       status: 'ACTIVE',
       credentialVersion: 1,
       mode: 'PAYMENT',
       pairedPaymentDeviceId: null,
       createdAt: '2026-08-25T09:00:00Z',
       updatedAt: '2026-08-25T09:00:00Z',
+    }
+    const orderDevice = {
+      ...paymentDevice,
+      id: '22222222-2222-4222-8222-222222222222',
+      deviceCode: 'ORDER-01',
+      displayName: '입구 주문 Kiosk 01',
+      mode: 'ORDER',
+      pairedPaymentDeviceId: paymentDevice.id,
     }
     vi.stubGlobal(
       'fetch',
@@ -334,7 +352,7 @@ describe('Phase 06 management views', () => {
         if (path.endsWith('/auth/reauthenticate')) return new Response(null, { status: 204 })
         if (path.endsWith('/kiosk-devices') && (!init?.method || init.method === 'GET')) {
           kioskReads += 1
-          return new Response(JSON.stringify([paymentDevice]), { status: 200 })
+          return new Response(JSON.stringify([paymentDevice, orderDevice]), { status: 200 })
         }
         if (path.endsWith('/kiosk-devices/11111111-1111-4111-8111-111111111111/mode')) {
           return new Response(
@@ -355,6 +373,8 @@ describe('Phase 06 management views', () => {
     await flushPromises()
     await wrapper.findAll('.tabs button')[2]!.trigger('click')
     await flushPromises()
+    expect(wrapper.text()).toContain('접속 기록 없음')
+    expect(wrapper.text()).toContain('카운터 결제 Kiosk 01 (PAY-01)')
     await wrapper.get('.kiosk-mode-editor select').setValue('ORDER')
     await wrapper.get('.kiosk-mode-editor button').trigger('click')
     await wrapper.get('[data-test=reauth-password]').setValue('operator-password')

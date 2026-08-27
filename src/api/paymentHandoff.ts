@@ -1,5 +1,5 @@
 import { apiRequestExact } from './http'
-import type { Int64String } from './int64'
+import { assertInt64, type Int64String } from './int64'
 
 export type PaymentHandoffStatus =
   'QUEUED' | 'DISPLAYED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'CANCELLED'
@@ -62,19 +62,20 @@ export function recoverPaymentHandoffByOrder(orderId: string): Promise<PaymentHa
   )
 }
 
-export function reissuePaymentHandoff(id: string): Promise<PaymentHandoff> {
-  return handoffMutation(id, 'reissue')
+export function reissuePaymentHandoff(id: string, version: Int64String): Promise<PaymentHandoff> {
+  return handoffMutation(id, 'reissue', version)
 }
 
 export function reassignPaymentHandoff(
   id: string,
   targetPaymentDeviceId: string,
+  version: Int64String,
 ): Promise<PaymentHandoff> {
-  return handoffMutation(id, 'reassign', { targetPaymentDeviceId })
+  return handoffMutation(id, 'reassign', version, { targetPaymentDeviceId })
 }
 
-export function cancelPaymentHandoff(id: string): Promise<PaymentHandoff> {
-  return handoffMutation(id, 'cancel')
+export function cancelPaymentHandoff(id: string, version: Int64String): Promise<PaymentHandoff> {
+  return handoffMutation(id, 'cancel', version)
 }
 
 /** A 204 response means the PAYMENT-mode kiosk currently has no assigned handoff. */
@@ -91,12 +92,14 @@ export async function getCurrentPaymentHandoff(): Promise<PaymentKioskHandoff | 
 function handoffMutation(
   id: string,
   operation: 'reissue' | 'reassign' | 'cancel',
+  version: Int64String,
   body?: object,
 ): Promise<PaymentHandoff> {
   return apiRequestExact<PaymentHandoff>(
     `/payment-handoffs/${encodeURIComponent(id)}/${operation}`,
     {
       method: 'POST',
+      headers: { 'If-Match': `"${assertInt64(version)}"` },
       ...(body ? { body: JSON.stringify(body) } : {}),
     },
     HANDOFF_INT64,

@@ -23,6 +23,8 @@ const created: OrderResponse = {
   sourceType: 'EMPLOYEE_POS',
   sourceDeviceId: null,
   sourceDeviceNameSnapshot: null,
+  paymentHandoffDeviceIdSnapshot: null,
+  paymentHandoffDeviceNameSnapshot: null,
   paymentPolicy: 'PAY_NOW',
   paymentStatus: 'PENDING',
   tableId: null,

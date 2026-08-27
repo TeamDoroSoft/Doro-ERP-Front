@@ -61,6 +61,8 @@ const createdOrder = {
   sourceType: 'EMPLOYEE_POS' as const,
   sourceDeviceId: null,
   sourceDeviceNameSnapshot: null,
+  paymentHandoffDeviceIdSnapshot: null,
+  paymentHandoffDeviceNameSnapshot: null,
   paymentPolicy: 'PAY_NOW' as const,
   paymentStatus: 'PENDING' as const,
   tableId: null,

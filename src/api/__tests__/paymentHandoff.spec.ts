@@ -113,14 +113,30 @@ describe('payment handoff api', () => {
       vi.fn(async () => new Response(JSON.stringify(handoffWire), { status: 200 })),
     )
     await recoverPaymentHandoffByOrder('order/id')
-    await reissuePaymentHandoff('handoff/id')
-    await reassignPaymentHandoff('handoff/id', handoffWire.targetPaymentDeviceId)
-    await cancelPaymentHandoff('handoff/id')
+    await reissuePaymentHandoff('handoff/id', '9007199254740993')
+    await reassignPaymentHandoff(
+      'handoff/id',
+      handoffWire.targetPaymentDeviceId,
+      '9007199254740993',
+    )
+    await cancelPaymentHandoff('handoff/id', '9007199254740993')
     expect(vi.mocked(fetch).mock.calls.map(([url]) => url)).toEqual([
       '/api/v1/payment-handoffs/recovery?orderId=order%2Fid',
       '/api/v1/payment-handoffs/handoff%2Fid/reissue',
       '/api/v1/payment-handoffs/handoff%2Fid/reassign',
       '/api/v1/payment-handoffs/handoff%2Fid/cancel',
     ])
+    for (const [, options] of vi.mocked(fetch).mock.calls.slice(1)) {
+      expect(new Headers(options?.headers).get('If-Match')).toBe('"9007199254740993"')
+    }
+  })
+
+  it('refuses to round or send a malformed optimistic-lock version', async () => {
+    vi.stubGlobal('fetch', vi.fn())
+
+    expect(() => reissuePaymentHandoff('handoff-id', '1.5')).toThrow(
+      '정수 금액 형식이 올바르지 않습니다.',
+    )
+    expect(fetch).not.toHaveBeenCalled()
   })
 })

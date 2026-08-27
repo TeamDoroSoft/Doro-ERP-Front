@@ -2,6 +2,11 @@
 import { useKioskEntryRegistration } from '@/composables/useKioskEntryRegistration'
 
 const registration = useKioskEntryRegistration()
+
+function formatRegisteredAt(value: string) {
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('ko-KR')
+}
 </script>
 
 <template>
@@ -11,7 +16,7 @@ const registration = useKioskEntryRegistration()
       <h1>대기번호 {{ registration.registeredEntry.value.queueNumber }}</h1>
       <dl>
         <div><dt>인원수</dt><dd>{{ registration.registeredEntry.value.partySize }}명</dd></div>
-        <div><dt>등록일</dt><dd>{{ registration.registeredEntry.value.businessDate }}</dd></div>
+        <div><dt>등록 시각</dt><dd><time :datetime="registration.registeredEntry.value.registeredAt">{{ formatRegisteredAt(registration.registeredEntry.value.registeredAt) }}</time></dd></div>
       </dl>
       <p class="result-help">직원의 안내를 기다려 주세요.</p>
       <button type="button" @click="registration.beginAnother">새 대기 등록</button>

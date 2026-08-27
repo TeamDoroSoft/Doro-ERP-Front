@@ -26,9 +26,9 @@ onMounted(async () => {
       <LoadingState v-if="queue.loading.value" />
       <p v-else-if="!queue.errorMessage.value && queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다.</p>
       <div v-else-if="queue.fulfillments.value.length > 0" class="queue-table-wrap">
-        <table><thead><tr><th>주문</th><th>주문 생성</th><th>상태</th><th>주문 상세</th><th>작업</th></tr></thead>
+        <table><thead><tr><th>주문</th><th>주문 생성</th><th>품목</th><th>상태</th><th>주문 상세</th><th>작업</th></tr></thead>
           <tbody><tr v-for="item in queue.fulfillments.value" :key="item.fulfillmentId">
-            <td><strong>#{{ item.displayNumber }}</strong></td><td><span class="source-badge" :class="{ kiosk: item.sourceType === 'KIOSK' }">{{ item.sourceType === 'KIOSK' ? item.sourceDeviceNameSnapshot || 'Kiosk' : item.sourceType === 'EMPLOYEE_POS' ? '직원 POS' : '출처 정보 없음' }}</span></td><td>{{ displayLabel(item.status) }}</td>
+            <td><strong>#{{ item.displayNumber }}</strong></td><td><span class="source-badge" :class="{ kiosk: item.sourceType === 'KIOSK' }">{{ item.sourceType === 'KIOSK' ? item.sourceDeviceNameSnapshot || 'Kiosk' : item.sourceType === 'EMPLOYEE_POS' ? '직원 POS' : '출처 정보 없음' }}</span></td><td>{{ item.itemSummary ?? '품목 정보 없음' }}</td><td>{{ displayLabel(item.status) }}</td>
             <td><RouterLink :to="`/pos/orders/${item.orderId}`">주문 보기</RouterLink></td>
             <td class="queue-actions"><button type="button" :disabled="item.status !== 'PREPARING' || !!queue.actingId.value" @click="queue.ready(item)">{{ queue.actingId.value === item.fulfillmentId ? '처리 중…' : '준비 완료' }}</button></td>
           </tr></tbody>

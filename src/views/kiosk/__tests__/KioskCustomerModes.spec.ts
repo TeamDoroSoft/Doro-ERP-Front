@@ -55,6 +55,7 @@ describe('customer-facing kiosk modes', () => {
       partySize: 3,
       status: 'WAITING',
       version: '0',
+      registeredAt: '2026-08-26T08:15:00Z',
     })
     const wrapper = mount(KioskEntryQueueModeView)
     await wrapper.get('input').setValue('3')
@@ -63,7 +64,8 @@ describe('customer-facing kiosk modes', () => {
 
     expect(wrapper.text()).toContain('대기번호 12')
     expect(wrapper.text()).toContain('3명')
-    expect(wrapper.text()).toContain('2026-08-27')
+    expect(wrapper.get('time').attributes('datetime')).toBe('2026-08-26T08:15:00Z')
+    expect(wrapper.text()).not.toContain('2026-08-27')
     expect(wrapper.find('input[type="tel"]').exists()).toBe(false)
     expect(api.registerKioskEntryQueue).toHaveBeenCalledWith(
       { partySize: 3 },

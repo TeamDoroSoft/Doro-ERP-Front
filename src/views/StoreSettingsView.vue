@@ -46,6 +46,7 @@ const session = useOperatorSessionStore(),
   reauthPassword = ref(''),
   pendingAction = ref<{ execute: () => Promise<unknown>; message: string } | null>(null),
   deviceCode = ref(''),
+  kioskDisplayName = ref(''),
   issued = ref<KioskCredentialView | null>(null),
   issuedDeviceCode = ref(''),
   copyFeedback = ref('')
@@ -234,12 +235,14 @@ function resetPassword() {
 }
 function addKiosk() {
   const registeredDeviceCode = deviceCode.value.trim()
+  const registeredDisplayName = kioskDisplayName.value.trim()
   copyFeedback.value = ''
   return requireReauth(async () => {
-    issued.value = await registerKiosk(registeredDeviceCode)
+    issued.value = await registerKiosk(registeredDeviceCode, registeredDisplayName)
     issuedDeviceCode.value = registeredDeviceCode
     copyFeedback.value = ''
     deviceCode.value = ''
+    kioskDisplayName.value = ''
     await loadKiosks()
   }, '키오스크 기기가 등록되었습니다.')
 }
@@ -288,6 +291,9 @@ function formatDate(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+function formatOptionalDate(value: string | null) {
+  return value ? formatDate(value) : '접속 기록 없음'
 }
 function clearIssued() {
   issued.value = null
@@ -476,7 +482,8 @@ function asError(e: unknown) {
           <h2>키오스크 기기 등록</h2>
           <p class="help">이 화면에서는 새로 등록한 기기의 활성화 정보를 확인할 수 있습니다.</p>
           <form class="form grid" @submit.prevent="addKiosk">
-            <label>기기 코드<input v-model.trim="deviceCode" required /></label
+            <label>표시 이름<input v-model.trim="kioskDisplayName" data-test="kiosk-display-name" required maxlength="100" /></label>
+            <label>기기 코드<input v-model.trim="deviceCode" data-test="kiosk-device-code" required /></label
             ><button :disabled="busy">기기 등록</button>
           </form>
         </section>
@@ -557,25 +564,27 @@ function asError(e: unknown) {
             <table>
               <thead>
                 <tr>
+                  <th>표시 이름</th>
                   <th>기기 코드</th>
                   <th>기기 ID</th>
                   <th>모드·연결</th>
                   <th>상태</th>
                   <th>인증 버전</th>
                   <th>등록 일시</th>
-                  <th>최근 변경</th>
+                  <th>마지막 접속</th>
                   <th>관리</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="kiosk in kiosks" :key="kiosk.id" data-test="kiosk-device-row">
+                  <td><strong>{{ kiosk.displayName }}</strong></td>
                   <td><strong>{{ kiosk.deviceCode }}</strong></td>
                   <td><small>{{ kiosk.id }}</small></td>
                   <td>
                     <div v-if="kioskModeDrafts[kiosk.id]" class="kiosk-mode-editor">
                       <select
                         v-model="kioskModeDrafts[kiosk.id]!.mode"
-                        :aria-label="`${kiosk.deviceCode} 모드`"
+                        :aria-label="`${kiosk.displayName} 모드`"
                         :disabled="busy || kiosk.status !== 'ACTIVE'"
                       >
                         <option value="ORDER">상품 주문</option>
@@ -585,16 +594,16 @@ function asError(e: unknown) {
                       <select
                         v-if="kioskModeDrafts[kiosk.id]!.mode === 'ORDER'"
                         v-model="kioskModeDrafts[kiosk.id]!.pairedPaymentDeviceId"
-                        :aria-label="`${kiosk.deviceCode} 결제 Kiosk 연결`"
+                        :aria-label="`${kiosk.displayName} 결제 Kiosk 연결`"
                         :disabled="busy || kiosk.status !== 'ACTIVE'"
                       >
-                        <option value="">자동 선택</option>
+                        <option value="">결제 Kiosk 선택 필요</option>
                         <option
                           v-for="candidate in kiosks.filter((item) => item.id !== kiosk.id && item.status === 'ACTIVE' && item.mode === 'PAYMENT')"
                           :key="candidate.id"
                           :value="candidate.id"
                         >
-                          {{ candidate.deviceCode }}
+                          {{ candidate.displayName }} ({{ candidate.deviceCode }})
                         </option>
                       </select>
                       <span v-else>{{ kioskModeLabel(kioskModeDrafts[kiosk.id]!.mode) }}</span>
@@ -619,7 +628,8 @@ function asError(e: unknown) {
                     <time :datetime="kiosk.createdAt">{{ formatDate(kiosk.createdAt) }}</time>
                   </td>
                   <td>
-                    <time :datetime="kiosk.updatedAt">{{ formatDate(kiosk.updatedAt) }}</time>
+                    <time v-if="kiosk.lastSeenAt" :datetime="kiosk.lastSeenAt">{{ formatOptionalDate(kiosk.lastSeenAt) }}</time>
+                    <span v-else>{{ formatOptionalDate(null) }}</span>
                   </td>
                   <td>
                     <template v-if="kiosk.status === 'ACTIVE'">

@@ -38,6 +38,8 @@ export interface OrderResponse {
   sourceType: OrderSourceType
   sourceDeviceId: string | null
   sourceDeviceNameSnapshot: string | null
+  paymentHandoffDeviceIdSnapshot: string | null
+  paymentHandoffDeviceNameSnapshot: string | null
   /** Required by the table-assignment projection; older Commerce responses may omit it. */
   serviceType?: OrderServiceType
   paymentPolicy: OrderPaymentPolicy

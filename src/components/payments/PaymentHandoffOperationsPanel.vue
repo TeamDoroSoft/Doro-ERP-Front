@@ -29,7 +29,7 @@ const errorMessage = ref('')
 const notice = ref('')
 
 const canReissue = computed(() =>
-  handoff.value ? ['FAILED', 'EXPIRED', 'CANCELLED'].includes(handoff.value.status) : false,
+  handoff.value ? ['QUEUED', 'DISPLAYED', 'EXPIRED'].includes(handoff.value.status) : false,
 )
 const canReassign = computed(() =>
   handoff.value ? ['QUEUED', 'DISPLAYED'].includes(handoff.value.status) : false,
@@ -92,10 +92,10 @@ async function mutate(operation: 'reissue' | 'reassign' | 'cancel') {
   try {
     handoff.value =
       operation === 'reissue'
-        ? await reissuePaymentHandoff(current.id)
+        ? await reissuePaymentHandoff(current.id, current.version)
         : operation === 'reassign'
-          ? await reassignPaymentHandoff(current.id, selectedDeviceId.value)
-          : await cancelPaymentHandoff(current.id)
+          ? await reassignPaymentHandoff(current.id, selectedDeviceId.value, current.version)
+          : await cancelPaymentHandoff(current.id, current.version)
     selectedDeviceId.value = ''
     notice.value =
       operation === 'reissue'
@@ -104,7 +104,7 @@ async function mutate(operation: 'reissue' | 'reassign' | 'cancel') {
           ? '결제 Kiosk를 재배정했습니다.'
           : '결제 요청을 취소했습니다.'
   } catch (error) {
-    if (error instanceof ApiError && [0, 409, 503].includes(error.status)) {
+    if (error instanceof ApiError && [0, 409, 428, 503].includes(error.status)) {
       try {
         handoff.value = await recoverPaymentHandoffByOrder(props.orderId)
       } catch {
@@ -120,6 +120,8 @@ async function mutate(operation: 'reissue' | 'reassign' | 'cancel') {
 function operationMessage(error: unknown) {
   if (error instanceof ApiError && error.status === 409)
     return '다른 직원이나 결제 화면에서 상태가 변경되었습니다. 최신 상태를 확인해 주세요.'
+  if (error instanceof ApiError && error.status === 428)
+    return '요청 버전을 확인할 수 없어 최신 상태를 다시 조회했습니다.'
   if (error instanceof ApiError && (error.status === 0 || error.status === 503))
     return '요청 결과가 불명확해 서버 상태를 다시 확인했습니다. 새 결제를 만들지 마세요.'
   if (error instanceof ApiError && error.status === 403) return '결제 요청을 관리할 권한이 없습니다.'

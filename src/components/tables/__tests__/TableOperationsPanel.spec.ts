@@ -68,6 +68,8 @@ const unassigned: OrderResponse = {
   sourceType: 'KIOSK',
   sourceDeviceId: 'device-order',
   sourceDeviceNameSnapshot: '입구 주문 01',
+  paymentHandoffDeviceIdSnapshot: null,
+  paymentHandoffDeviceNameSnapshot: null,
   serviceType: 'DINE_IN',
   paymentPolicy: 'PAY_NOW',
   paymentStatus: 'PAID',

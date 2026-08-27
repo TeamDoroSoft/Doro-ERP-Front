@@ -7,10 +7,10 @@ import type { PaymentKioskCandidate } from '@/api/paymentKioskCandidates'
 
 const api = vi.hoisted(() => ({
   recoverPaymentHandoffByOrder: vi.fn<(orderId: string) => Promise<PaymentHandoff>>(),
-  reissuePaymentHandoff: vi.fn<(id: string) => Promise<PaymentHandoff>>(),
+  reissuePaymentHandoff: vi.fn<(id: string, version: string) => Promise<PaymentHandoff>>(),
   reassignPaymentHandoff:
-    vi.fn<(id: string, targetPaymentDeviceId: string) => Promise<PaymentHandoff>>(),
-  cancelPaymentHandoff: vi.fn<(id: string) => Promise<PaymentHandoff>>(),
+    vi.fn<(id: string, targetPaymentDeviceId: string, version: string) => Promise<PaymentHandoff>>(),
+  cancelPaymentHandoff: vi.fn<(id: string, version: string) => Promise<PaymentHandoff>>(),
   listActivePaymentKioskCandidatesForStaff:
     vi.fn<() => Promise<PaymentKioskCandidate[]>>(),
 }))
@@ -76,12 +76,12 @@ describe('PaymentHandoffOperationsPanel', () => {
     await reassign.trigger('click')
     await flushPromises()
 
-    expect(api.reassignPaymentHandoff).toHaveBeenCalledWith('handoff-1', 'device-2')
+    expect(api.reassignPaymentHandoff).toHaveBeenCalledWith('handoff-1', 'device-2', '3')
     expect(wrapper.text()).toContain('결제 Kiosk를 재배정했습니다.')
     expect(wrapper.text()).toContain('4')
   })
 
-  it.each([409, 503])('re-queries canonical state after an ambiguous %s mutation', async (status) => {
+  it.each([409, 428, 503])('re-queries canonical state after an ambiguous %s mutation', async (status) => {
     api.cancelPaymentHandoff.mockRejectedValue(new ApiError(status))
     api.recoverPaymentHandoffByOrder
       .mockResolvedValueOnce(handoff)
@@ -94,6 +94,21 @@ describe('PaymentHandoffOperationsPanel', () => {
     expect(api.recoverPaymentHandoffByOrder).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('취소')
     expect(wrapper.get('[role="alert"]').text()).not.toContain('undefined')
+  })
+
+  it.each([
+    ['QUEUED', false],
+    ['DISPLAYED', false],
+    ['PROCESSING', true],
+    ['FAILED', true],
+    ['EXPIRED', false],
+    ['CANCELLED', true],
+  ] as const)('gates reissue for the %s handoff state', async (status, disabled) => {
+    api.recoverPaymentHandoffByOrder.mockResolvedValue({ ...handoff, status })
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    expect(findButton(wrapper, '재발급').attributes('disabled') !== undefined).toBe(disabled)
   })
 
   function mountPanel() {
