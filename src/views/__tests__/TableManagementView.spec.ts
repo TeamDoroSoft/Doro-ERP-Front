@@ -8,6 +8,7 @@ import TableManagementView from '@/views/TableManagementView.vue'
 
 const tableApi = vi.hoisted(() => ({
   getTables: vi.fn<() => Promise<TableResponse[]>>(),
+  getInactiveTables: vi.fn<() => Promise<TableResponse[]>>(),
   createTable: vi.fn<(request: TableDetailsRequest) => Promise<TableResponse>>(),
   updateTable: vi.fn<(id: string, request: TableDetailsRequest) => Promise<TableResponse>>(),
   changeTableStatus: vi.fn<(id: string, status: TableStatus) => Promise<TableResponse>>(),
@@ -29,6 +30,7 @@ describe('TableManagementView', () => {
     sessionStorage.clear()
     setActivePinia(createPinia())
     tableApi.getTables.mockResolvedValue([activeTable])
+    tableApi.getInactiveTables.mockResolvedValue([])
     tableApi.createTable.mockResolvedValue(activeTable)
     tableApi.updateTable.mockResolvedValue(activeTable)
     tableApi.changeTableStatus.mockResolvedValue({ ...activeTable, status: 'INACTIVE' })
@@ -82,8 +84,26 @@ describe('TableManagementView', () => {
       expect(wrapper.text()).toContain('테이블 등록')
       expect(wrapper.text()).toContain('수정')
       expect(wrapper.text()).toContain('이용 중지')
+      expect(wrapper.text()).toContain('이용 중지한 테이블')
     },
   )
+
+  it('shows inactive tables to managers and reactivates the selected table', async () => {
+    const inactiveTable = { ...activeTable, id: 'table-2', tableNumber: '1', status: 'INACTIVE' as const }
+    tableApi.getInactiveTables.mockResolvedValue([inactiveTable])
+    tableApi.changeTableStatus.mockResolvedValue({ ...inactiveTable, status: 'ACTIVE' })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mountView('MANAGER')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('이용 중지한 테이블')
+    expect(wrapper.text()).toContain('다시 이용')
+    await findButton(wrapper, '다시 이용').trigger('click')
+    await flushPromises()
+
+    expect(tableApi.changeTableStatus).toHaveBeenCalledWith('table-2', 'ACTIVE')
+    expect(wrapper.text()).toContain('테이블을 다시 이용할 수 있습니다.')
+  })
 
   it('keeps STAFF read-only while showing the active list', async () => {
     const wrapper = mountView('STAFF')
