@@ -155,6 +155,65 @@ test('[mock-ui] keeps the created PENDING payment discoverable when Toss is canc
   await expect(page.getByRole('button', { name: '결제하기' })).toHaveCount(0)
 })
 
+test('[mock-ui] discovers and resumes an existing PENDING payment without creating another one', async ({
+  page,
+}) => {
+  let createRequests = 0
+  let confirmRequests = 0
+  await mockOrder(page, () => 'CREATED', 'PENDING')
+  await mockTossSdk(page, 'success')
+  await page.route('**/api/v1/payments', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    createRequests += 1
+    await fulfillJson(route, payment('PENDING'), 201)
+  })
+  await page.route(`**/api/v1/payments/${paymentId}`, async (route) => {
+    await fulfillJson(route, payment('PENDING'))
+  })
+  await page.route(`**/api/v1/payments/${paymentId}/confirm`, async (route) => {
+    confirmRequests += 1
+    expect(route.request().postDataJSON()).toEqual({ paymentKey: 'e2e-payment-key', amount })
+    await fulfillJson(route, payment('PAID'))
+  })
+
+  await page.goto(`/pos/orders/${orderId}`)
+  await expect(page.getByRole('button', { name: '결제 계속하기' })).toBeVisible()
+  await page.getByRole('button', { name: '결제 계속하기' }).click()
+
+  await expect(page.getByRole('heading', { name: '결제가 완료되었습니다' })).toBeVisible()
+  expect(createRequests).toBe(0)
+  expect(confirmRequests).toBe(1)
+})
+
+test('[mock-ui] recovers the canonical PENDING payment after a create conflict', async ({ page }) => {
+  let orderLookups = 0
+  let createRequests = 0
+  await mockOrder(page, () => 'CREATED')
+  await page.unroute(`**/api/v1/payments/by-order/${orderId}`)
+  await page.route(`**/api/v1/payments/by-order/${orderId}`, async (route) => {
+    orderLookups += 1
+    if (orderLookups === 1) {
+      await problem(route, 404, 'PAYMENT_NOT_FOUND', 'raw missing detail')
+    } else {
+      await fulfillJson(route, payment('PENDING'))
+    }
+  })
+  await mockTossSdk(page, 'cancel')
+  await page.route('**/api/v1/payments', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback()
+    createRequests += 1
+    await problem(route, 409, 'STATE_CONFLICT', '주문에 이미 결제가 존재합니다.')
+  })
+
+  await page.goto(`/pos/orders/${orderId}`)
+  await page.getByRole('button', { name: '결제하기' }).click()
+
+  await expect(page.getByRole('heading', { name: '결제가 취소되었습니다' })).toBeVisible()
+  expect(createRequests).toBe(1)
+  expect(orderLookups).toBe(2)
+  await expect(page.getByText('주문에 이미 결제가 존재합니다.')).toHaveCount(0)
+})
+
 test('[mock-ui] does not infer REVIEW_REQUIRED and lets the employee recheck it from the order', async ({
   page,
 }) => {
@@ -221,7 +280,11 @@ function paymentPanel(page: Page) {
   return page.getByLabel('주문 결제')
 }
 
-async function mockOrder(page: Page, status: () => 'CREATED' | 'ACCEPTED') {
+async function mockOrder(
+  page: Page,
+  status: () => 'CREATED' | 'ACCEPTED',
+  paymentByOrder: 'PENDING' | 'PAID' | 'FAILED' | 'REVIEW_REQUIRED' | 'CANCELLED' | null = null,
+) {
   await page.route(`**/api/v1/orders/${orderId}`, async (route) => {
     await fulfillJson(route, {
       orderId,
@@ -232,6 +295,13 @@ async function mockOrder(page: Page, status: () => 'CREATED' | 'ACCEPTED') {
       businessDate: '2026-08-17',
       orderAccessToken: null,
     })
+  })
+  await page.route(`**/api/v1/payments/by-order/${orderId}`, async (route) => {
+    if (paymentByOrder) {
+      await fulfillJson(route, payment(paymentByOrder))
+    } else {
+      await problem(route, 404, 'PAYMENT_NOT_FOUND', 'payment does not exist')
+    }
   })
 }
 
@@ -296,6 +366,14 @@ async function fulfillJson(route: Route, body: unknown, status = 200) {
   await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) })
 }
 
-function payment(status: 'PENDING' | 'PAID' | 'REVIEW_REQUIRED' | 'CANCELLED') {
+function payment(status: 'PENDING' | 'PAID' | 'FAILED' | 'REVIEW_REQUIRED' | 'CANCELLED') {
   return { id: paymentId, orderId, providerOrderId, amount, currency: 'KRW', status }
+}
+
+async function problem(route: Route, status: number, code: string, detail: string) {
+  await route.fulfill({
+    status,
+    contentType: 'application/problem+json',
+    body: JSON.stringify({ type: 'about:blank', title: 'Error', status, code, detail }),
+  })
 }

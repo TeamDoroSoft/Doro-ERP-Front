@@ -1,9 +1,11 @@
 import { computed, onScopeDispose, ref, watch, type MaybeRefOrGetter, toValue } from 'vue'
 import {
+  PaymentApiError,
   cancelPayment as requestCancellation,
   createPayment as requestPayment,
   createPaymentIdempotencyKey,
   getPayment as requestPaymentStatus,
+  getPaymentByOrder as requestPaymentByOrder,
   paymentProblemMessage,
   type PaymentResponse,
 } from '@/api/payment'
@@ -16,6 +18,7 @@ const DEFAULT_MAX_POLL_ATTEMPTS = 5
 export interface OrderPaymentApi {
   createPayment(orderId: string, idempotencyKey: string): Promise<PaymentResponse>
   getPayment(paymentId: string): Promise<PaymentResponse>
+  getPaymentByOrder(orderId: string): Promise<PaymentResponse>
   cancelPayment(
     paymentId: string,
     reasonCode: 'CUSTOMER_REQUEST',
@@ -42,6 +45,8 @@ export function useOrderPayment(
   const api = options.api ?? defaultApi
   const createKey = options.createKey ?? createPaymentIdempotencyKey
   const payment = ref<PaymentResponse | null>(null)
+  const discovering = ref(true)
+  const paymentAbsent = ref(false)
   const loading = ref(false)
   const cancelling = ref(false)
   const errorMessage = ref('')
@@ -52,19 +57,60 @@ export function useOrderPayment(
   let pollTimer: ReturnType<typeof setTimeout> | undefined
   let pollAttempts = 0
 
-  const canCreate = computed(() => toValue(order).status === 'CREATED' && !payment.value)
+  const canCreate = computed(
+    () =>
+      !discovering.value &&
+      paymentAbsent.value &&
+      toValue(order).status === 'CREATED' &&
+      !payment.value,
+  )
+  const canResume = computed(() => payment.value?.status === 'PENDING')
   const canCancel = computed(() => payment.value?.status === 'PAID')
-  const isBusy = computed(() => loading.value || cancelling.value)
+  const isBusy = computed(() => discovering.value || loading.value || cancelling.value)
 
   watch(
-    () => toValue(options.recentPaymentId),
-    (paymentId) => {
-      if (paymentId && paymentId !== payment.value?.id) {
-        void refresh(paymentId)
-      }
-    },
+    () => [toValue(order).orderId, toValue(options.recentPaymentId)] as const,
+    ([, paymentId]) => void discover(paymentId),
     { immediate: true },
   )
+
+  async function discover(recentPaymentId?: string | null): Promise<PaymentResponse | null> {
+    discovering.value = true
+    paymentAbsent.value = false
+    errorMessage.value = ''
+    try {
+      let latest: PaymentResponse
+      let expectedPaymentId = recentPaymentId ?? ''
+      if (recentPaymentId) {
+        try {
+          latest = await api.getPayment(recentPaymentId)
+        } catch (error) {
+          if (!isNotFound(error)) throw error
+          latest = await api.getPaymentByOrder(toValue(order).orderId)
+          expectedPaymentId = latest.id
+        }
+      } else {
+        latest = await api.getPaymentByOrder(toValue(order).orderId)
+        expectedPaymentId = latest.id
+      }
+      if (!isMatchingPayment(latest, toValue(order), expectedPaymentId)) {
+        throw new Error('PAYMENT_CONTRACT_ERROR')
+      }
+      payment.value = latest
+      if (shouldPoll(latest.status) && !polling.value) startPolling()
+      return latest
+    } catch (error) {
+      if (isNotFound(error)) {
+        payment.value = null
+        paymentAbsent.value = true
+        return null
+      }
+      errorMessage.value = userMessage(error)
+      return null
+    } finally {
+      discovering.value = false
+    }
+  }
 
   async function create(): Promise<PaymentResponse | null> {
     if (!canCreate.value || isBusy.value) return payment.value
@@ -78,12 +124,35 @@ export function useOrderPayment(
         throw new Error('PAYMENT_CONTRACT_ERROR')
       }
       payment.value = created
+      paymentAbsent.value = false
       return created
     } catch (error) {
+      if (isStateConflict(error)) {
+        return await recoverAfterCreateConflict(error)
+      }
       errorMessage.value = userMessage(error)
       return null
     } finally {
       loading.value = false
+    }
+  }
+
+  async function recoverAfterCreateConflict(conflict: unknown): Promise<PaymentResponse | null> {
+    try {
+      const existing = await api.getPaymentByOrder(toValue(order).orderId)
+      if (!isMatchingPayment(existing, toValue(order), existing.id)) {
+        throw new Error('PAYMENT_CONTRACT_ERROR')
+      }
+      payment.value = existing
+      paymentAbsent.value = false
+      if (existing.status === 'PENDING') {
+        return existing
+      }
+      errorMessage.value = userMessage(conflict)
+      return null
+    } catch (error) {
+      errorMessage.value = userMessage(error)
+      return null
     }
   }
 
@@ -180,6 +249,7 @@ export function useOrderPayment(
 
   return {
     payment,
+    discovering,
     loading,
     cancelling,
     errorMessage,
@@ -188,6 +258,7 @@ export function useOrderPayment(
     createIdempotencyKey,
     cancelIdempotencyKey,
     canCreate,
+    canResume,
     canCancel,
     isBusy,
     create,
@@ -201,6 +272,7 @@ export function useOrderPayment(
 const defaultApi: OrderPaymentApi = {
   createPayment: requestPayment,
   getPayment: requestPaymentStatus,
+  getPaymentByOrder: requestPaymentByOrder,
   cancelPayment: requestCancellation,
 }
 
@@ -222,8 +294,19 @@ function isMatchingPayment(
     payment.id === expectedPaymentId &&
     payment.orderId === order.orderId &&
     isPositiveInt64(payment.amount) &&
+    payment.amount === order.totalAmount &&
     payment.currency === order.currency &&
     ['PENDING', 'PAID', 'FAILED', 'REVIEW_REQUIRED', 'CANCELLED'].includes(payment.status)
+  )
+}
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof PaymentApiError && error.status === 404
+}
+
+function isStateConflict(error: unknown): boolean {
+  return (
+    error instanceof PaymentApiError && error.status === 409 && error.code === 'STATE_CONFLICT'
   )
 }
 

@@ -50,6 +50,15 @@ export function getPayment(
   return exactPaymentRequest<PaymentView>(`/payments/${encodeURIComponent(paymentId)}`, {}, context)
 }
 
+/** Employee-only lookup used to recover an order's canonical payment across tabs and reloads. */
+export function getPaymentByOrder(orderId: string): Promise<PaymentView> {
+  return exactPaymentRequest<PaymentView>(
+    `/payments/by-order/${encodeURIComponent(orderId)}`,
+    {},
+    'employee',
+  )
+}
+
 export async function confirmPayment(
   paymentId: string,
   paymentKey: string,
