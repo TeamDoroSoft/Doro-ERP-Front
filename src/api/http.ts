@@ -1,5 +1,5 @@
 import { parseJsonPreservingInt64, type Int64JsonOptions } from './int64'
-import { resolveApiBaseUrl } from './baseUrl'
+import { EDGE_API_BASE_URL } from './baseUrl'
 
 export interface ProblemFieldError {
   field: string
@@ -97,7 +97,7 @@ export function safeApiErrorMessage(
   return fallback
 }
 
-const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+const apiBaseUrl = EDGE_API_BASE_URL
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS'])
 const employeeSessionEndCodes = new Set([
   'UNAUTHENTICATED',

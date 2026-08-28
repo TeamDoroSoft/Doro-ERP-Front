@@ -1,5 +1,5 @@
 import { ApiError, apiRequest, apiRequestExact, safeApiErrorMessage } from './http'
-import { resolveApiBaseUrl } from './baseUrl'
+import { EDGE_API_BASE_URL } from './baseUrl'
 
 export type ProviderAdminTenantStatus = 'ACTIVE' | 'INACTIVE'
 
@@ -83,8 +83,7 @@ const withoutEmployeeSessionBoundary = { handleUnauthorized: false } as const
 const providerBasePath = '/provider'
 
 export function providerAdminLoginUrl(): string {
-  const baseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
-  return `${baseUrl}${providerBasePath}/auth/login`
+  return `${EDGE_API_BASE_URL}${providerBasePath}/auth/login`
 }
 
 export function getProviderAdminSession() {
