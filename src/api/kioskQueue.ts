@@ -3,6 +3,8 @@ import type { EntryQueueView } from './queue'
 
 export interface RegisterKioskEntryQueueRequest {
   partySize: number
+  customerName: string
+  phoneLastFour: string
 }
 
 export const registerKioskEntryQueue = (

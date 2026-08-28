@@ -338,7 +338,7 @@ const routes: RouteRecordRaw[] = [
         meta: {
           kioskModes: ['ENTRY_QUEUE'],
           title: '입장 대기 등록',
-          description: '매장 입장 대기 인원수를 등록하고 대기번호를 확인합니다.',
+          description: '예약자 이름과 전화번호 뒷자리, 인원수를 등록하고 대기번호를 확인합니다.',
         },
       },
       {

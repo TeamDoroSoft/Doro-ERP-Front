@@ -9,6 +9,9 @@ export interface EntryQueueView {
   businessDate: string
   queueNumber: number
   partySize: number
+  /** Server-masked kiosk contact hints; `null` for legacy and employee registrations. */
+  customerNameMasked: string | null
+  phoneLastFourMasked: string | null
   status: EntryStatus
   /** Server-owned registration time; never reconstructed from the browser clock. */
   registeredAt: string
