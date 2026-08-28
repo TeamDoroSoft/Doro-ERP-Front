@@ -36,6 +36,9 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500, terminalDwellMs
   let expiryRefreshRequested = false
   let started = false
   let currentPublicId = ''
+  let terminalPublicId = ''
+  let terminalStatus: PaymentKioskHandoff['status'] | undefined
+  let terminalDwellUntil = 0
 
   const canDisplayQr = computed(
     () =>
@@ -54,6 +57,7 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500, terminalDwellMs
       if (!next) {
         current.value = null
         currentPublicId = ''
+        resetTerminalDwell()
         qrValue.value = ''
         remainingSeconds.value = 0
         return
@@ -65,6 +69,16 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500, terminalDwellMs
         qrValue.value = next.oneTimeToken ? publicCheckoutUrl(next) : ''
       } else if (!qrValue.value && next.oneTimeToken) {
         qrValue.value = publicCheckoutUrl(next)
+      }
+
+      if (terminalStatuses.has(next.status)) {
+        if (next.publicId !== terminalPublicId || next.status !== terminalStatus) {
+          terminalPublicId = next.publicId
+          terminalStatus = next.status
+          terminalDwellUntil = Date.now() + terminalDwellMs
+        }
+      } else {
+        resetTerminalDwell()
       }
       current.value = presentation(next)
       if (!qrStatuses.has(next.status)) qrValue.value = ''
@@ -97,13 +111,18 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500, terminalDwellMs
   function schedulePoll() {
     clearTimeout(pollTimer)
     if (!started || document.visibilityState !== 'visible') return
-    const delay = current.value && terminalStatuses.has(current.value.status)
-      ? terminalDwellMs
-      : pollIntervalMs
+    const terminalDwellRemaining = terminalDwellUntil - Date.now()
+    const delay = terminalDwellRemaining > 0 ? terminalDwellRemaining : pollIntervalMs
     pollTimer = setTimeout(async () => {
       await refresh()
       schedulePoll()
     }, delay)
+  }
+
+  function resetTerminalDwell() {
+    terminalPublicId = ''
+    terminalStatus = undefined
+    terminalDwellUntil = 0
   }
 
   function handleVisibility() {
@@ -131,6 +150,7 @@ export function usePaymentHandoffDisplay(pollIntervalMs = 2_500, terminalDwellMs
     started = false
     clearTimeout(pollTimer)
     clearInterval(countdownTimer)
+    resetTerminalDwell()
     document.removeEventListener('visibilitychange', handleVisibility)
     window.removeEventListener('online', handleOnline)
   }
