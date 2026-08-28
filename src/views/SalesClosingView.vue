@@ -26,11 +26,11 @@ const session = useOperatorSessionStore(),
 const { businessDate, loadingBusinessDate, businessDateError, resolveBusinessDate } =
   useCurrentBusinessDate()
 let loadSequence = 0
-onMounted(resolveBusinessDate)
 watch(businessDate, () => {
   if (businessDate.value) businessDateError.value = ''
   void load()
-})
+}, { immediate: true })
+onMounted(resolveBusinessDate)
 async function load() {
   if (!businessDate.value) {
     loadSequence += 1
@@ -110,21 +110,21 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
     </form>
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
     <LoadingState v-if="loading || loadingBusinessDate" /><ApiErrorNotice
-      v-else-if="businessDateError"
+      v-if="businessDateError"
       :message="businessDateError"
       retryable
       @retry="resolveBusinessDate"
     /><ApiErrorNotice
-      v-else-if="error"
+      v-if="!loading && !loadingBusinessDate && error"
       :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
       retryable
       @retry="load"
     /><EmptyState
-      v-else-if="!daily"
+      v-if="!loading && !loadingBusinessDate && !daily && !error"
       title="조회할 영업일을 선택해 주세요"
       description="영업일을 선택하면 매출과 마감 상태를 확인할 수 있습니다."
-    /><template v-else
+    /><template v-if="!loading && !loadingBusinessDate && daily && !error"
       ><section class="panel heading">
         <div><p class="section-kicker">일일 정산</p><h2>{{ daily.businessDate }} 정산</h2><p>결제 통화 {{ daily.currency }}</p></div>
         <StatusBadge :label="daily.closed ? '마감 완료' : '미마감'" :tone="daily.closed ? 'success' : 'warning'" />
