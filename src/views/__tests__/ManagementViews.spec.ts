@@ -46,6 +46,30 @@ describe('Phase 06 management views', () => {
     expect((wrapper.get('input').element as HTMLInputElement).value).toBe('도로')
     expect(fetch).toHaveBeenCalledTimes(2)
   })
+  it('keeps employee credential hints in both fields and exposes validation state', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string) => Promise.resolve(new Response(JSON.stringify(String(input).endsWith('/store') ? storeResponse : []), { status: 200, headers: { 'Content-Type': 'application/json' } }))))
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[1]!.trigger('click')
+
+    const loginId = wrapper.get('input[name="employeeLoginId"]')
+    const password = wrapper.get('input[name="employeeTemporaryPassword"]')
+    expect(loginId.element.closest('label')?.classList).toContain('credential-field')
+    expect(password.element.closest('label')?.classList).toContain('credential-field')
+    expect(loginId.attributes('autocomplete')).toBe('username')
+    expect(password.attributes('autocomplete')).toBe('new-password')
+    expect(loginId.attributes('aria-describedby')).toBe('employee-login-hint')
+    expect(password.attributes('aria-describedby')).toBe('employee-password-hint')
+    expect(wrapper.get('#employee-login-hint').text()).toContain('4~50자')
+    expect(wrapper.get('#employee-password-hint').text()).toBe(
+      '15~128자, 로그인 ID 및 doro, storeaccess, doroerp는 포함할 수 없습니다.',
+    )
+    expect(wrapper.get('#employee-password-hint').attributes('aria-live')).toBe('polite')
+
+    await password.setValue('short')
+    expect(password.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('#employee-password-hint').classes()).toContain('invalid')
+  })
   it('queues a role change until reauthentication and rolls the select back on cancel', async () => {
     const calls: string[] = []
     vi.stubGlobal(

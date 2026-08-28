@@ -378,25 +378,35 @@ function asError(e: unknown) {
             관리 작업 직전에 현재 비밀번호로 재인증합니다. 비밀번호는 저장하지 않습니다.
           </p>
           <form class="form grid" @submit.prevent="addEmployee">
-            <label
+            <label class="credential-field"
               >로그인 아이디<input
                 v-model.trim="employeeForm.loginId"
+                name="employeeLoginId"
+                autocomplete="username"
                 required
                 minlength="4"
                 maxlength="50"
                 pattern="[a-z0-9](?:[a-z0-9._-]{2,48}[a-z0-9])"
                 aria-describedby="employee-login-hint"
-              /><small id="employee-login-hint" :class="{ invalid: employeeLoginIdError }">{{
+                :aria-invalid="!!employeeLoginIdError"
+              /><small id="employee-login-hint" aria-live="polite" :class="{ invalid: employeeLoginIdError }">{{
                 employeeLoginIdError ||
                 '4~50자 영문 소문자·숫자·점·밑줄·하이픈, 시작과 끝은 영문 또는 숫자'
               }}</small></label
-            ><label
+            ><label class="credential-field"
               >임시 비밀번호<input
                 v-model="employeeForm.temporaryPassword"
+                name="employeeTemporaryPassword"
                 type="password"
+                autocomplete="new-password"
                 minlength="15"
                 maxlength="128"
-                required /></label
+                required
+                aria-describedby="employee-password-hint"
+                :aria-invalid="!!employeePasswordError"
+              /><small id="employee-password-hint" aria-live="polite" :class="{ invalid: employeePasswordError }">{{
+                employeePasswordError || '15~128자, 로그인 ID 및 doro, storeaccess, doroerp는 포함할 수 없습니다.'
+              }}</small></label
             ><label
               >역할<select v-model="employeeForm.role">
                 <option v-if="session.role === 'OWNER'" value="OWNER">점주</option>
@@ -404,7 +414,6 @@ function asError(e: unknown) {
                 <option value="STAFF">직원</option>
               </select></label
             >
-            <p v-if="employeePasswordError" class="invalid">{{ employeePasswordError }}</p>
             <button :disabled="busy || !!employeeLoginIdError || !!employeePasswordError">
               직원 등록
             </button>
@@ -748,6 +757,11 @@ function asError(e: unknown) {
   font-size: 12px;
   font-weight: 700;
 }
+.credential-field {
+  align-self: stretch;
+  grid-template-rows: auto 40px minmax(3em, auto);
+  align-content: start;
+}
 .form input,
 .form select,
 td select {
@@ -893,6 +907,9 @@ button:disabled {
 td select {
   min-height: 34px;
   border-radius: 3px;
+}
+.credential-field {
+  grid-template-rows: auto 34px minmax(3em, auto);
 }
 .form button,
 .actions button,

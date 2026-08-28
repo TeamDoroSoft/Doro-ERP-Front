@@ -73,29 +73,69 @@ describe('AuditLogView', () => {
   it('applies only supported filters and resets them', async () => {
     const wrapper = mountView('OWNER')
     await flushPromises()
-    await wrapper.get('input[name="action"]').setValue('ORDER_ACCEPTED')
-    await wrapper.get('input[name="targetType"]').setValue('ORDER')
-    await wrapper.get('input[name="targetId"]').setValue('11111111-1111-4111-8111-111111111111')
+    await wrapper.get('select[name="action"]').setValue('ORDER_ACCEPTED')
+    await wrapper.get('select[name="targetType"]').setValue('ORDER')
+    await wrapper.get('select[name="targetId"]').setValue(item.target.id)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
     expect(auditApi.getAudits).toHaveBeenLastCalledWith(expect.objectContaining({
-      action: 'ORDER_ACCEPTED', targetType: 'ORDER', targetId: '11111111-1111-4111-8111-111111111111', size: 20,
+      action: 'ORDER_ACCEPTED', targetType: 'ORDER', targetId: item.target.id, size: 20,
     }))
     const reset = wrapper.findAll('button').find((button) => button.text() === '초기화')!
     await reset.trigger('click')
     await flushPromises()
-    expect((wrapper.get('input[name="action"]').element as HTMLInputElement).value).toBe('')
+    expect((wrapper.get('select[name="action"]').element as HTMLSelectElement).value).toBe('')
   })
 
-  it('uses the opaque next cursor and returns to the previous page', async () => {
+  it('offers known and observed filter values and clears an incompatible target number', async () => {
+    const futureTargetId = '11111111-1111-4111-8111-111111111111'
+    auditApi.getAudits
+      .mockResolvedValueOnce({
+        items: [
+          { ...item, action: 'FUTURE_ACTION', target: { type: 'FUTURE_TARGET', id: futureTargetId } },
+          { ...item, id: 'another-record', target: { type: 'FUTURE_TARGET', id: '00000000-0000-0000-0000-000000000000' } },
+        ],
+        nextCursor: 'next-page',
+      })
+      .mockResolvedValue({ items: [], nextCursor: null })
+    const wrapper = mountView('OWNER')
+    await flushPromises()
+
+    expect(wrapper.get('select[name="action"]').text()).toContain('FUTURE_ACTION')
+    expect(wrapper.get('select[name="targetType"]').text()).toContain('FUTURE_TARGET')
+    await wrapper.get('select[name="targetType"]').setValue('FUTURE_TARGET')
+    expect(wrapper.get('select[name="targetId"]').text()).toContain('00000000-0000-0000-0000-000000000000')
+    await wrapper.get('select[name="targetId"]').setValue(futureTargetId)
+    await wrapper.get('select[name="targetType"]').setValue('ORDER')
+    expect((wrapper.get('select[name="targetId"]').element as HTMLSelectElement).value).toBe('')
+
+    await findButton(wrapper, '다음').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('select[name="action"]').text()).toContain('FUTURE_ACTION')
+    expect(wrapper.get('select[name="targetType"]').text()).toContain('FUTURE_TARGET')
+  })
+
+  it('requires a target number when only a target type is selected without querying', async () => {
+    const wrapper = mountView('OWNER')
+    await flushPromises()
+    const callsBeforeSubmit = auditApi.getAudits.mock.calls.length
+    await wrapper.get('select[name="targetType"]').setValue('ORDER')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('대상 유형과 대상 번호를 함께')
+    expect(auditApi.getAudits).toHaveBeenCalledTimes(callsBeforeSubmit)
+  })
+
+  it('uses the opaque next cursor and resets it when filtering page two', async () => {
     auditApi.getAudits.mockResolvedValueOnce({ items: [item], nextCursor: 'opaque-next' }).mockResolvedValue({ items: [item], nextCursor: null })
     const wrapper = mountView('OWNER')
     await flushPromises()
     await findButton(wrapper, '다음').trigger('click')
     await flushPromises()
     expect(auditApi.getAudits).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: 'opaque-next' }))
-    await findButton(wrapper, '이전').trigger('click')
+    await wrapper.get('select[name="action"]').setValue('ORDER_ACCEPTED')
+    await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(auditApi.getAudits).toHaveBeenLastCalledWith(expect.objectContaining({ cursor: undefined }))
   })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { getAudit, getAudits, type AuditRecord } from '@/api/audit'
 import { ApiError } from '@/api/http'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
@@ -10,8 +10,10 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
 import { displayLabel } from '@/ui/displayLabels'
+import { knownAuditActions, knownAuditTargetTypes } from '@/ui/auditFilterCatalog'
 
 const pageSize = 20
+const uuidPattern = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i
 const session = useOperatorSessionStore()
 const filters = reactive(defaultFilters())
 const items = ref<AuditRecord[]>([])
@@ -27,6 +29,20 @@ const detailError = ref<ApiError | null>(null)
 const drawer = ref<HTMLElement | null>(null)
 const drawerReturnFocus = ref<HTMLElement | null>(null)
 const canQuery = computed(() => session.role === 'OWNER' || session.role === 'MANAGER')
+const observedTargetIds = reactive<Record<string, string[]>>({})
+const observedActions = ref<string[]>([])
+const observedTargetTypes = ref<string[]>([])
+const actionOptions = computed(() => mergeOptions(knownAuditActions, observedActions.value))
+const targetTypeOptions = computed(() => mergeOptions(knownAuditTargetTypes, observedTargetTypes.value))
+const targetIdOptions = computed(() => observedTargetIds[filters.targetType] ?? [])
+
+watch(
+  () => filters.targetType,
+  () => {
+    filters.targetId = ''
+    validationError.value = ''
+  },
+)
 
 onMounted(() => {
   if (canQuery.value) void loadPage()
@@ -64,6 +80,7 @@ async function loadPage() {
       cursor: cursorHistory.value[pageIndex.value],
     })
     items.value = page.items
+    rememberTargets(page.items)
     nextCursor.value = page.nextCursor
   } catch (reason) {
     error.value = asApiError(reason)
@@ -117,6 +134,7 @@ function validateFilters() {
   if (from > to) return '조회 종료 시각은 시작 시각보다 빠를 수 없습니다.'
   if (to.getTime() - from.getTime() > 31 * 24 * 60 * 60 * 1000) return '조회 기간은 최대 31일입니다.'
   if (Boolean(filters.targetType.trim()) !== Boolean(filters.targetId.trim())) return '대상 유형과 대상 번호를 함께 입력해 주세요.'
+  if (filters.targetId && !targetIdOptions.value.includes(filters.targetId)) return '선택한 대상 유형에 맞는 대상 번호를 선택해 주세요.'
   return ''
 }
 
@@ -133,6 +151,20 @@ function localDateTime(value: Date) {
 
 function normalized(value: string) {
   return value.trim() || undefined
+}
+
+function mergeOptions(known: readonly string[], observed: string[]) {
+  return [...new Set([...known, ...observed])]
+}
+
+function rememberTargets(records: AuditRecord[]) {
+  for (const item of records) {
+    if (!observedActions.value.includes(item.action)) observedActions.value.push(item.action)
+    if (!observedTargetTypes.value.includes(item.target.type)) observedTargetTypes.value.push(item.target.type)
+    if (!uuidPattern.test(item.target.id)) continue
+    const ids = observedTargetIds[item.target.type] ?? []
+    if (!ids.includes(item.target.id)) observedTargetIds[item.target.type] = [...ids, item.target.id]
+  }
 }
 
 function asApiError(reason: unknown) {
@@ -180,11 +212,12 @@ function knownLabel(value: string, fallback: string) {
         <div class="filter-grid">
           <label>시작 시각<input v-model="filters.from" name="from" type="datetime-local" required /></label>
           <label>종료 시각<input v-model="filters.to" name="to" type="datetime-local" required /></label>
-          <label>작업 유형<input v-model.trim="filters.action" name="action" placeholder="작업 유형 입력" /></label>
-          <label>대상 유형<input v-model.trim="filters.targetType" name="targetType" placeholder="대상 유형 입력" /></label>
-          <label class="target-id">대상 번호<input v-model.trim="filters.targetId" name="targetId" placeholder="대상 번호 입력" /></label>
+          <label>작업 유형<select v-model="filters.action" name="action"><option value="">전체 작업</option><option v-for="action in actionOptions" :key="action" :value="action">{{ knownLabel(action, action) }}</option></select></label>
+          <label>대상 유형<select v-model="filters.targetType" name="targetType"><option value="">전체 대상</option><option v-for="targetType in targetTypeOptions" :key="targetType" :value="targetType">{{ knownLabel(targetType, targetType) }}</option></select></label>
+          <label class="target-id">대상 번호<select v-model="filters.targetId" name="targetId" :disabled="!filters.targetType"><option value="">대상 번호 선택</option><option v-for="targetId in targetIdOptions" :key="targetId" :value="targetId">{{ targetId }}</option></select></label>
           <button class="apply-button" type="submit" :disabled="loading">{{ loading ? '조회 중…' : '필터 적용' }}</button>
         </div>
+        <p class="filter-help">대상 번호는 이 화면에서 조회했던 기록만 선택할 수 있습니다.</p>
         <p v-if="validationError" class="validation-error" role="alert">{{ validationError }}</p>
       </form>
 
@@ -224,5 +257,8 @@ function knownLabel(value: string, fallback: string) {
 @media (max-width: 1200px) { .filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }.apply-button { width: 100%; } }
 @media (max-width: 760px) { .filter-panel, .list-panel { padding: 17px; }.filter-grid { grid-template-columns: 1fr 1fr; }.target-id { grid-column: 1 / -1; }.filter-heading, .list-heading { align-items: stretch; flex-direction: column; }.reset-button { align-self: flex-start; } }
 @media (max-width: 520px) { .filter-grid { grid-template-columns: 1fr; }.target-id { grid-column: auto; }.detail-drawer { width: 100%; } }
-.audit-page{gap:14px}.filter-panel,.list-panel,.permission-panel{border-radius:3px;padding:16px}.filter-heading,.list-heading{margin-bottom:12px}.filter-grid{gap:8px}.filter-grid input{min-height:34px;border-radius:3px}.apply-button,.reset-button,.pagination button,tbody button{min-height:32px;border-radius:3px;font-size:12px}.apply-button{background:#009b6b;border-color:#009b6b}.table-scroll{margin:0 -16px -16px}.table-scroll th{background:#f7f7f8;padding:9px 12px}.table-scroll td{padding:10px 12px}.detail-drawer{box-shadow:-10px 0 24px rgb(15 23 42 / 10%)}.detail-drawer>header{padding:16px}.detail-hero{border-radius:3px;background:#f7f7f8}.detail-content{padding:16px}
+.audit-page{gap:14px}.filter-panel,.list-panel,.permission-panel{border-radius:3px;padding:16px}.filter-heading,.list-heading{margin-bottom:12px}.filter-grid{gap:8px}.filter-grid input,.filter-grid select{min-height:34px;border-radius:3px}.apply-button,.reset-button,.pagination button,tbody button{min-height:32px;border-radius:3px;font-size:12px}.apply-button{background:#009b6b;border-color:#009b6b}.table-scroll{margin:0 -16px -16px}.table-scroll th{background:#f7f7f8;padding:9px 12px}.table-scroll td{padding:10px 12px}.detail-drawer{box-shadow:-10px 0 24px rgb(15 23 42 / 10%)}.detail-drawer>header{padding:16px}.detail-hero{border-radius:3px;background:#f7f7f8}.detail-content{padding:16px}
+.filter-grid select { width: 100%; min-width: 0; min-height: 34px; border: 1px solid #cbd5e1; border-radius: 3px; background: white; padding: 0 10px; color: var(--color-heading); }
+.filter-grid select:focus-visible { border-color: var(--color-primary); outline: 3px solid rgb(79 70 229 / 13%); outline-offset: 1px; }
+.filter-help { margin: 10px 0 0; color: var(--color-muted); font-size: 11px; }
 </style>
