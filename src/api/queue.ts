@@ -27,6 +27,7 @@ export interface RegisterEntryRequest {
 export interface FulfillmentQueueView {
   fulfillmentId: string
   orderId: string
+  businessDate: string | null
   displayNumber: number
   status: FulfillmentStatus
   /** Required projection fields remain nullable for legacy orders. */
@@ -68,8 +69,12 @@ export function transitionEntry(entryId: string, action: 'enter' | 'cancel' | 'n
   )
 }
 
-export function getFulfillments() {
-  return apiRequestExact<FulfillmentQueueView[]>('/queues/fulfillment', {}, QUEUE_INT64)
+export function getFulfillments(businessDate: string) {
+  return apiRequestExact<FulfillmentQueueView[]>(
+    `/queues/fulfillment?${new URLSearchParams({ businessDate }).toString()}`,
+    {},
+    QUEUE_INT64,
+  )
 }
 
 export function markFulfillmentReady(fulfillmentId: string) {

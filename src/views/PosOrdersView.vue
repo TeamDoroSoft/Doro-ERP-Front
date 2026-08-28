@@ -7,14 +7,17 @@ import OrderListPanel from '@/components/orders/OrderListPanel.vue'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
+import { useCurrentBusinessDate } from '@/composables/useCurrentBusinessDate'
 
 const router = useRouter()
 const orders = ref<OrderResponse[]>([])
 const loading = ref(false)
 const error = ref<ApiError | null>(null)
-const businessDate = ref('')
+const { businessDate, loadingBusinessDate, businessDateError, resolveBusinessDate } =
+  useCurrentBusinessDate()
 const status = ref<OrderStatus | ''>('')
 const source = ref('')
+let loadSequence = 0
 const kioskSources = computed(() =>
   Array.from(
     new Set(
@@ -36,22 +39,42 @@ const visibleOrders = computed(() => {
   )
 })
 
-onMounted(loadOrders)
-watch([businessDate, status], loadOrders)
+onMounted(resolveBusinessDate)
+watch([businessDate, status], () => {
+  if (businessDate.value) businessDateError.value = ''
+  void loadOrders()
+})
 
 async function loadOrders() {
+  if (!businessDate.value) {
+    loadSequence += 1
+    orders.value = []
+    error.value = null
+    loading.value = false
+    return
+  }
+  const sequence = ++loadSequence
+  const requestedDate = businessDate.value
+  const requestedStatus = status.value
   loading.value = true
   error.value = null
   try {
-    orders.value = await getOrders({
-      businessDate: businessDate.value || undefined,
-      status: status.value || undefined,
+    const response = await getOrders({
+      businessDate: requestedDate,
+      status: requestedStatus || undefined,
     })
+    if (sequence === loadSequence && requestedDate === businessDate.value && requestedStatus === status.value)
+      orders.value = response
   } catch (caught) {
-    error.value = queryError(caught)
+    if (sequence === loadSequence) error.value = queryError(caught)
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
+}
+
+async function retry() {
+  if (businessDate.value) await loadOrders()
+  else await resolveBusinessDate()
 }
 
 function queryError(caught: unknown): ApiError {
@@ -101,7 +124,7 @@ function openOrder(orderId: string) {
   <main class="orders-page">
     <header class="orders-topbar">
       <div class="title-block"><p>주문 관리</p><h1>주문</h1><span>매장 주문을 확인하고 처리합니다.</span></div>
-      <div class="top-actions"><button type="button" class="quiet-action" :disabled="loading" @click="loadOrders">새로고침</button><button class="primary order-create-action" type="button" @click="router.push({ name: 'pos-orders-new' })">주문 등록</button></div>
+      <div class="top-actions"><button type="button" class="quiet-action" :disabled="loading || loadingBusinessDate" @click="retry">새로고침</button><button class="primary order-create-action" type="button" @click="router.push({ name: 'pos-orders-new' })">주문 등록</button></div>
     </header>
     <section class="order-navigation" aria-label="주문 보기 설정">
       <div class="status-tabs" role="tablist" aria-label="주문 상태 빠른 필터">
@@ -110,11 +133,12 @@ function openOrder(orderId: string) {
         <button :class="{ active: status === 'ACCEPTED' }" type="button" @click="status = 'ACCEPTED'">주문 확정</button>
         <button :class="{ active: status === 'COMPLETED' }" type="button" @click="status = 'COMPLETED'">주문 완료</button>
       </div>
-      <div class="filter-actions"><label><span>영업일</span><input v-model="businessDate" type="date" name="businessDate" /></label><label><span>상태</span><select v-model="status" name="status"><option value="">전체</option><option value="CREATED">결제 대기</option><option value="ACCEPTED">주문 확정</option><option value="COMPLETED">주문 완료</option><option value="CANCELLED">취소</option></select></label><label><span>주문 생성</span><select v-model="source" name="source"><option value="">전체</option><option value="EMPLOYEE_POS">직원 POS</option><option value="KIOSK">모든 Kiosk</option><option v-for="name in kioskSources" :key="name" :value="`KIOSK:${name}`">{{ name }}</option><option value="UNKNOWN">출처 정보 없음</option></select></label></div>
+      <div class="filter-actions"><label><span>영업일</span><input v-model="businessDate" type="date" name="businessDate" :disabled="loadingBusinessDate" /></label><label><span>상태</span><select v-model="status" name="status"><option value="">전체</option><option value="CREATED">결제 대기</option><option value="ACCEPTED">주문 확정</option><option value="COMPLETED">주문 완료</option><option value="CANCELLED">취소</option></select></label><label><span>주문 생성</span><select v-model="source" name="source"><option value="">전체</option><option value="EMPLOYEE_POS">직원 POS</option><option value="KIOSK">모든 Kiosk</option><option v-for="name in kioskSources" :key="name" :value="`KIOSK:${name}`">{{ name }}</option><option value="UNKNOWN">출처 정보 없음</option></select></label></div>
     </section>
     <section class="orders-list-area" aria-label="주문 목록">
       <div class="list-caption"><strong>주문 목록</strong><span v-if="!loading">{{ orders.length }}건</span><span v-else>불러오는 중</span></div>
-      <LoadingState v-if="loading" />
+      <LoadingState v-if="loading || loadingBusinessDate" />
+      <ApiErrorNotice v-else-if="businessDateError" :message="businessDateError" retryable @retry="resolveBusinessDate" />
       <ApiErrorNotice v-else-if="error" :message="safeApiErrorMessage(error)" :request-id="error.requestId" retryable @retry="loadOrders" />
       <EmptyState v-else-if="visibleOrders.length === 0" title="주문이 없습니다" description="선택한 조건에 해당하는 주문이 없습니다." />
       <OrderListPanel v-else :orders="visibleOrders" @select="openOrder" />

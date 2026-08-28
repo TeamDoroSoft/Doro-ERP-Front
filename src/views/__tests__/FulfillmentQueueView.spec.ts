@@ -8,6 +8,13 @@ const fulfillmentQueue = vi.hoisted(() => ({
 }))
 
 vi.mock('@/composables/useFulfillmentQueue', () => fulfillmentQueue)
+vi.mock('@/composables/useCurrentBusinessDate', () => ({
+  useCurrentBusinessDate: () => {
+    const businessDate = ref('')
+    return { businessDate, loadingBusinessDate: ref(false), businessDateError: ref(''),
+      resolveBusinessDate: vi.fn<() => void>(() => { businessDate.value = '2026-08-27' }) }
+  },
+}))
 
 vi.mock('vue-router', () => ({
   RouterLink: { template: '<a><slot /></a>' },
@@ -61,6 +68,7 @@ describe('FulfillmentQueueView', () => {
 function queueState(errorMessage = '') {
   return {
     fulfillments: ref([]),
+    businessDate: ref('2026-08-27'),
     loading: ref(false),
     actingId: ref(''),
     errorMessage: ref(errorMessage),
@@ -74,6 +82,7 @@ function fulfillment(fulfillmentId: string, itemSummary: string | null) {
   return {
     fulfillmentId,
     orderId: `order-${fulfillmentId}`,
+    businessDate: '2026-08-27',
     displayNumber: 17,
     status: 'PREPARING' as const,
     sourceType: 'EMPLOYEE_POS' as const,

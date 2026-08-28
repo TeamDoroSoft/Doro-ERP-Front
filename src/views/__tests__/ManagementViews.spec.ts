@@ -11,11 +11,33 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 describe('Phase 06 management views', () => {
-  it('requires an explicit business date and never guesses one', () => {
+  it('uses the Store Access business date as the initial sales filter', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        const path = String(input)
+        if (path.endsWith('/store'))
+          return Promise.resolve(
+            new Response(JSON.stringify({ businessDate: '2026-08-28' }), { status: 200 }),
+          )
+        if (path.includes('/sales/closings/')) return Promise.resolve(new Response('', { status: 404 }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              businessDate: '2026-08-28', approvedAmount: 0, cancelledAmount: 0,
+              netSales: 0, completedOrderCount: 0, cancelledOrderCount: 0,
+              currency: 'KRW', closed: false,
+            }),
+            { status: 200 },
+          ),
+        )
+      }),
+    )
     const wrapper = mount(SalesClosingView)
+    await flushPromises()
     expect(wrapper.get('h1').text()).toBe('일별 매출과 마감')
-    expect((wrapper.get('input[type=date]').element as HTMLInputElement).value).toBe('')
-    expect(wrapper.text()).toContain('조회할 영업일을 선택해 주세요')
+    expect((wrapper.get('input[type=date]').element as HTMLInputElement).value).toBe('2026-08-28')
+    expect(fetch).toHaveBeenCalledWith('/api/v1/sales/daily?businessDate=2026-08-28', expect.anything())
   })
   it('loads store and employees from their real endpoints', async () => {
     vi.stubGlobal(

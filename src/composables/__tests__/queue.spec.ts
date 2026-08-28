@@ -10,6 +10,7 @@ const waiting: EntryQueueView = { entryId: 'entry-1', businessDate: '2026-08-18'
 const preparing: FulfillmentQueueView = {
   fulfillmentId: 'fulfillment-1',
   orderId: 'order-1',
+  businessDate: '2026-08-18',
   displayNumber: 7,
   status: 'PREPARING',
   version: '0',
@@ -57,6 +58,7 @@ describe('queue composables', () => {
     const ready = vi.fn<FulfillmentQueueApi['ready']>().mockResolvedValue({ ...preparing, status: 'READY' })
     const list = vi.fn<FulfillmentQueueApi['list']>().mockResolvedValue([{ ...preparing, status: 'READY' }])
     const model = inScope(() => useFulfillmentQueue({ list, ready }))
+    model.businessDate.value = preparing.businessDate!
     await model.ready(preparing)
     await model.ready({ ...preparing, status: 'READY' })
     await model.ready({ ...preparing, status: 'CANCELLED' })
@@ -82,8 +84,36 @@ describe('queue composables', () => {
         ready: vi.fn<FulfillmentQueueApi['ready']>(),
       }),
     )
+    fulfillment.businessDate.value = preparing.businessDate!
     await fulfillment.load()
     expect(fulfillment.errorMessage.value).toBe('조리 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')
+  })
+
+  it('discards a delayed entry response after the selected date is cleared', async () => {
+    let finish!: (value: EntryQueueView[]) => void
+    const pending = new Promise<EntryQueueView[]>((resolve) => { finish = resolve })
+    const model = inScope(() => useEntryQueue({
+      list: vi.fn<EntryQueueApi['list']>().mockReturnValue(pending),
+      register: vi.fn<EntryQueueApi['register']>(), transition: vi.fn<EntryQueueApi['transition']>(),
+    }))
+    model.businessDate.value = waiting.businessDate
+    const loading = model.load()
+    model.businessDate.value = ''
+    await model.load()
+    finish([waiting])
+    await loading
+    expect(model.entries.value).toEqual([])
+    expect(model.loading.value).toBe(false)
+  })
+
+  it('refreshes the selected date after READY even for a legacy null-date item', async () => {
+    const list = vi.fn<FulfillmentQueueApi['list']>().mockResolvedValue([])
+    const model = inScope(() => useFulfillmentQueue({
+      list, ready: vi.fn<FulfillmentQueueApi['ready']>().mockResolvedValue({ ...preparing, businessDate: null, status: 'READY' }),
+    }))
+    model.businessDate.value = '2026-08-19'
+    await model.ready({ ...preparing, businessDate: null })
+    expect(list).toHaveBeenCalledWith('2026-08-19')
   })
 
   it('bounds polling and clears its timer with the owning scope', async () => {

@@ -28,7 +28,7 @@ describe('queue API', () => {
       )
       .mockResolvedValueOnce(
         new Response(
-          `[{"fulfillmentId":"${fulfillmentId}","orderId":"66000000-0000-4000-8000-000000000001","displayNumber":7,` +
+            `[{"fulfillmentId":"${fulfillmentId}","orderId":"66000000-0000-4000-8000-000000000001","businessDate":"2026-08-18","displayNumber":7,` +
             '"status":"PREPARING","version":9007199254740993,' +
             '"sourceType":"KIOSK","sourceDeviceNameSnapshot":"입구 주문 Kiosk 01",' +
             '"itemSummary":"아메리카노 × 2"}]',
@@ -37,7 +37,7 @@ describe('queue API', () => {
       )
 
     const [entry] = await getEntries('2026-08-18')
-    const [fulfillment] = await getFulfillments()
+    const [fulfillment] = await getFulfillments('2026-08-18')
 
     expect(entry?.version).toBe('9007199254740993')
     expect(entry?.queueNumber).toBe(1)
@@ -83,10 +83,10 @@ describe('queue API', () => {
 
   it('lists fulfillments and marks only an identified item ready', async () => {
     fetchMock.mockResolvedValueOnce(new Response('[]')).mockResolvedValueOnce(new Response('{}'))
-    await getFulfillments()
+    await getFulfillments('2026-08-18')
     await markFulfillmentReady(fulfillmentId)
     expect(fetchMock.mock.calls.map(([url, options]) => [url, options?.method])).toEqual([
-      ['/api/v1/queues/fulfillment', 'GET'],
+      ['/api/v1/queues/fulfillment?businessDate=2026-08-18', 'GET'],
       [`/api/v1/queues/fulfillment/${fulfillmentId}/ready`, 'POST'],
     ])
   })

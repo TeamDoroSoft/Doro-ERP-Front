@@ -4,11 +4,23 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { ApiError } from '@/api/http'
 import type { OrderListQuery, OrderResponse } from '@/api/order'
 import PosOrdersView from '@/views/PosOrdersView.vue'
+import { ref } from 'vue'
 
 const api = vi.hoisted(() => ({
   getOrders: vi.fn<(query?: OrderListQuery) => Promise<OrderResponse[]>>(),
 }))
 vi.mock('@/api/order', () => api)
+vi.mock('@/composables/useCurrentBusinessDate', () => ({
+  useCurrentBusinessDate: () => {
+    const businessDate = ref('')
+    return {
+      businessDate,
+      loadingBusinessDate: ref(false),
+      businessDateError: ref(''),
+      resolveBusinessDate: vi.fn<() => void>(() => { businessDate.value = '2026-08-17' }),
+    }
+  },
+}))
 
 const order: OrderResponse = {
   orderId: 'order-1',
@@ -34,9 +46,9 @@ describe('PosOrdersView', () => {
     api.getOrders.mockResolvedValue([order])
   })
 
-  it('queries only an explicitly selected business date and status', async () => {
+  it('queries the server business date by default and combines a selected status', async () => {
     const wrapper = await mountView()
-    expect(api.getOrders).toHaveBeenLastCalledWith({ businessDate: undefined, status: undefined })
+    expect(api.getOrders).toHaveBeenLastCalledWith({ businessDate: '2026-08-17', status: undefined })
 
     await wrapper.get('input[name="businessDate"]').setValue('2026-08-17')
     await wrapper.get('select[name="status"]').setValue('CREATED')

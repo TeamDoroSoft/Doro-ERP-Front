@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+const businessDate = '2026-08-18'
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     sessionStorage.setItem(
@@ -12,6 +14,10 @@ test.beforeEach(async ({ page }) => {
       }),
     )
   })
+  await page.route('**/api/v1/store', (route) => route.fulfill({
+    status: 200, contentType: 'application/json',
+    body: JSON.stringify({ id: 'store-1', tenantId: 'tenant-1', name: '도로', timezone: 'Asia/Seoul', currency: 'KRW', status: 'ACTIVE', businessDate }),
+  }))
 })
 
 test('[mock-ui] navigates every Phase 1 POS destination from the sidebar', async ({ page, browserName }) => {
@@ -28,7 +34,16 @@ test('[mock-ui] navigates every Phase 1 POS destination from the sidebar', async
 
   await page.route('**/api/v1/tables', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
   await page.route('**/api/v1/audits?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"items":[],"nextCursor":null}' }))
-  await page.route('**/api/v1/sales/daily?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '{"businessDate":"2026-08-18","grossSales":184500,"netSales":172500,"refundAmount":12000,"orderCount":37,"closed":false}' }))
+  await page.route('**/api/v1/orders?*', (route) => {
+    expect(new URL(route.request().url()).searchParams.get('businessDate')).toBe(businessDate)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' })
+  })
+  await page.route('**/api/v1/queues/entry?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+  await page.route('**/api/v1/queues/fulfillment?*', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }))
+  await page.route('**/api/v1/sales/daily?*', (route) => {
+    expect(new URL(route.request().url()).searchParams.get('businessDate')).toBe(businessDate)
+    return route.fulfill({ status: 200, contentType: 'application/json', body: '{"businessDate":"2026-08-18","approvedAmount":184500,"cancelledAmount":12000,"netSales":172500,"completedOrderCount":37,"cancelledOrderCount":1,"currency":"KRW","closed":false}' })
+  })
   await page.route('**/api/v1/sales/closings/*', (route) => route.fulfill({ status: 404, contentType: 'application/problem+json', body: '{"code":"CLOSING_NOT_FOUND"}' }))
   await page.goto('/pos/orders')
 

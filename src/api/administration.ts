@@ -8,6 +8,8 @@ export interface StoreView {
   timezone: string
   currency: string
   status: ActiveStatus
+  /** Store Access가 매장 시간대와 영업일 정책으로 계산한 현재 영업일. */
+  businessDate: string
 }
 export interface EmployeeView {
   id: string
