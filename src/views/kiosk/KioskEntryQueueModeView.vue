@@ -16,6 +16,8 @@ function formatRegisteredAt(value: string) {
       <h1>대기번호 {{ registration.registeredEntry.value.queueNumber }}</h1>
       <dl>
         <div><dt>인원수</dt><dd>{{ registration.registeredEntry.value.partySize }}명</dd></div>
+        <div v-if="registration.registeredEntry.value.customerNameMasked"><dt>예약자</dt><dd>{{ registration.registeredEntry.value.customerNameMasked }}</dd></div>
+        <div v-if="registration.registeredEntry.value.phoneLastFourMasked"><dt>전화번호 뒷자리</dt><dd>{{ registration.registeredEntry.value.phoneLastFourMasked }}</dd></div>
         <div><dt>등록 시각</dt><dd><time :datetime="registration.registeredEntry.value.registeredAt">{{ formatRegisteredAt(registration.registeredEntry.value.registeredAt) }}</time></dd></div>
       </dl>
       <p class="result-help">직원의 안내를 기다려 주세요.</p>
@@ -41,7 +43,29 @@ function formatRegisteredAt(value: string) {
         />
         <span>명</span>
       </div>
-      <small id="privacy-note">이름이나 전화번호는 입력하지 않습니다.</small>
+      <label for="customer-name">예약자 이름</label>
+      <input
+        id="customer-name"
+        v-model="registration.customerName.value"
+        class="text-input"
+        type="text"
+        autocomplete="off"
+        aria-describedby="privacy-note"
+      />
+      <label for="phone-last-four">전화번호 뒷자리</label>
+      <input
+        id="phone-last-four"
+        v-model="registration.phoneLastFour.value"
+        class="text-input"
+        type="tel"
+        inputmode="numeric"
+        pattern="[0-9]{4}"
+        minlength="4"
+        maxlength="4"
+        autocomplete="off"
+        aria-describedby="privacy-note"
+      />
+      <small id="privacy-note">대기 확인에 필요한 이름과 전화번호 뒷자리 4자리만 수집하며, 등록 후에는 마스킹하여 표시합니다.</small>
       <p v-if="registration.errorMessage.value" class="error" role="alert">
         {{ registration.errorMessage.value }}
       </p>
@@ -64,6 +88,7 @@ function formatRegisteredAt(value: string) {
 .party-input { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .party-input input { width: min(260px, 75%); height: 88px; border: 2px solid #8a9690; border-radius: 7px; font-size: 42px; font-weight: 800; text-align: center; }
 .party-input span { font-size: 24px; font-weight: 800; }
+.text-input { width: 100%; min-height: 60px; border: 2px solid #8a9690; border-radius: 7px; padding: 10px 14px; font-size: 24px; text-align: center; }
 .entry-panel small { color: #657068; }
 .entry-panel button { min-height: 64px; border: 0; border-radius: 5px; background: #087f5b; color: #fff; font-size: 19px; font-weight: 900; }
 .entry-panel button:disabled { opacity: 0.45; }

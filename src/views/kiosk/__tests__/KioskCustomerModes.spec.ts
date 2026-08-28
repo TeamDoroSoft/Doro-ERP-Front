@@ -47,28 +47,35 @@ describe('customer-facing kiosk modes', () => {
     vi.restoreAllMocks()
   })
 
-  it('shows the server-issued queue number and no personal-data fields after registration', async () => {
+  it('collects minimum contact data and shows only server-masked hints after registration', async () => {
     api.registerKioskEntryQueue.mockResolvedValue({
       entryId: 'entry-1',
       businessDate: '2026-08-27',
       queueNumber: 12,
       partySize: 3,
+      customerNameMasked: '김**',
+      phoneLastFourMasked: '**78',
       status: 'WAITING',
       version: '0',
       registeredAt: '2026-08-26T08:15:00Z',
     })
     const wrapper = mount(KioskEntryQueueModeView)
-    await wrapper.get('input').setValue('3')
+    await wrapper.get('#party-size').setValue('3')
+    await wrapper.get('#customer-name').setValue(' 김고객 ')
+    await wrapper.get('#phone-last-four').setValue('1278')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
     expect(wrapper.text()).toContain('대기번호 12')
     expect(wrapper.text()).toContain('3명')
+    expect(wrapper.text()).toContain('김**')
+    expect(wrapper.text()).toContain('**78')
+    expect(wrapper.text()).not.toContain('김고객')
+    expect(wrapper.text()).not.toContain('1278')
     expect(wrapper.get('time').attributes('datetime')).toBe('2026-08-26T08:15:00Z')
     expect(wrapper.text()).not.toContain('2026-08-27')
-    expect(wrapper.find('input[type="tel"]').exists()).toBe(false)
     expect(api.registerKioskEntryQueue).toHaveBeenCalledWith(
-      { partySize: 3 },
+      { partySize: 3, customerName: '김고객', phoneLastFour: '1278' },
       '11111111-1111-4111-8111-111111111111',
     )
     wrapper.unmount()

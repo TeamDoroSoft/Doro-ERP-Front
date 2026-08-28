@@ -5,17 +5,26 @@ import type { EntryQueueView } from '@/api/queue'
 
 export function useKioskEntryRegistration() {
   const partySize = ref<number | null>(null)
+  const customerName = ref('')
+  const phoneLastFour = ref('')
   const registeredEntry = ref<EntryQueueView | null>(null)
   const submitting = ref(false)
   const errorMessage = ref('')
   let idempotencyKey = crypto.randomUUID()
 
-  const valid = computed(
-    () =>
+  const normalizedCustomerName = computed(() => customerName.value.trim())
+  const valid = computed(() => {
+    const nameLength = Array.from(normalizedCustomerName.value).length
+    return (
       Number.isSafeInteger(partySize.value) &&
       (partySize.value ?? 0) > 0 &&
-      (partySize.value ?? 101) <= 100,
-  )
+      (partySize.value ?? 101) <= 100 &&
+      nameLength >= 1 &&
+      nameLength <= 40 &&
+      !/\p{Cc}/u.test(normalizedCustomerName.value) &&
+      /^\d{4}$/.test(phoneLastFour.value)
+    )
+  })
 
   async function submit() {
     if (!valid.value || partySize.value === null || submitting.value || registeredEntry.value)
@@ -23,10 +32,17 @@ export function useKioskEntryRegistration() {
     submitting.value = true
     errorMessage.value = ''
     try {
-      registeredEntry.value = await registerKioskEntryQueue(
-        { partySize: partySize.value },
+      const entry = await registerKioskEntryQueue(
+        {
+          partySize: partySize.value,
+          customerName: normalizedCustomerName.value,
+          phoneLastFour: phoneLastFour.value,
+        },
         idempotencyKey,
       )
+      registeredEntry.value = entry
+      customerName.value = ''
+      phoneLastFour.value = ''
     } catch (error) {
       // Keep the key on failure: a lost response must be recovered as the same registration.
       errorMessage.value = safeApiErrorMessage(
@@ -40,10 +56,22 @@ export function useKioskEntryRegistration() {
 
   function beginAnother() {
     partySize.value = null
+    customerName.value = ''
+    phoneLastFour.value = ''
     registeredEntry.value = null
     errorMessage.value = ''
     idempotencyKey = crypto.randomUUID()
   }
 
-  return { partySize, registeredEntry, submitting, errorMessage, valid, submit, beginAnother }
+  return {
+    partySize,
+    customerName,
+    phoneLastFour,
+    registeredEntry,
+    submitting,
+    errorMessage,
+    valid,
+    submit,
+    beginAnother,
+  }
 }
