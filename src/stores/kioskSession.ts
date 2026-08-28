@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ApiError } from '@/api/http'
-import { activateKiosk, type KioskDeviceState } from '@/api/kiosk'
+import { activateKiosk, logoutKiosk, type KioskDeviceState } from '@/api/kiosk'
 
 export const useKioskSessionStore = defineStore('kioskSession', () => {
   const activeMarkerKey = 'doro.kiosk-device-active'
@@ -23,6 +23,10 @@ export const useKioskSessionStore = defineStore('kioskSession', () => {
     } finally {
       activating.value = false
     }
+  }
+  async function logout(secret: string) {
+    await logoutKiosk(secret)
+    markUnauthenticated()
   }
   function stateFor(reason: unknown): KioskDeviceState {
     if (reason instanceof ApiError) {
@@ -51,6 +55,7 @@ export const useKioskSessionStore = defineStore('kioskSession', () => {
     canAccessProtected,
     activating,
     activate,
+    logout,
     markAuthenticated,
     markUnauthenticated,
     markAuthenticationFailed,

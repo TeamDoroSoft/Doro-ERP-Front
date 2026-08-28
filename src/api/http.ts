@@ -42,6 +42,7 @@ export function safeApiErrorMessage(
   const codeMessages: Record<string, string> = {
     REAUTH_PASSWORD_REQUIRED: '계속하려면 현재 비밀번호를 입력해 주세요.',
     AUTHENTICATION_FAILED: '아이디 또는 비밀번호가 올바르지 않습니다. 다시 확인해 주세요.',
+    AUTH_RATE_LIMITED: '요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.',
     SESSION_INVALIDATED: '보안을 위해 세션이 종료되었습니다. 다시 로그인해 주세요.',
     REAUTHENTICATION_REQUIRED: '보호된 작업입니다. 현재 비밀번호로 다시 인증해 주세요.',
     PASSWORD_CHANGE_REQUIRED: '계속하려면 먼저 본인 비밀번호를 변경해 주세요.',

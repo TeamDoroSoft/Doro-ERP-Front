@@ -5,6 +5,7 @@ import {
   getKioskMenu,
   getKioskOrder,
   getKioskTables,
+  logoutKiosk,
 } from '@/api/kiosk'
 describe('kiosk api', () => {
   beforeEach(() => vi.restoreAllMocks())
@@ -24,6 +25,20 @@ describe('kiosk api', () => {
     )
     expect(localStorage.length).toBe(0)
     expect(sessionStorage.length).toBe(0)
+  })
+  it('logs out with only the activation secret and included cookie credentials', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(null, { status: 204 })))
+
+    await logoutKiosk('one-time')
+
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/v1/kiosk-auth/logout',
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        body: JSON.stringify({ secret: 'one-time' }),
+      }),
+    )
   })
   it('creates only a KIOSK channel order with its own idempotency key', async () => {
     vi.stubGlobal(
