@@ -12,7 +12,7 @@ const api = vi.hoisted(() => ({
 vi.mock('@/api/order', () => api)
 vi.mock('@/composables/useCurrentBusinessDate', () => ({
   useCurrentBusinessDate: () => {
-    const businessDate = ref('')
+    const businessDate = ref('2026-08-17')
     return {
       businessDate,
       loadingBusinessDate: ref(false),

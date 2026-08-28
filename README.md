@@ -148,8 +148,7 @@ Doro-ERP-Front/
 
 | 변수                     | 용도                                                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| `VITE_API_BASE_URL`      | Edge Origin 또는 `/api/v1` 포함 Base URL. Origin만 입력하면 `/api/v1` 자동 추가; 비우면 same-origin `/api/v1` 사용 |
-| `VITE_EDGE_PROXY_TARGET` | 로컬 개발용 Vite `/api` Proxy 대상                                                                                 |
+| `VITE_EDGE_PROXY_TARGET` | 로컬 개발용 Vite `/api` Proxy 대상 Edge Runtime                                                                    |
 | `VITE_TOSS_CLIENT_KEY`   | Browser 사용이 허용된 Toss 테스트 Client Key                                                                       |
 | `VITE_PUBLIC_APP_ORIGIN` | 운영 POS Origin. 경로 없는 HTTPS Origin만 허용 (`https://doro.minseok.click`)                                       |
 | `VITE_KIOSK_APP_ORIGIN`  | 운영 Kiosk 전용 Origin. 경로 없는 HTTPS Origin만 허용 (`https://kiosk.minseok.click`)                               |
@@ -161,11 +160,15 @@ Origin으로 이동시킵니다. 공개 `/pay/**`도 Kiosk Origin에서 열리�
 
 Toss Secret Key, Kiosk Secret·Credential, HMAC Key는 `VITE_*` 환경 변수에 넣지 않습니다.
 
+Browser API 요청은 운영에서 항상 same-origin `/api/v1`을 사용합니다. CloudFront의 `/api/*`
+Behavior가 Public Edge Runtime으로 전달하며, 개별 업무 서비스 Origin을 Front Bundle에 넣지 않습니다.
+로컬 개발에서는 `VITE_EDGE_PROXY_TARGET`이 가리키는 Edge Runtime으로 Vite가 `/api`를 Proxy합니다.
+
 Provider Admin은 Public POS·Kiosk Artifact와 분리된 Entry 및 `dist-admin/` Artifact로 빌드합니다.
 `npm run build`는 Admin Entry·Asset을 포함하지 않으며, `npm run build:admin`은 정적 Container
 배포용 Admin Artifact만 생성합니다. Admin Artifact는 `/api/v1/provider/**`를 호출하므로
-`VITE_API_BASE_URL` 또는 same-origin `/api`가 반드시 `admin` Profile로 실행한 Edge Runtime을
-가리켜야 합니다. Public Edge Profile에서는 Provider Admin Route가 `503`으로 차단됩니다.
+same-origin `/api`가 반드시 `admin` Profile로 실행한 Edge Runtime에 Routing되어야 합니다.
+Public Edge Profile에서는 Provider Admin Route가 `503`으로 차단됩니다.
 
 ## GitHub Actions 배포
 
@@ -192,7 +195,6 @@ Public Front 배포 Role, Provider Admin ECR 게시 Role과 대상 S3·CloudFron
 | `FRONTEND_S3_BUCKET`                  | Public        | `dist/` 전용 S3 Bucket 이름                    |
 | `FRONTEND_CLOUDFRONT_DISTRIBUTION_ID` | Public        | 배포 후 무효화할 Distribution ID               |
 | `FRONTEND_ECR_REPOSITORY`             | Admin         | Provider Admin ECR Repository 이름             |
-| `PUBLIC_API_BASE_URL`                 | Public        | Public Edge API Base URL. same-origin이면 비움 |
 | `PUBLIC_TOSS_CLIENT_KEY`              | Public        | Browser 공개가 허용된 Toss Client Key          |
 | `PUBLIC_APP_ORIGIN`                   | Public        | POS 전용 HTTPS Origin                           |
 | `KIOSK_APP_ORIGIN`                    | Public        | Kiosk 전용 HTTPS Origin                         |

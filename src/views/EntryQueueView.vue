@@ -11,21 +11,25 @@ const { businessDate, loadingBusinessDate, businessDateError, resolveBusinessDat
   useCurrentBusinessDate()
 const partySize = ref<number | null>(null)
 
-onMounted(resolveBusinessDate)
 watch(businessDate, (date) => {
   queue.businessDate.value = date
-})
-watch(queue.businessDate, async (date) => {
+}, { immediate: true })
+onMounted(resolveBusinessDate)
+watch(businessDate, async (date, _oldDate, onCleanup) => {
+  let active = true
+  onCleanup(() => {
+    active = false
+    queue.polling.stop()
+  })
   if (date) businessDateError.value = ''
   queue.polling.stop()
-  queue.entries.value = []
   if (!date) {
     await queue.load()
     return
   }
   await queue.load()
-  queue.polling.start()
-})
+  if (active) queue.polling.start()
+}, { immediate: true })
 
 async function search() {
   await queue.load()
@@ -52,7 +56,7 @@ function formatRegisteredAt(value: string) {
     <section class="queue-card" aria-labelledby="entry-register-title">
       <h2 id="entry-register-title">입장 대기 등록</h2>
       <div class="queue-form">
-        <label>영업일<input v-model="queue.businessDate.value" type="date" :disabled="loadingBusinessDate" /></label>
+        <label>영업일<input v-model="businessDate" type="date" :disabled="loadingBusinessDate" /></label>
         <label>인원수<input v-model.number="partySize" type="number" min="1" max="100" /></label>
         <button type="button" :disabled="queue.submitting.value" @click="submit">
           {{ queue.submitting.value ? '등록 중…' : '등록' }}
@@ -62,7 +66,7 @@ function formatRegisteredAt(value: string) {
     </section>
 
     <ApiErrorNotice v-if="businessDateError" :message="businessDateError" retryable @retry="resolveBusinessDate" />
-    <ApiErrorNotice v-else-if="queue.errorMessage.value" :message="queue.errorMessage.value" retryable @retry="search" />
+    <ApiErrorNotice v-if="queue.errorMessage.value" :message="queue.errorMessage.value" retryable @retry="search" />
     <section class="queue-card" aria-labelledby="entry-list-title">
       <div class="queue-section-heading">
         <div><h2 id="entry-list-title">대기 목록</h2><p>서버에 기록된 등록 시각을 표시합니다.</p></div>

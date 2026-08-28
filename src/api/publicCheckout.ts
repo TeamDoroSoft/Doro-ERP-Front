@@ -1,4 +1,4 @@
-import { resolveApiBaseUrl } from './baseUrl'
+import { EDGE_API_BASE_URL } from './baseUrl'
 import { ApiError, type ProblemDetails } from './http'
 import { parseJsonPreservingInt64, stringifyWithInt64, type Int64String } from './int64'
 
@@ -106,7 +106,7 @@ function tokenHeader(token: string): HeadersInit {
   return { Authorization: `${PUBLIC_CHECKOUT_CONTRACT.tokenScheme} ${token}` }
 }
 
-const apiBaseUrl = resolveApiBaseUrl(import.meta.env.VITE_API_BASE_URL)
+const apiBaseUrl = EDGE_API_BASE_URL
 
 /**
  * Intentionally separate from the employee/kiosk client: a public 401 must never invoke either

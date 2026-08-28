@@ -39,11 +39,11 @@ const visibleOrders = computed(() => {
   )
 })
 
-onMounted(resolveBusinessDate)
 watch([businessDate, status], () => {
   if (businessDate.value) businessDateError.value = ''
   void loadOrders()
-})
+}, { immediate: true })
+onMounted(resolveBusinessDate)
 
 async function loadOrders() {
   if (!businessDate.value) {
@@ -138,10 +138,10 @@ function openOrder(orderId: string) {
     <section class="orders-list-area" aria-label="주문 목록">
       <div class="list-caption"><strong>주문 목록</strong><span v-if="!loading">{{ orders.length }}건</span><span v-else>불러오는 중</span></div>
       <LoadingState v-if="loading || loadingBusinessDate" />
-      <ApiErrorNotice v-else-if="businessDateError" :message="businessDateError" retryable @retry="resolveBusinessDate" />
-      <ApiErrorNotice v-else-if="error" :message="safeApiErrorMessage(error)" :request-id="error.requestId" retryable @retry="loadOrders" />
-      <EmptyState v-else-if="visibleOrders.length === 0" title="주문이 없습니다" description="선택한 조건에 해당하는 주문이 없습니다." />
-      <OrderListPanel v-else :orders="visibleOrders" @select="openOrder" />
+      <ApiErrorNotice v-if="businessDateError" :message="businessDateError" retryable @retry="resolveBusinessDate" />
+      <ApiErrorNotice v-if="!loading && !loadingBusinessDate && error" :message="safeApiErrorMessage(error)" :request-id="error.requestId" retryable @retry="loadOrders" />
+      <EmptyState v-if="!loading && !loadingBusinessDate && !error && visibleOrders.length === 0" title="주문이 없습니다" description="선택한 조건에 해당하는 주문이 없습니다." />
+      <OrderListPanel v-if="!loading && !loadingBusinessDate && !error && visibleOrders.length > 0" :orders="visibleOrders" @select="openOrder" />
     </section>
   </main>
 </template>

@@ -5,6 +5,13 @@
 .queue-header span, .queue-section-heading p { color: var(--color-muted); font-size: 13px; }
 .queue-card { display:grid; gap:13px; border:1px solid #dedfe3; border-radius:3px; background:#fff; padding:16px; }
 .queue-card h2 { margin: 0; font-size: 17px; }
+.queue-title-block { display: grid; gap: 4px; }
+.queue-title-block p { margin: 0; color: var(--color-muted); font-size: 13px; }
+.queue-filter-actions { display: flex; align-items: center; gap: 8px; }
+.queue-filter-field { display: flex; align-items: center; gap: 8px; }
+.queue-filter-field label { color: var(--color-heading); font-size: 12px; font-weight: 700; }
+.queue-filter-field input { min-height: 34px; border: 1px solid var(--color-border); border-radius: 3px; padding: 0 10px; font: inherit; }
+.queue-filter-actions button { min-height: 34px; }
 .queue-form { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(120px, 1fr) auto; align-items: end; gap: 12px; }
 .queue-form label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
 .queue-form input { min-height:34px; border:1px solid var(--color-border); border-radius:3px; padding:0 10px; }button { min-height:32px; border:1px solid #d7d9df; border-radius:3px; background:white; padding:0 11px; color:var(--color-heading); font:inherit; font-weight:650; cursor:pointer; }
@@ -19,4 +26,4 @@ th, td { border-bottom: 1px solid var(--color-border); padding: 12px; text-align
 th { background:#f7f7f8;color:var(--color-muted);font-size:11px; }
 .queue-actions { display: flex; flex-wrap: wrap; gap: 7px; }
 a { color: var(--color-primary); font-weight: 700; }
-@media (max-width: 700px) { .queue-header { align-items: flex-start; flex-direction: column; }.queue-form { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .queue-header { align-items: flex-start; flex-direction: column; }.queue-fulfillment-heading { align-items: stretch; flex-direction: column; }.queue-fulfillment-heading .queue-filter-actions { display: grid; grid-template-columns: 1fr; align-items: stretch; }.queue-fulfillment-heading .queue-filter-field { display: grid; gap: 6px; }.queue-fulfillment-heading .queue-filter-field input, .queue-fulfillment-heading .queue-filter-actions button { width: 100%; min-height: 44px; box-sizing: border-box; }.queue-form { grid-template-columns: 1fr; } }
