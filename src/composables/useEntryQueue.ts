@@ -25,18 +25,29 @@ export function useEntryQueue(api: EntryQueueApi = defaultApi) {
   const errorMessage = ref('')
   const validationMessage = ref('')
   let operation: { fingerprint: string; key: string } | null = null
+  let loadSequence = 0
   const polling = useBoundedPolling(() => load(false))
 
   async function load(showLoading = true) {
-    if (!businessDate.value) return
+    if (!businessDate.value) {
+      loadSequence += 1
+      entries.value = []
+      errorMessage.value = ''
+      loading.value = false
+      return
+    }
+    const sequence = ++loadSequence
+    const requestedDate = businessDate.value
     if (showLoading) loading.value = true
     errorMessage.value = ''
     try {
-      entries.value = await api.list(businessDate.value)
+      const response = await api.list(requestedDate)
+      if (sequence === loadSequence && requestedDate === businessDate.value) entries.value = response
     } catch (error) {
-      errorMessage.value = queueErrorMessage(error, '입장 대기 목록을 불러오지 못했습니다.')
+      if (sequence === loadSequence)
+        errorMessage.value = queueErrorMessage(error, '입장 대기 목록을 불러오지 못했습니다.')
     } finally {
-      if (showLoading) loading.value = false
+      if (showLoading && sequence === loadSequence) loading.value = false
     }
   }
 

@@ -13,11 +13,18 @@ test.beforeEach(async ({ page }) => {
       employeeId: '00000000-0000-4000-8000-000000000001', role: 'MANAGER', tenantCode: 'DORO-DEMO', passwordChangeRequired: false,
     }))
   })
+  await page.route('**/api/v1/store', (route) => fulfill(route, {
+    id: 'store-1', tenantId: 'tenant-1', name: '도로', timezone: 'Asia/Seoul',
+    currency: 'KRW', status: 'ACTIVE', businessDate,
+  }))
 })
 
 test('[mock-ui] registers an entry and handles enter, cancel, and no-show from WAITING', async ({ page, browserName }) => {
   const entries = ids.map((entryId, index) => entry(entryId, index + 1))
-  await page.route('**/api/v1/queues/entry?businessDate=*', (route) => fulfill(route, entries))
+  await page.route('**/api/v1/queues/entry?businessDate=*', (route) => {
+    expect(new URL(route.request().url()).searchParams.get('businessDate')).toBe(businessDate)
+    return fulfill(route, entries)
+  })
   await page.route('**/api/v1/queues/entry', async (route) => {
     expect(route.request().method()).toBe('POST')
     expect(route.request().headers()['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/)
@@ -68,7 +75,10 @@ test('[mock-ui] shows fulfillment event lag and moves only PREPARING to READY', 
     fulfillment('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'READY', 8),
     fulfillment('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'CANCELLED', 9),
   ]
-  await page.route('**/api/v1/queues/fulfillment', (route) => fulfill(route, items))
+  await page.route('**/api/v1/queues/fulfillment?businessDate=*', (route) => {
+    expect(new URL(route.request().url()).searchParams.get('businessDate')).toBe(businessDate)
+    return fulfill(route, items)
+  })
   await page.route(`**/api/v1/queues/fulfillment/${items[0]!.fulfillmentId}/ready`, async (route) => {
     items[0] = { ...items[0]!, status: 'READY', version: 1 }
     await fulfill(route, items[0])
@@ -90,7 +100,7 @@ test('[mock-ui] renders empty entry and unavailable fulfillment states safely', 
   await page.getByRole('button', { name: '새로고침' }).click()
   await expect(page.getByText('현재 입장 대기 중인 고객이 없습니다.')).toBeVisible()
 
-  await page.route('**/api/v1/queues/fulfillment', (route) => fulfill(route, { status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'internal host' }, 503))
+  await page.route('**/api/v1/queues/fulfillment?businessDate=*', (route) => fulfill(route, { status: 503, code: 'DEPENDENCY_UNAVAILABLE', detail: 'internal host' }, 503))
   await page.goto('/pos/queues/fulfillment')
   await expect(page.getByText('조리 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.')).toBeVisible()
   await expect(page.getByText('internal host')).toHaveCount(0)
@@ -101,7 +111,7 @@ function entry(entryId: string, queueNumber: number, partySize = 2) {
 }
 
 function fulfillment(fulfillmentId: string, status: 'PREPARING' | 'READY' | 'CANCELLED', displayNumber: number) {
-  return { fulfillmentId, orderId: `${displayNumber}0000000-0000-4000-8000-000000000000`, displayNumber, status, version: 0 }
+  return { fulfillmentId, orderId: `${displayNumber}0000000-0000-4000-8000-000000000000`, businessDate, displayNumber, status, version: 0 }
 }
 
 function row(page: Page, text: string) { return page.getByRole('row').filter({ hasText: text }) }

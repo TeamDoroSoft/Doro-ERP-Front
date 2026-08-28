@@ -141,6 +141,62 @@ test('[mock-ui] a kiosk payment 401 never touches the employee POS session', asy
   expect(await page.evaluate(() => sessionStorage.getItem('doro.kiosk-device-active'))).toBeNull()
 })
 
+test('[mock-ui] kiosk logout requires the activation code and preserves the POS session', async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem('doro.kiosk-device-active', '1')
+    sessionStorage.setItem(
+      'doro-erp.operator-session',
+      JSON.stringify({ employeeId: 'staff-1', role: 'STAFF', tenantCode: 'DORO' }),
+    )
+  })
+  await page.route('**/api/v1/kiosk/runtime', (route) =>
+    json(route, {
+      deviceId: 'device-1',
+      deviceName: 'K-1',
+      mode: 'ORDER',
+      pairedPaymentDevice: null,
+    }),
+  )
+  await page.route('**/api/v1/catalog/menu', (route) =>
+    json(route, { currency: 'KRW', categories: [] }),
+  )
+  let logoutCalls = 0
+  await page.route('**/api/v1/kiosk-auth/logout', async (route) => {
+    logoutCalls += 1
+    const body = route.request().postDataJSON()
+    if (body.secret !== 'one-time') {
+      await route.fulfill({
+        status: 401,
+        contentType: 'application/problem+json',
+        body: JSON.stringify({ code: 'KIOSK_AUTHENTICATION_FAILED', detail: 'internal' }),
+      })
+      return
+    }
+    await route.fulfill({ status: 204 })
+  })
+
+  await page.goto('/kiosk/order')
+  await page.getByRole('button', { name: '로그아웃' }).click()
+  const input = page.getByLabel('활성화 코드')
+  await expect(input).toBeFocused()
+  await input.fill('wrong')
+  await page.getByRole('dialog').getByRole('button', { name: '로그아웃' }).click()
+  await expect(page.getByRole('alert')).toContainText('활성화 코드')
+  await expect(input).toHaveValue('')
+  await expect(page).toHaveURL(/\/kiosk\/order$/)
+
+  await input.fill('kdc_credential-id.one-time')
+  await page.getByRole('dialog').getByRole('button', { name: '로그아웃' }).click()
+  await expect(page).toHaveURL(/\/kiosk\/activate$/)
+  expect(logoutCalls).toBe(2)
+  expect(await page.evaluate(() => sessionStorage.getItem('doro.kiosk-device-active'))).toBeNull()
+  expect(await page.evaluate(() => sessionStorage.getItem('doro-erp.operator-session'))).toContain(
+    'staff-1',
+  )
+})
+
 async function mocks(page: Page, capture: (body: unknown) => void) {
   const requests = { confirmCalls: 0 }
   let statusReads = 0

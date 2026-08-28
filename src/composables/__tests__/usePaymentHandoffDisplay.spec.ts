@@ -135,6 +135,98 @@ describe('usePaymentHandoffDisplay', () => {
     scope.stop()
   })
 
+  it('does not restart the terminal dwell when the same handoff terminal status repeats', async () => {
+    const nextHandoff = {
+      ...handoff,
+      publicId: 'next-public-handoff',
+      displayCode: 'B2M4',
+      oneTimeToken: 'next_one_time_token_5678',
+    }
+    api.getCurrentPaymentHandoff
+      .mockResolvedValueOnce(handoff)
+      .mockResolvedValueOnce({ ...handoff, status: 'CANCELLED', oneTimeToken: null })
+      .mockResolvedValueOnce({ ...handoff, status: 'CANCELLED', oneTimeToken: null })
+      .mockResolvedValueOnce(nextHandoff)
+    const scope = effectScope()
+    const display = scope.run(() => usePaymentHandoffDisplay(1_000, 3_000))!
+    display.start()
+    await vi.advanceTimersByTimeAsync(0)
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(display.current.value?.status).toBe('CANCELLED')
+    expect(display.qrValue.value).toBe('')
+    await vi.advanceTimersByTimeAsync(2_999)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(2)
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(3)
+    expect(display.current.value?.status).toBe('CANCELLED')
+    expect(display.qrValue.value).toBe('')
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(4)
+    expect(display.current.value?.displayCode).toBe('B2M4')
+    expect(display.current.value?.status).toBe('DISPLAYED')
+    expect(display.qrValue.value).toBe(
+      `${location.origin}/pay/next-public-handoff#token=next_one_time_token_5678`,
+    )
+    expect(display.qrValue.value).not.toContain('/pay/public-handoff#')
+    expect(display.qrValue.value).not.toContain('one_time_token_1234')
+    scope.stop()
+  })
+
+  it('uses the normal poll interval after a terminal handoff clears', async () => {
+    const nextHandoff = {
+      ...handoff,
+      publicId: 'next-public-handoff',
+      displayCode: 'B2M4',
+      oneTimeToken: 'next_one_time_token_5678',
+    }
+    api.getCurrentPaymentHandoff
+      .mockResolvedValueOnce({ ...handoff, status: 'CANCELLED', oneTimeToken: null })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(nextHandoff)
+    const scope = effectScope()
+    const display = scope.run(() => usePaymentHandoffDisplay(1_000, 3_000))!
+    display.start()
+    await vi.advanceTimersByTimeAsync(3_000)
+
+    expect(display.current.value).toBeNull()
+    await vi.advanceTimersByTimeAsync(999)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(display.current.value?.displayCode).toBe('B2M4')
+    scope.stop()
+  })
+
+  it('resumes terminal polling after visibility returns and cleans up on stop', async () => {
+    api.getCurrentPaymentHandoff.mockResolvedValue({
+      ...handoff,
+      status: 'CANCELLED',
+      oneTimeToken: null,
+    })
+    const scope = effectScope()
+    const display = scope.run(() => usePaymentHandoffDisplay(1_000, 3_000))!
+    display.start()
+    await vi.advanceTimersByTimeAsync(0)
+
+    visibility = 'hidden'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(4_000)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(1)
+
+    visibility = 'visible'
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.advanceTimersByTimeAsync(0)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(3)
+
+    display.stop()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(api.getCurrentPaymentHandoff).toHaveBeenCalledTimes(3)
+    scope.stop()
+  })
+
   it('recovers immediately when the network returns', async () => {
     const scope = effectScope()
     const display = scope.run(() => usePaymentHandoffDisplay(60_000))!

@@ -1,14 +1,28 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
 import LoadingState from '@/components/ui/LoadingState.vue'
 import { useFulfillmentQueue } from '@/composables/useFulfillmentQueue'
+import { useCurrentBusinessDate } from '@/composables/useCurrentBusinessDate'
 import { displayLabel } from '@/ui/displayLabels'
 
 const queue = useFulfillmentQueue()
+const { businessDate, loadingBusinessDate, businessDateError, resolveBusinessDate } =
+  useCurrentBusinessDate()
 
-onMounted(async () => {
+onMounted(resolveBusinessDate)
+watch(businessDate, (date) => {
+  queue.businessDate.value = date
+})
+watch(queue.businessDate, async (date) => {
+  if (date) businessDateError.value = ''
+  queue.polling.stop()
+  queue.fulfillments.value = []
+  if (!date) {
+    await queue.load()
+    return
+  }
   await queue.load()
   queue.polling.start()
 })
@@ -20,11 +34,13 @@ onMounted(async () => {
       <div><p>주문 준비</p><h1>조리 목록</h1><span>접수된 주문의 준비 상태를 확인합니다.</span></div>
     </header>
     <p class="queue-lag">결제가 완료된 주문은 잠시 후 목록에 표시될 수 있습니다. 보이지 않으면 새로고침해 주세요.</p>
-    <ApiErrorNotice v-if="queue.errorMessage.value" :message="queue.errorMessage.value" retryable @retry="() => queue.load()" />
+    <ApiErrorNotice v-if="businessDateError" :message="businessDateError" retryable @retry="resolveBusinessDate" />
+    <ApiErrorNotice v-else-if="queue.errorMessage.value" :message="queue.errorMessage.value" retryable @retry="() => queue.load()" />
     <section class="queue-card" aria-labelledby="fulfillment-list-title">
-      <div class="queue-section-heading"><h2 id="fulfillment-list-title">조리 목록</h2><button type="button" :disabled="queue.loading.value" @click="() => queue.load()">새로고침</button></div>
-      <LoadingState v-if="queue.loading.value" />
-      <p v-else-if="!queue.errorMessage.value && queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다.</p>
+      <div class="queue-section-heading"><div><h2 id="fulfillment-list-title">조리 목록</h2><label>영업일 <input v-model="queue.businessDate.value" type="date" :disabled="loadingBusinessDate" /></label></div><button type="button" :disabled="queue.loading.value || loadingBusinessDate || !queue.businessDate.value" @click="() => queue.load()">새로고침</button></div>
+      <LoadingState v-if="queue.loading.value || loadingBusinessDate" />
+      <p v-else-if="!queue.businessDate.value" class="queue-empty">조회할 영업일을 선택해 주세요.</p>
+      <p v-else-if="!businessDateError && !queue.errorMessage.value && queue.fulfillments.value.length === 0" class="queue-empty">현재 조리 중인 주문이 없습니다.</p>
       <div v-else-if="queue.fulfillments.value.length > 0" class="queue-table-wrap">
         <table><thead><tr><th>주문</th><th>주문 생성</th><th>품목</th><th>상태</th><th>주문 상세</th><th>작업</th></tr></thead>
           <tbody><tr v-for="item in queue.fulfillments.value" :key="item.fulfillmentId">

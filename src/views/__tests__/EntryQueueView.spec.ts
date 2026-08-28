@@ -6,6 +6,13 @@ import EntryQueueView from '@/views/EntryQueueView.vue'
 const entryQueue = vi.hoisted(() => ({ useEntryQueue: vi.fn<() => unknown>() }))
 
 vi.mock('@/composables/useEntryQueue', () => entryQueue)
+vi.mock('@/composables/useCurrentBusinessDate', () => ({
+  useCurrentBusinessDate: () => {
+    const businessDate = ref('')
+    return { businessDate, loadingBusinessDate: ref(false), businessDateError: ref(''),
+      resolveBusinessDate: vi.fn<() => void>(() => { businessDate.value = '2026-08-27' }) }
+  },
+}))
 
 describe('EntryQueueView', () => {
   it('renders the server registration timestamp instead of deriving one in the browser', () => {

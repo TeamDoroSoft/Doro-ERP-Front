@@ -11,11 +11,33 @@ beforeEach(() => {
   vi.restoreAllMocks()
 })
 describe('Phase 06 management views', () => {
-  it('requires an explicit business date and never guesses one', () => {
+  it('uses the Store Access business date as the initial sales filter', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: string) => {
+        const path = String(input)
+        if (path.endsWith('/store'))
+          return Promise.resolve(
+            new Response(JSON.stringify({ businessDate: '2026-08-28' }), { status: 200 }),
+          )
+        if (path.includes('/sales/closings/')) return Promise.resolve(new Response('', { status: 404 }))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              businessDate: '2026-08-28', approvedAmount: 0, cancelledAmount: 0,
+              netSales: 0, completedOrderCount: 0, cancelledOrderCount: 0,
+              currency: 'KRW', closed: false,
+            }),
+            { status: 200 },
+          ),
+        )
+      }),
+    )
     const wrapper = mount(SalesClosingView)
+    await flushPromises()
     expect(wrapper.get('h1').text()).toBe('일별 매출과 마감')
-    expect((wrapper.get('input[type=date]').element as HTMLInputElement).value).toBe('')
-    expect(wrapper.text()).toContain('조회할 영업일을 선택해 주세요')
+    expect((wrapper.get('input[type=date]').element as HTMLInputElement).value).toBe('2026-08-28')
+    expect(fetch).toHaveBeenCalledWith('/api/v1/sales/daily?businessDate=2026-08-28', expect.anything())
   })
   it('loads store and employees from their real endpoints', async () => {
     vi.stubGlobal(
@@ -45,6 +67,30 @@ describe('Phase 06 management views', () => {
     expect(wrapper.get('h1').text()).toBe('매장·직원 설정')
     expect((wrapper.get('input').element as HTMLInputElement).value).toBe('도로')
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+  it('keeps employee credential hints in both fields and exposes validation state', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: string) => Promise.resolve(new Response(JSON.stringify(String(input).endsWith('/store') ? storeResponse : []), { status: 200, headers: { 'Content-Type': 'application/json' } }))))
+    const wrapper = mount(StoreSettingsView)
+    await flushPromises()
+    await wrapper.findAll('.tabs button')[1]!.trigger('click')
+
+    const loginId = wrapper.get('input[name="employeeLoginId"]')
+    const password = wrapper.get('input[name="employeeTemporaryPassword"]')
+    expect(loginId.element.closest('label')?.classList).toContain('credential-field')
+    expect(password.element.closest('label')?.classList).toContain('credential-field')
+    expect(loginId.attributes('autocomplete')).toBe('username')
+    expect(password.attributes('autocomplete')).toBe('new-password')
+    expect(loginId.attributes('aria-describedby')).toBe('employee-login-hint')
+    expect(password.attributes('aria-describedby')).toBe('employee-password-hint')
+    expect(wrapper.get('#employee-login-hint').text()).toContain('4~50자')
+    expect(wrapper.get('#employee-password-hint').text()).toBe(
+      '15~128자, 로그인 ID 및 doro, storeaccess, doroerp는 포함할 수 없습니다.',
+    )
+    expect(wrapper.get('#employee-password-hint').attributes('aria-live')).toBe('polite')
+
+    await password.setValue('short')
+    expect(password.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.get('#employee-password-hint').classes()).toContain('invalid')
   })
   it('queues a role change until reauthentication and rolls the select back on cancel', async () => {
     const calls: string[] = []

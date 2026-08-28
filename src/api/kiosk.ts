@@ -58,6 +58,12 @@ export const activateKiosk = (tenantCode: string, deviceCode: string, secret: st
     { method: 'POST', body: JSON.stringify({ tenantCode, deviceCode, secret }) },
     { handleUnauthorized: false },
   )
+export const logoutKiosk = (secret: string) =>
+  apiRequest<void>(
+    '/kiosk-auth/logout',
+    { method: 'POST', body: JSON.stringify({ secret }) },
+    { handleUnauthorized: false },
+  )
 export const getKioskMenu = () => exactKioskRequest<KioskMenu>('/catalog/menu', {}, ['price'])
 export const getKioskTables = () => exactKioskRequest<KioskTable[]>('/tables', {}, ['version'])
 export const createKioskOrder = (body: KioskOrderRequest, key: string) =>

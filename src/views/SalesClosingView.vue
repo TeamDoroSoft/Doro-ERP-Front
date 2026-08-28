@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { ApiError, safeApiErrorMessage } from '@/api/http'
 import {
   closeDailySales,
@@ -15,32 +15,55 @@ import LoadingState from '@/components/ui/LoadingState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { useOperatorSessionStore } from '@/stores/operatorSession'
+import { useCurrentBusinessDate } from '@/composables/useCurrentBusinessDate'
 const session = useOperatorSessionStore(),
-  businessDate = ref(''),
   daily = ref<DailySales | null>(null),
   closing = ref<DailyClosing | null>(null),
   loading = ref(false),
   closingNow = ref(false),
   error = ref<ApiError | null>(null),
   notice = ref('')
+const { businessDate, loadingBusinessDate, businessDateError, resolveBusinessDate } =
+  useCurrentBusinessDate()
+let loadSequence = 0
+onMounted(resolveBusinessDate)
+watch(businessDate, () => {
+  if (businessDate.value) businessDateError.value = ''
+  void load()
+})
 async function load() {
-  if (!businessDate.value) return
+  if (!businessDate.value) {
+    loadSequence += 1
+    daily.value = null
+    closing.value = null
+    error.value = null
+    loading.value = false
+    notice.value = ''
+    return
+  }
+  const sequence = ++loadSequence
+  const requestedDate = businessDate.value
   loading.value = true
   error.value = null
   notice.value = ''
   daily.value = null
   closing.value = null
   try {
-    daily.value = await getDailySales(businessDate.value)
+    const nextDaily = await getDailySales(requestedDate)
+    let nextClosing: DailyClosing | null = null
     try {
-      closing.value = await getDailyClosing(businessDate.value)
+      nextClosing = await getDailyClosing(requestedDate)
     } catch (e) {
       if (!(e instanceof ApiError && e.status === 404)) throw e
     }
+    if (sequence === loadSequence && requestedDate === businessDate.value) {
+      daily.value = nextDaily
+      closing.value = nextClosing
+    }
   } catch (e) {
-    error.value = asError(e)
+    if (sequence === loadSequence) error.value = asError(e)
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 async function closeDay() {
@@ -82,11 +105,16 @@ function amountRows(v: DailySales | DailyClosing): Array<[string, string]> {
       eyebrow="매출·마감"
     />
     <form class="panel query" @submit.prevent="load">
-      <label>영업일<input v-model="businessDate" type="date" required /></label
-      ><button :disabled="loading">조회</button>
+      <label>영업일<input v-model="businessDate" type="date" required :disabled="loadingBusinessDate" /></label
+      ><button :disabled="loading || loadingBusinessDate">조회</button>
     </form>
     <p v-if="notice" class="notice" role="status">{{ notice }}</p>
-    <LoadingState v-if="loading" /><ApiErrorNotice
+    <LoadingState v-if="loading || loadingBusinessDate" /><ApiErrorNotice
+      v-else-if="businessDateError"
+      :message="businessDateError"
+      retryable
+      @retry="resolveBusinessDate"
+    /><ApiErrorNotice
       v-else-if="error"
       :message="safeApiErrorMessage(error)"
       :request-id="error.requestId"
