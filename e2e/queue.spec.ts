@@ -48,6 +48,8 @@ test('[mock-ui] registers an entry and handles enter, cancel, and no-show from W
   await page.getByLabel('영업일').fill(businessDate)
   await page.getByRole('button', { name: '새로고침' }).click()
   await expect(page.getByText('#1', { exact: true })).toBeVisible()
+  await expect(row(page, '#1').getByRole('cell', { name: '김**', exact: true })).toBeVisible()
+  await expect(row(page, '#1').getByRole('cell', { name: '**78', exact: true })).toBeVisible()
 
   await page.getByLabel('인원수').fill('4')
   await page.getByRole('button', { name: '등록', exact: true }).click()
@@ -107,7 +109,12 @@ test('[mock-ui] renders empty entry and unavailable fulfillment states safely', 
 })
 
 function entry(entryId: string, queueNumber: number, partySize = 2) {
-  return { entryId, businessDate, queueNumber, partySize, status: 'WAITING', version: 0 }
+  return {
+    entryId, businessDate, queueNumber, partySize,
+    customerNameMasked: queueNumber === 1 ? '김**' : null,
+    phoneLastFourMasked: queueNumber === 1 ? '**78' : null,
+    status: 'WAITING', version: 0, registeredAt: '2026-08-18T09:00:00Z',
+  }
 }
 
 function fulfillment(fulfillmentId: string, status: 'PREPARING' | 'READY' | 'CANCELLED', displayNumber: number) {

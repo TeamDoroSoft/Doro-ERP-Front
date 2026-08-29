@@ -76,9 +76,9 @@ function formatRegisteredAt(value: string) {
       <p v-else-if="!queue.businessDate.value" class="queue-empty">조회할 영업일을 선택해 주세요.</p>
       <p v-else-if="queue.entries.value.length === 0" class="queue-empty">현재 입장 대기 중인 고객이 없습니다.</p>
       <div v-else class="queue-table-wrap">
-        <table><thead><tr><th>대기번호</th><th>인원수</th><th>상태</th><th>등록 시각</th><th>처리</th></tr></thead>
+        <table><thead><tr><th>대기번호</th><th>예약자</th><th>전화번호 뒷자리</th><th>인원수</th><th>상태</th><th>등록 시각</th><th>처리</th></tr></thead>
           <tbody><tr v-for="entry in queue.entries.value" :key="entry.entryId">
-            <td><strong>#{{ entry.queueNumber }}</strong></td><td>{{ entry.partySize }}명</td><td>{{ displayLabel(entry.status) }}</td><td><time :datetime="entry.registeredAt">{{ formatRegisteredAt(entry.registeredAt) }}</time></td>
+            <td><strong>#{{ entry.queueNumber }}</strong></td><td>{{ entry.customerNameMasked ?? '—' }}</td><td>{{ entry.phoneLastFourMasked ?? '—' }}</td><td>{{ entry.partySize }}명</td><td>{{ displayLabel(entry.status) }}</td><td><time :datetime="entry.registeredAt">{{ formatRegisteredAt(entry.registeredAt) }}</time></td>
             <td class="queue-actions">
               <button type="button" :disabled="entry.status !== 'WAITING' || !!queue.actingId.value" @click="queue.act(entry, 'enter')">입장 완료</button>
               <button type="button" :disabled="entry.status !== 'WAITING' || !!queue.actingId.value" @click="queue.act(entry, 'cancel')">취소</button>

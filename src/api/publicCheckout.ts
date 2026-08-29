@@ -97,6 +97,10 @@ export async function getPublicCheckoutStatus(publicId: string): Promise<PublicC
   return readResult(await publicRequest(`${handoffPath(publicId)}/status`, {}, ['amount']))
 }
 
+export async function cancelPublicCheckout(publicId: string): Promise<PublicCheckoutResult> {
+  return readResult(await publicRequest(`${handoffPath(publicId)}/cancel`, { method: 'POST' }, []))
+}
+
 function handoffPath(publicId: string): string {
   return `${PUBLIC_CHECKOUT_CONTRACT.handoffPath}/${encodeURIComponent(publicId)}`
 }

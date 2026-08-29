@@ -3,6 +3,7 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { cancelOrder, completeOrder, getOrder, type OrderResponse } from '@/api/order'
+import { cancelPaymentHandoff, recoverPaymentHandoffByOrder } from '@/api/paymentHandoff'
 import OrderDetailPanel from '@/components/orders/OrderDetailPanel.vue'
 import OrderPaymentPanel from '@/components/payments/OrderPaymentPanel.vue'
 import ApiErrorNotice from '@/components/ui/ApiErrorNotice.vue'
@@ -18,6 +19,7 @@ const operationError = ref('')
 const recentPaymentId = ref<string | null>(null)
 const cancelling = ref(false)
 const completing = ref(false)
+class PaidHandoffConflict extends Error {}
 
 onMounted(loadOrder)
 watch(
@@ -68,8 +70,26 @@ async function cancel() {
   cancelling.value = true
   operationError.value = ''
   try {
+    try {
+      const handoff = await recoverPaymentHandoffByOrder(order.value.orderId)
+      if (handoff.status === 'PAID') {
+        throw new PaidHandoffConflict()
+      }
+      if (['QUEUED', 'DISPLAYED', 'PROCESSING'].includes(handoff.status)) {
+        await cancelPaymentHandoff(handoff.id, handoff.version)
+      }
+    } catch (caught) {
+      // A missing handoff is a valid order-only cancellation. Conflicts and dependency failures
+      // are not: cancelling the Order while a reusable payment handoff remains would split truth.
+      if (!(caught instanceof ApiError && caught.status === 404)) throw caught
+    }
     order.value = await cancelOrder(order.value.orderId)
   } catch (caught) {
+    if (caught instanceof PaidHandoffConflict) {
+      await loadOrder(false, false)
+      operationError.value = '결제가 이미 완료된 주문은 취소할 수 없습니다. 결제 상태를 다시 확인해 주세요.'
+      return
+    }
     if (isConflict(caught)) await loadOrder(false, false)
     operationError.value = mutationMessage(caught, '주문을 취소하지 못했습니다.')
   } finally {

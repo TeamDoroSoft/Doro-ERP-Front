@@ -23,6 +23,8 @@ describe('EntryQueueView', () => {
           businessDate: '2026-08-27',
           queueNumber: 12,
           partySize: 3,
+          customerNameMasked: '김**',
+          phoneLastFourMasked: '**78',
           status: 'WAITING',
           registeredAt: '2026-08-26T08:15:00Z',
           version: '3',
@@ -44,6 +46,29 @@ describe('EntryQueueView', () => {
 
     expect(wrapper.get('time').attributes('datetime')).toBe('2026-08-26T08:15:00Z')
     expect(wrapper.text()).toContain('등록 시각')
+    expect(wrapper.text()).toContain('김**')
+    expect(wrapper.text()).toContain('**78')
+  })
+
+  it('shows a safe placeholder for legacy and employee registrations without contact hints', () => {
+    entryQueue.useEntryQueue.mockReturnValue({
+      entries: ref([
+        {
+          entryId: 'entry-legacy', businessDate: '2026-08-27', queueNumber: 2, partySize: 1,
+          customerNameMasked: null, phoneLastFourMasked: null, status: 'WAITING',
+          registeredAt: '2026-08-26T08:15:00Z', version: '0',
+        },
+      ]),
+      businessDate: ref('2026-08-27'), loading: ref(false), submitting: ref(false), actingId: ref(''),
+      errorMessage: ref(''), validationMessage: ref(''), load: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      register: vi.fn<() => Promise<void>>().mockResolvedValue(undefined), act: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      polling: { start: vi.fn<() => void>(), stop: vi.fn<() => void>() },
+    })
+
+    const cells = mount(EntryQueueView).findAll('tbody td')
+
+    expect(cells[1]?.text()).toBe('—')
+    expect(cells[2]?.text()).toBe('—')
   })
 
   it('does not start polling after unmount while an initial load is pending', async () => {

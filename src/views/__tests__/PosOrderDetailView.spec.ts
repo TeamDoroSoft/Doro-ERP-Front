@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createRouter, createWebHistory } from 'vue-router'
 import { ApiError } from '@/api/http'
 import type { OrderResponse } from '@/api/order'
+import type { PaymentHandoff } from '@/api/paymentHandoff'
 import PosOrderDetailView from '@/views/PosOrderDetailView.vue'
 
 const api = vi.hoisted(() => ({
@@ -11,6 +12,11 @@ const api = vi.hoisted(() => ({
   completeOrder: vi.fn<(id: string) => Promise<OrderResponse>>(),
 }))
 vi.mock('@/api/order', () => api)
+const handoffs = vi.hoisted(() => ({
+  recoverPaymentHandoffByOrder: vi.fn<(orderId: string) => Promise<PaymentHandoff>>(),
+  cancelPaymentHandoff: vi.fn<(id: string, version: string) => Promise<PaymentHandoff>>(),
+}))
+vi.mock('@/api/paymentHandoff', () => handoffs)
 
 const created: OrderResponse = {
   orderId: 'order-1',
@@ -29,6 +35,17 @@ const created: OrderResponse = {
   paymentStatus: 'PENDING',
   tableId: null,
 }
+const processingHandoff: PaymentHandoff = {
+  id: 'handoff-1',
+  paymentId: 'payment-1',
+  publicId: 'public-1',
+  displayCode: 'ABC12345',
+  targetPaymentDeviceId: 'device-1',
+  targetPaymentDeviceName: '결제 1',
+  status: 'PROCESSING',
+  expiresAt: '2026-08-29T10:00:00Z',
+  version: '3',
+}
 
 describe('PosOrderDetailView', () => {
   beforeEach(() => {
@@ -37,6 +54,7 @@ describe('PosOrderDetailView', () => {
     api.getOrder.mockResolvedValue(created)
     api.cancelOrder.mockResolvedValue({ ...created, status: 'CANCELLED' })
     api.completeOrder.mockResolvedValue({ ...created, status: 'COMPLETED' })
+    handoffs.recoverPaymentHandoffByOrder.mockRejectedValue(new ApiError(404, { status: 404 }))
     vi.spyOn(window, 'confirm').mockReturnValue(true)
   })
 
@@ -47,6 +65,46 @@ describe('PosOrderDetailView', () => {
     await flushPromises()
     expect(api.cancelOrder).toHaveBeenCalledWith('order-1')
     expect(wrapper.text()).toContain('취소')
+  })
+
+  it('cancels an active payment handoff before cancelling its order', async () => {
+    handoffs.recoverPaymentHandoffByOrder.mockResolvedValue(processingHandoff)
+    handoffs.cancelPaymentHandoff.mockResolvedValue({
+      ...processingHandoff,
+      status: 'CANCELLED',
+      version: '4',
+    })
+    const wrapper = await mountView()
+    await findButton(wrapper, '주문 취소').trigger('click')
+    await flushPromises()
+    expect(handoffs.cancelPaymentHandoff).toHaveBeenCalledWith('handoff-1', '3')
+    expect(api.cancelOrder).toHaveBeenCalledAfter(handoffs.cancelPaymentHandoff)
+  })
+
+  it('never cancels an order when the recovered handoff is already paid', async () => {
+    handoffs.recoverPaymentHandoffByOrder.mockResolvedValue({
+      ...processingHandoff,
+      status: 'PAID',
+    })
+    const wrapper = await mountView()
+    await findButton(wrapper, '주문 취소').trigger('click')
+    await flushPromises()
+    expect(handoffs.cancelPaymentHandoff).not.toHaveBeenCalled()
+    expect(api.cancelOrder).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('결제가 이미 완료된 주문은 취소할 수 없습니다.')
+  })
+
+  it('does not describe an active handoff cancellation conflict as an already paid order', async () => {
+    handoffs.recoverPaymentHandoffByOrder.mockResolvedValue(processingHandoff)
+    handoffs.cancelPaymentHandoff.mockRejectedValue(
+      new ApiError(409, { status: 409, code: 'STATE_CONFLICT' }),
+    )
+    const wrapper = await mountView()
+    await findButton(wrapper, '주문 취소').trigger('click')
+    await flushPromises()
+    expect(api.cancelOrder).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('주문을 취소하지 못했습니다.')
+    expect(wrapper.text()).not.toContain('결제가 이미 완료된 주문')
   })
 
   it('re-queries server state when completion conflicts with READY verification', async () => {
