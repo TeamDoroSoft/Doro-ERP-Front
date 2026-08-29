@@ -84,11 +84,17 @@ describe('PublicCheckoutView', () => {
     })
     const wrapper = await mountAt(
       '/pay/public-1/success',
-      '/pay/public-1/success?paymentKey=pk&orderId=provider&amount=12000',
+      '/pay/public-1/success?paymentType=NORMAL&paymentKey=pk&orderId=provider&amount=12000',
     )
 
+    expect(confirmPublicCheckout).toHaveBeenCalledExactlyOnceWith(
+      'public-1',
+      { paymentKey: 'pk', providerOrderId: 'provider', amount: '12000' },
+      expect.any(AbortSignal),
+    )
     expect(wrapper.text()).toContain('결제가 완료되었습니다')
     expect(getPublicCheckoutStatus).not.toHaveBeenCalled()
+    expect(window.location.search).toBe('')
   })
 
   it('fails closed after refresh removes a token that was not exchanged for a cookie', async () => {

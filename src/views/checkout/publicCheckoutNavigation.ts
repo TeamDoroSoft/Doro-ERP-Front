@@ -59,15 +59,16 @@ function exactSuccessRedirect(search: string): {
   const query = search.startsWith('?') ? search.slice(1) : search
   if (!query || query.startsWith('&') || query.endsWith('&')) return null
   const entries = query.split('&')
-  if (entries.length !== 3) return null
+  if (entries.length !== 3 && entries.length !== 4) return null
 
   const values = new Map<string, string>()
+  const allowedKeys = ['paymentType', 'paymentKey', 'orderId', 'amount']
   for (const entry of entries) {
     const separator = entry.indexOf('=')
     if (separator < 1) return null
     const key = entry.slice(0, separator)
     const encoded = entry.slice(separator + 1)
-    if (!['paymentKey', 'orderId', 'amount'].includes(key) || values.has(key) || !encoded) return null
+    if (!allowedKeys.includes(key) || values.has(key) || !encoded) return null
     try {
       const value = decodeURIComponent(encoded)
       if (!value) return null
@@ -80,6 +81,8 @@ function exactSuccessRedirect(search: string): {
   const paymentKey = values.get('paymentKey')
   const providerOrderId = values.get('orderId')
   const amount = values.get('amount')
+  const paymentType = values.get('paymentType')
   if (!paymentKey || !providerOrderId || !amount || !/^\d+$/.test(amount)) return null
+  if (paymentType !== undefined && paymentType !== 'NORMAL') return null
   return { paymentKey, providerOrderId, amount }
 }
