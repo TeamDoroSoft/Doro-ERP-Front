@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
+  cancelPublicCheckout,
   confirmPublicCheckout,
   getPublicCheckoutStatus,
   PublicCheckoutContractError,
@@ -45,7 +46,8 @@ async function initialize() {
     return
   }
   if (isSuccessRoute.value || isFailRoute.value) {
-    await recoverStatus(isFailRoute.value ? '결제를 취소했습니다.' : undefined)
+    if (isFailRoute.value) await cancelCheckout()
+    else await recoverStatus()
     return
   }
   if (!captured.token) return unavailable()
@@ -56,6 +58,16 @@ async function initialize() {
     applyStatus(resolved)
   } catch (error) {
     handleInitialError(error)
+  }
+}
+
+async function cancelCheckout() {
+  screen.value = 'checking'
+  message.value = '결제 취소를 처리하고 있어요.'
+  try {
+    applyResult(await cancelPublicCheckout(publicId.value), '결제를 취소했습니다.')
+  } catch {
+    await recoverStatus('결제를 취소했습니다.')
   }
 }
 

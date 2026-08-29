@@ -47,6 +47,20 @@ function api(overrides: Partial<OrderPaymentApi> = {}): OrderPaymentApi {
 describe('useOrderPayment', () => {
   afterEach(() => vi.useRealTimers())
 
+  it('does not resume a PENDING payment after the order is cancelled', async () => {
+    const cancelledOrder = ref<OrderResponse>({ ...order, status: 'CANCELLED' })
+    const model = useOrderPayment(cancelledOrder, {
+      api: api({
+        getPaymentByOrder: vi
+          .fn<(orderId: string) => Promise<PaymentResponse>>()
+          .mockResolvedValue(pending),
+      }),
+    })
+    await discovery(model)
+    expect(model.payment.value?.status).toBe('PENDING')
+    expect(model.canResume.value).toBe(false)
+  })
+
   it('creates only a CREATED order, blocks duplicate clicks, and retains the create key for retries', async () => {
     let rejectFirst!: (reason: unknown) => void
     const createPayment = vi

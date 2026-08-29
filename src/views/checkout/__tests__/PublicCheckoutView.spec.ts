@@ -3,6 +3,7 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import PublicCheckoutView from '@/views/checkout/PublicCheckoutView.vue'
 import {
+  cancelPublicCheckout,
   confirmPublicCheckout,
   getPublicCheckoutStatus,
   resolvePublicCheckout,
@@ -22,6 +23,7 @@ vi.mock('@/api/publicCheckout', async (importOriginal) => {
     confirmPublicCheckout:
       vi.fn<(publicId: string, input: unknown, signal?: AbortSignal) => Promise<PublicCheckoutResult>>(),
     getPublicCheckoutStatus: vi.fn<(publicId: string) => Promise<PublicCheckoutResult>>(),
+    cancelPublicCheckout: vi.fn<(publicId: string) => Promise<PublicCheckoutResult>>(),
   }
 })
 
@@ -95,6 +97,14 @@ describe('PublicCheckoutView', () => {
     expect(wrapper.text()).toContain('결제가 완료되었습니다')
     expect(getPublicCheckoutStatus).not.toHaveBeenCalled()
     expect(window.location.search).toBe('')
+  })
+
+  it('marks a Toss fail redirect cancelled instead of polling PROCESSING forever', async () => {
+    vi.mocked(cancelPublicCheckout).mockResolvedValue({ status: 'CANCELLED' })
+    const wrapper = await mountAt('/pay/public-1/fail', '/pay/public-1/fail?code=PAY_PROCESS_CANCELED')
+    expect(cancelPublicCheckout).toHaveBeenCalledWith('public-1')
+    expect(wrapper.text()).toContain('결제를 취소했습니다.')
+    expect(getPublicCheckoutStatus).not.toHaveBeenCalled()
   })
 
   it('fails closed after refresh removes a token that was not exchanged for a cookie', async () => {

@@ -64,7 +64,9 @@ export function useOrderPayment(
       toValue(order).status === 'CREATED' &&
       !payment.value,
   )
-  const canResume = computed(() => payment.value?.status === 'PENDING')
+  const canResume = computed(
+    () => toValue(order).status === 'CREATED' && payment.value?.status === 'PENDING',
+  )
   const canCancel = computed(() => payment.value?.status === 'PAID')
   const isBusy = computed(() => discovering.value || loading.value || cancelling.value)
 
