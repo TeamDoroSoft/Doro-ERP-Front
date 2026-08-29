@@ -5,6 +5,7 @@ import { ApiError, safeApiErrorMessage } from '@/api/http'
 import { formatCurrencyInt64 } from '@/api/int64'
 import {
   checkoutTableSession,
+  cancelTableSessionCheckout,
   getTableSession,
   type TableSession,
   type TableSessionCheckoutHandoff,
@@ -60,6 +61,21 @@ async function checkout() {
   }
 }
 
+async function cancelCheckout() {
+  if (loading.value || props.session.status !== 'CHECKOUT_PENDING') return
+  loading.value = true
+  errorMessage.value = ''
+  notice.value = ''
+  try {
+    emit('updated', await cancelTableSessionCheckout(props.session.sessionId, props.session.version))
+    handoff.value = null
+    notice.value = '결제 요청을 취소했습니다. 새 결제를 진행할 수 있습니다.'
+  } catch (error) {
+    errorMessage.value = safeApiErrorMessage(error, '결제 요청을 취소하지 못했습니다. 상태를 새로고침해 주세요.')
+    try { emit('updated', await getTableSession(props.session.sessionId)) } catch { /* preserve original error */ }
+  } finally { loading.value = false }
+}
+
 function tableCheckoutMessage(error: unknown) {
   if (error instanceof ApiError && error.status === 409)
     return '다른 직원이 테이블을 변경했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.'
@@ -91,6 +107,15 @@ function tableCheckoutMessage(error: unknown) {
     <p v-if="session.status === 'CHECKOUT_PENDING'" class="lock-notice">
       합산 결제가 진행 중이라 추가 주문이 잠겨 있습니다.
     </p>
+    <dl v-if="handoff && session.status === 'CHECKOUT_PENDING'" class="handoff-status">
+      <div><dt>결제 Kiosk</dt><dd>{{ handoff.targetPaymentDeviceName }}</dd></div>
+      <div><dt>결제 코드</dt><dd>{{ handoff.displayCode }}</dd></div>
+      <div><dt>결제 상태</dt><dd>{{ displayLabel(handoff.status) }}</dd></div>
+    </dl>
+    <div v-if="session.status === 'CHECKOUT_PENDING'" class="pending-controls">
+      <button type="button" :disabled="loading" @click="refresh">결제 상태 새로고침</button>
+      <button type="button" :disabled="loading" @click="cancelCheckout">결제 취소</button>
+    </div>
     <ul v-if="session.orders.length">
       <li v-for="order in session.orders" :key="order.orderId">
         <span><strong>주문 #{{ order.displayNumber }}</strong><small>{{ order.itemSummary }}</small></span>

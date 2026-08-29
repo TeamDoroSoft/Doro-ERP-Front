@@ -78,3 +78,11 @@ export function checkoutTableSession(
     TABLE_SESSION_INT64,
   )
 }
+
+export function cancelTableSessionCheckout(id: string, version: Int64String): Promise<TableSession> {
+  return apiRequestExact<TableSession>(
+    `/table-sessions/${encodeURIComponent(id)}/checkout/cancel`,
+    { method: 'POST', headers: { 'If-Match': `"${version}"` } },
+    TABLE_SESSION_INT64,
+  )
+}
