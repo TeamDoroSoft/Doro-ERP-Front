@@ -37,6 +37,27 @@ describe('public checkout navigation credential capture', () => {
     expect(replaceState).toHaveBeenCalledWith(null, '', '/pay/public-1/success')
   })
 
+  it('captures a Toss V2 NORMAL redirect in any query order without exposing paymentType', () => {
+    const replaceState = historyReplace()
+    const captured = capturePublicCheckoutNavigation(
+      {
+        pathname: '/pay/public-1/success',
+        search: '?amount=12000&paymentType=NORMAL&orderId=provider-1&paymentKey=pk_123',
+        hash: '',
+      },
+      { state: null, replaceState },
+    )
+
+    expect(captured).toEqual({
+      token: '',
+      paymentKey: 'pk_123',
+      providerOrderId: 'provider-1',
+      amount: '12000',
+    })
+    expect(captured).not.toHaveProperty('paymentType')
+    expect(replaceState).toHaveBeenCalledWith(null, '', '/pay/public-1/success')
+  })
+
   it('does not accept a malformed provider amount for confirmation', () => {
     const captured = capturePublicCheckoutNavigation(
       { pathname: '/pay/public-1/success', search: '?amount=12.5', hash: '' },
@@ -67,6 +88,13 @@ describe('public checkout navigation credential capture', () => {
     '?paymentKey=key&orderId=order',
     '?paymentKey=first&paymentKey=second&amount=1',
     '?paymentKey=key&orderId=order&amount=1&extra=value',
+    '?paymentType=BRANDPAY&paymentKey=key&orderId=order&amount=1',
+    '?paymentType=KEYIN&paymentKey=key&orderId=order&amount=1',
+    '?paymentType=&paymentKey=key&orderId=order&amount=1',
+    '?paymentType=NORMAL&paymentType=NORMAL&paymentKey=key&orderId=order&amount=1',
+    '?paymentType=NORMAL&paymentKey=key&orderId=order&amount=1&extra=value',
+    '?paymentType=NORMAL&paymentKey=key&orderId=order&amount=%E0%A4%A',
+    '?paymentType=NORMAL&paymentKey=key&orderId=order&amount=1&',
   ])('scrubs and rejects an incomplete or ambiguous redirect: %s', (search) => {
     const captured = capturePublicCheckoutNavigation(
       { pathname: '/pay/public-1/success', search, hash: '' },
