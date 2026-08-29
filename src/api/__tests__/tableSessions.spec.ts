@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addOrderToTableSession,
+  cancelTableSessionCheckout,
   checkoutTableSession,
   getTableSession,
   listActiveTableSessions,
@@ -70,5 +71,14 @@ describe('table sessions API', () => {
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
       targetPaymentDeviceId: 'd1',
     })
+  })
+
+  it('cancels a pending checkout with the table-session version', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(sessionWire), { status: 200 }))
+    await cancelTableSessionCheckout(sessionWire.sessionId, '7')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`/api/v1/table-sessions/${sessionWire.sessionId}/checkout/cancel`)
+    const options = fetchMock.mock.calls[0]?.[1]
+    expect(options?.method).toBe('POST')
+    expect(new Headers(options?.headers).get('If-Match')).toBe('"7"')
   })
 })
